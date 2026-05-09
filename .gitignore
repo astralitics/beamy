@@ -1,0 +1,30 @@
+node_modules/
+dist/
+build/
+.turbo/
+.next/
+.cache/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# coverage / test
+coverage/
+.nyc_output/
+
+# build artifacts
+*.tsbuildinfo
