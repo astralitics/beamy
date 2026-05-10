@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getDb, orgMemberships, type OrgRole } from "@riffy/db";
+import { getDb, orgMemberships, type OrgRole } from "@beamy/db";
 
 /**
  * Context shape — built per request before handing off to procedures.

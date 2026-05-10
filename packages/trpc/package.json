@@ -1,5 +1,5 @@
 {
-  "name": "@riffy/trpc",
+  "name": "@beamy/trpc",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,8 +14,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@riffy/db": "workspace:*",
-    "@riffy/shared": "workspace:*",
+    "@beamy/db": "workspace:*",
+    "@beamy/shared": "workspace:*",
     "@trpc/server": "^11.0.0-rc.660",
     "drizzle-orm": "^0.36.4",
     "zod": "^3.23.8"

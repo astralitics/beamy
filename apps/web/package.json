@@ -1,5 +1,5 @@
 {
-  "name": "@riffy/web",
+  "name": "@beamy/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@riffy/shared": "workspace:*",
-    "@riffy/trpc": "workspace:*",
+    "@beamy/shared": "workspace:*",
+    "@beamy/trpc": "workspace:*",
     "@tanstack/react-query": "^5.62.7",
     "@trpc/client": "^11.0.0-rc.660",
     "@trpc/react-query": "^11.0.0-rc.660",
