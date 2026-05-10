@@ -3,6 +3,7 @@ import { Sidebar } from "./components/sidebar";
 import HomePage from "./pages/home";
 import ClientsPage from "./pages/clients";
 import ServicesPage from "./pages/services";
+import VendorsPage from "./pages/vendors";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/clients" element={<ClientsPage />} />
+          <Route path="/vendors" element={<VendorsPage />} />
           <Route path="/services" element={<ServicesPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
