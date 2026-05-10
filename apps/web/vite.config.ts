@@ -34,20 +34,23 @@ export default defineConfig(({ mode }) => {
  * Mount the tRPC fetch handler as Vite middleware at /api/trpc so the SPA
  * can call tRPC procedures during dev with no separate API server.
  *
- * Lazy-imports `@beamy/trpc` and `@trpc/server/adapters/fetch` inside
- * `configureServer` so that `vite build` (which never runs dev middleware)
- * doesn't try to resolve the workspace's .ts source through Node's ESM
- * loader. `apply: "serve"` further scopes this plugin to dev only.
+ * Routes module loading through `server.ssrLoadModule` rather than Node's
+ * raw `import()`. Vite's transform pipeline handles workspace .ts sources
+ * (TS Bundler-mode resolution); Node's ESM loader does not. `apply: "serve"`
+ * scopes the plugin to dev only — `vite build` never runs configureServer.
  */
 function trpcDevServerPlugin(devUserId: string) {
   return {
     name: "beamy-trpc-dev",
     apply: "serve" as const,
     async configureServer(server: ViteDevServer) {
-      const { fetchRequestHandler } = await import(
-        "@trpc/server/adapters/fetch"
+      const trpcModule = await server.ssrLoadModule("@beamy/trpc");
+      const adapterModule = await server.ssrLoadModule(
+        "@trpc/server/adapters/fetch",
       );
-      const { appRouter, buildContext } = await import("@beamy/trpc");
+      const appRouter = trpcModule.appRouter;
+      const buildContext = trpcModule.buildContext;
+      const fetchRequestHandler = adapterModule.fetchRequestHandler;
 
       server.middlewares.use(async (req, res, next) => {
         if (!req.url || !req.url.startsWith("/api/trpc")) return next();
