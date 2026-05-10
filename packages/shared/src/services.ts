@@ -1,16 +1,5 @@
 import { z } from "zod";
-
-// Duplicated from vendors.ts (PR #5) to keep services independent of that
-// PR's merge order. Worth deduplicating into a shared primitives file in a
-// follow-up once both have landed.
-const billingUnitSchema = z.enum([
-  "hour",
-  "day",
-  "project",
-  "retainer",
-  "unit",
-]);
-export type BillingUnit = z.infer<typeof billingUnitSchema>;
+import { billingUnitSchema } from "./vendors";
 
 /**
  * services — the firm's standard offerings catalog. Examples:
