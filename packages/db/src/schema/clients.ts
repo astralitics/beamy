@@ -1,5 +1,12 @@
 import { sql } from "drizzle-orm";
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { orgs } from "./orgs";
 
 /**
@@ -46,3 +53,42 @@ export const clients = pgTable(
 
 export type Client = typeof clients.$inferSelect;
 export type NewClient = typeof clients.$inferInsert;
+
+/**
+ * client_contacts — additional contacts beyond `clients.primary_contact`.
+ * Same shape as `vendor_contacts` — sub-entity keyed off the parent with
+ * audit columns. `is_primary` is informational (no DB constraint enforcing
+ * a single primary per client); the parent's `primary_contact` text column
+ * stays as a free-text fallback used in list views.
+ */
+export const clientContacts = pgTable(
+  "client_contacts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    role: text("role"),
+    email: text("email"),
+    phone: text("phone"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdBy: text("created_by").notNull(),
+    updatedBy: text("updated_by").notNull(),
+  },
+  (table) => ({
+    byClient: index("client_contacts_by_client").on(table.clientId),
+  }),
+);
+
+export type ClientContact = typeof clientContacts.$inferSelect;
+export type NewClientContact = typeof clientContacts.$inferInsert;

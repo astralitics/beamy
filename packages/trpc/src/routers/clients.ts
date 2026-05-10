@@ -1,13 +1,23 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { auditLog, clients, getDb } from "@beamy/db";
+import { auditLog, clientContacts, clients, getDb } from "@beamy/db";
 import {
+  clientContactCreateInputSchema,
+  clientContactIdInputSchema,
+  clientContactListInputSchema,
+  clientContactUpdateInputSchema,
   clientCreateInputSchema,
   clientIdInputSchema,
   clientListInputSchema,
   clientUpdateInputSchema,
 } from "@beamy/shared";
 import { orgScopedProcedure, router } from "../init";
+
+function emptyToNull(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
 
 /**
  * `clients` router — first concrete entity in M1.
@@ -154,6 +164,155 @@ export const clientsRouter = router({
         input.id,
         "active",
       );
+    }),
+
+  // ─────────────────── client_contacts sub-entity ───────────────────
+
+  listContacts: orgScopedProcedure
+    .input(clientContactListInputSchema)
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const ownsClient = await db
+        .select({ id: clients.id })
+        .from(clients)
+        .where(
+          and(eq(clients.id, input.clientId), eq(clients.orgId, ctx.orgId)),
+        )
+        .limit(1);
+      if (!ownsClient[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+      return await db
+        .select()
+        .from(clientContacts)
+        .where(
+          and(
+            eq(clientContacts.clientId, input.clientId),
+            eq(clientContacts.orgId, ctx.orgId),
+          ),
+        )
+        .orderBy(desc(clientContacts.isPrimary), asc(clientContacts.name));
+    }),
+
+  addContact: orgScopedProcedure
+    .input(clientContactCreateInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        const ownsClient = await tx
+          .select({ id: clients.id })
+          .from(clients)
+          .where(
+            and(eq(clients.id, input.clientId), eq(clients.orgId, ctx.orgId)),
+          )
+          .limit(1);
+        if (!ownsClient[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const [row] = await tx
+          .insert(clientContacts)
+          .values({
+            orgId: ctx.orgId,
+            clientId: input.clientId,
+            name: input.name,
+            role: emptyToNull(input.role),
+            email: emptyToNull(input.email),
+            phone: emptyToNull(input.phone),
+            isPrimary: input.isPrimary ?? false,
+            createdBy: ctx.actor,
+            updatedBy: ctx.actor,
+          })
+          .returning();
+        if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        await tx.insert(auditLog).values({
+          orgId: ctx.orgId,
+          actor: ctx.actor,
+          action: "client_contact.created",
+          resourceType: "client_contact",
+          resourceId: row.id,
+          payload: input,
+        });
+        return row;
+      });
+    }),
+
+  updateContact: orgScopedProcedure
+    .input(clientContactUpdateInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        const existing = await tx
+          .select()
+          .from(clientContacts)
+          .where(
+            and(
+              eq(clientContacts.id, input.id),
+              eq(clientContacts.orgId, ctx.orgId),
+            ),
+          )
+          .limit(1);
+        if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const setClause: Partial<typeof clientContacts.$inferInsert> = {
+          updatedAt: new Date(),
+          updatedBy: ctx.actor,
+        };
+        const p = input.patch;
+        if (p.name !== undefined) setClause.name = p.name;
+        if (p.role !== undefined) setClause.role = emptyToNull(p.role);
+        if (p.email !== undefined) setClause.email = emptyToNull(p.email);
+        if (p.phone !== undefined) setClause.phone = emptyToNull(p.phone);
+        if (p.isPrimary !== undefined) setClause.isPrimary = p.isPrimary;
+
+        const [updated] = await tx
+          .update(clientContacts)
+          .set(setClause)
+          .where(eq(clientContacts.id, input.id))
+          .returning();
+        if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        await tx.insert(auditLog).values({
+          orgId: ctx.orgId,
+          actor: ctx.actor,
+          action: "client_contact.updated",
+          resourceType: "client_contact",
+          resourceId: input.id,
+          payload: input.patch,
+        });
+        return updated;
+      });
+    }),
+
+  removeContact: orgScopedProcedure
+    .input(clientContactIdInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        const existing = await tx
+          .select()
+          .from(clientContacts)
+          .where(
+            and(
+              eq(clientContacts.id, input.id),
+              eq(clientContacts.orgId, ctx.orgId),
+            ),
+          )
+          .limit(1);
+        if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+        await tx
+          .delete(clientContacts)
+          .where(eq(clientContacts.id, input.id));
+
+        await tx.insert(auditLog).values({
+          orgId: ctx.orgId,
+          actor: ctx.actor,
+          action: "client_contact.deleted",
+          resourceType: "client_contact",
+          resourceId: input.id,
+          payload: existing[0],
+        });
+        return { ok: true as const };
+      });
     }),
 });
 

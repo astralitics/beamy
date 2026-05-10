@@ -36,3 +36,43 @@ export const clientIdInputSchema = z.object({
   id: z.string().uuid(),
 });
 export type ClientIdInput = z.infer<typeof clientIdInputSchema>;
+
+// ─────────────────── client_contacts ───────────────────
+
+export const clientContactCreateInputSchema = z.object({
+  clientId: z.string().uuid(),
+  name: z.string().trim().min(1, "Name is required").max(200),
+  role: z.string().trim().max(120).optional(),
+  email: z.string().trim().email().max(200).optional().or(z.literal("")),
+  phone: z.string().trim().max(60).optional(),
+  isPrimary: z.boolean().default(false),
+});
+export type ClientContactCreateInput = z.infer<
+  typeof clientContactCreateInputSchema
+>;
+
+export const clientContactUpdateInputSchema = z.object({
+  id: z.string().uuid(),
+  patch: z.object({
+    name: z.string().trim().min(1).max(200).optional(),
+    role: z.string().trim().max(120).optional(),
+    email: z.string().trim().email().max(200).optional().or(z.literal("")),
+    phone: z.string().trim().max(60).optional(),
+    isPrimary: z.boolean().optional(),
+  }),
+});
+export type ClientContactUpdateInput = z.infer<
+  typeof clientContactUpdateInputSchema
+>;
+
+export const clientContactIdInputSchema = z.object({
+  id: z.string().uuid(),
+});
+export type ClientContactIdInput = z.infer<typeof clientContactIdInputSchema>;
+
+export const clientContactListInputSchema = z.object({
+  clientId: z.string().uuid(),
+});
+export type ClientContactListInput = z.infer<
+  typeof clientContactListInputSchema
+>;
