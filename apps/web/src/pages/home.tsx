@@ -20,9 +20,10 @@ export default function HomePage() {
             <code className="text-slate-800">apps/web</code> — this app.
           </li>
           <li>
-            <code className="text-slate-800">packages/db</code> — Drizzle schema
-            for <code>orgs</code>, <code>org_memberships</code>,{" "}
-            <code>invitations</code>, <code>audit_log</code>.
+            <code className="text-slate-800">packages/db</code> — Drizzle schema +
+            baseline migration for <code>orgs</code>,{" "}
+            <code>org_memberships</code>, <code>invitations</code>,{" "}
+            <code>audit_log</code>.
           </li>
           <li>
             <code className="text-slate-800">packages/trpc</code> —{" "}
@@ -36,11 +37,12 @@ export default function HomePage() {
       </div>
 
       <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-        <p className="font-medium">Next up</p>
+        <p className="font-medium">Next up — M1</p>
         <p className="mt-1">
-          Stand up Supabase (Auth + Postgres), generate the first migration,
-          wire the tRPC handler into Vite, and ship the sign-up flow that
-          creates a fresh org.
+          Stand up Supabase (Auth + Postgres), apply the baseline migration,
+          wire the tRPC handler into Vite, ship sign-up + invite flows, and
+          land core entity CRUD (clients, vendors, services, vendor compliance)
+          with the i18n scaffold for US + MX.
         </p>
       </div>
     </div>
