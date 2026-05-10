@@ -15,6 +15,13 @@
       "when": 1778443829710,
       "tag": "0001_living_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778446078336,
+      "tag": "0002_stormy_cargill",
+      "breakpoints": true
     }
   ]
 }
