@@ -12,7 +12,8 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "db:generate": "pnpm --filter @beamy/db generate",
-    "db:migrate": "pnpm --filter @beamy/db migrate"
+    "db:migrate": "pnpm --filter @beamy/db migrate",
+    "db:seed": "pnpm --filter @beamy/db seed"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
