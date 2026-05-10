@@ -1,11 +1,17 @@
 # CLAUDE.md
 
-Conventions for Claude sessions in the Riffy repo. Anything generic belongs in `~/.claude/CLAUDE.md`.
+Conventions for Claude sessions in the Beamy repo. Anything generic belongs in `~/.claude/CLAUDE.md`.
+
+## Where Beamy came from
+
+Beamy is a fork of [Riffy](../riffy) — same chassis (multi-tenancy, tRPC tiers, audit, money, workflow plan), different domain. Riffy targets marketing agencies; Beamy targets **construction & design agencies** (projects, vendors, RFIs, submittals, change orders, FF&E, budgets/draws, etc.).
+
+The architectural invariants below carry over verbatim. The domain model in `docs/design.md` is the original Riffy spec, preserved as a pattern reference until the Beamy domain rewrite lands.
 
 ## Read first
 
-- **Vision + architecture:** [`docs/design.md`](docs/design.md) — source of truth. Sections worth pinning: §4 mental model, §5 data model, §13 decisions log (D-1 through D-18), §15 onboarding flows.
-- **Current state:** initial scaffold landed at commit `3904b53`. Milestone 0 is in progress; auth + the first migration are not yet wired (see §11 roadmap).
+- **Vision + architecture:** [`docs/design.md`](docs/design.md) — has a "DOMAIN PIVOT" header noting which sections (mental model, data model, decisions log entries about brand) are being replaced. Architectural sections (tenancy, tRPC tiers, audit, money) carry over unchanged.
+- **Current state:** scaffold inherited from Riffy at commit `3904b53` (M0 monorepo + tenancy primitives). No auth wired, no migrations applied yet.
 
 The doc is the spec. If code and doc disagree, fix one — don't let them drift.
 
@@ -19,36 +25,38 @@ packages/
   shared/           Zod schemas + domain types
   trpc/             tRPC routers — orgScopedProcedure middleware lives here
   (later) workflow/ Workflow runner + step types
-  (later) brand/    Brand schema + validation
-docs/               design.md (the spec)
+  (later) <domain/> Domain package(s) — names TBD when spec lands (probably project, vendor, etc.)
+docs/               design.md (the spec — Riffy original + pending Beamy rewrite)
 ```
 
-The `mcp/` app and the `workflow/` + `brand/` packages don't exist yet — they land in Milestones 3, 4, 6 respectively.
+The `mcp/` app and the `workflow/` package don't exist yet. Domain packages will land once the Beamy spec rewrite is done.
 
 ## Daily commands
 
 | Command | What |
 | --- | --- |
-| `pnpm dev` | Boot the web app on http://localhost:5173 (`pnpm` filter into `@riffy/web`). |
+| `pnpm dev` | Boot the web app on http://localhost:5173 (`pnpm` filter into `@beamy/web`). |
 | `pnpm typecheck` | Recursive typecheck across all packages. **Run before committing.** |
 | `pnpm db:generate` | `drizzle-kit generate` — emits a new SQL migration from schema files. Reads `DATABASE_URL`. |
 | `pnpm db:migrate` | Apply pending migrations against `DATABASE_URL`. Reads `.env`. |
 
 ## Architectural invariants (don't break)
 
+These carry over from Riffy unchanged — they're the chassis, not the domain.
+
 - **Multi-tenancy.** Every business table has `org_id NOT NULL`. Every tRPC procedure that touches business data uses `orgScopedProcedure` (in [`packages/trpc/src/init.ts`](packages/trpc/src/init.ts)) — which auto-resolves `(user_id, org_id)` from the auth context. Do NOT write raw queries that ignore `ctx.orgId`. Do NOT add a procedure on `protectedProcedure` for tenant-data access — that path is for org-creation/invite-redemption only. (D-10)
 
 - **Single user → single org in v1.** The schema enforces this with a unique index on `org_memberships.user_id`. Don't loosen it. (D-12)
 
-- **Money is always `(amount, currency_code)`.** Whenever you add a money column, it comes paired with a currency column. Storing amounts as plain numbers is a v1 invariant violation. (D-17)
+- **Money is always `(amount, currency_code)`.** Construction is money-heavy (budgets, contracts, draws, change orders) so this matters more here than it did in Riffy. Whenever you add a money column, it comes paired with a currency column. (D-17)
 
-- **Audit attribution via `actor` strings.** Format: `user:<uuid>` / `agent:claude` / `webhook:<src>`. The tRPC context computes this automatically; pass it through to any helper that writes to `audit_log`. (Mirrors Cadenza's pattern.)
+- **Audit attribution via `actor` strings.** Format: `user:<uuid>` / `agent:claude` / `webhook:<src>`. The tRPC context computes this automatically; pass it through to any helper that writes to `audit_log`.
 
-- **Brand writes from agents go through a review queue.** Use the `brand_change_proposals` table; never write `project_brand` directly from an MCP tool. (D-8)
+- **Agent writes go through a review queue, never directly.** Riffy's pattern was `brand_change_proposals`; Beamy will have its own equivalents (probably `spec_change_proposals`, `change_order_proposals`, etc.). The pattern stays: agents propose, humans approve, then it lands. (D-8)
 
-- **Brand intake is a workflow.** Don't build a parallel onboarding flow for it — it runs through the same engine as everything else. (D-14)
+- **Structured intake is a workflow.** Whatever the construction/design equivalent of "brand intake" is (program brief? scope of work? FF&E intake?), it runs through the same workflow engine — don't build a parallel onboarding flow. (D-14)
 
-- **HITL UI is the dashboard, deep-linked from Claude.** Don't try to embed forms in MCP tool responses or build artifact-based intake in v1. (D-15)
+- **HITL UI is the dashboard, deep-linked from Claude.** No forms in MCP tool responses, no artifact-based intake in v1. (D-15)
 
 - **Single `prompt_templates` and `workflow_definitions` tables, scope-discriminated.** Both use `scope ('company' | 'project')` + nullable `project_id`. No parallel project-scoped tables. (D-18)
 
@@ -76,18 +84,18 @@ orgScopedProcedure      requires user + org membership; injects orgId + role  �
 
 ## Gotchas (live)
 
-- **Drizzle schema changes require regenerating the migration AND restarting the dev server.** The schema is bundled at boot; HMR doesn't repick up new columns. Symptom is `column "X" does not exist` after a migration that ran. Same gotcha as Cadenza.
+- **Drizzle schema changes require regenerating the migration AND restarting the dev server.** The schema is bundled at boot; HMR doesn't repick up new columns. Symptom is `column "X" does not exist` after a migration that ran.
 - **`.env.example` has both `DATABASE_URL` (port 6543, pooler) AND will need `DATABASE_URL_DIRECT` (port 5432) eventually** for Drizzle's migrator advisory locks. Add the direct URL when you set up Supabase.
 - **The launch.json at `.claude/launch.json`** is the only one you need — it serves the cwd. Don't add cd-shims.
 
 ## What's not in scope yet
 
-See [`docs/design.md` §12](docs/design.md). Highlights:
-- No MCP server until Milestone 3
-- No workflow engine until Milestone 4
+- No MCP server (Riffy's M3) — Beamy will have one but design pending
+- No workflow engine (Riffy's M4)
 - No background job queue (synchronous workflow runner)
 - Cross-org users are deferred (1 user → 1 org in v1)
+- **The Beamy domain spec itself** — `docs/design.md` is still the Riffy spec. Construction/design domain rewrite is the immediate next milestone after this scaffold lands.
 
 ## Memory + handoffs
 
-When asked to leave a note for the next session, save under `~/.claude/projects/-Users-adrianbazbaz-CursorProjects-riffy/memory/` and add a one-liner pointer to `MEMORY.md`. (Riffy's memory directory will be auto-created on first save.)
+When asked to leave a note for the next session, save under `~/.claude/projects/-Users-adrianbazbaz-CursorProjects-beamy/memory/` and add a one-liner pointer to `MEMORY.md`. (Beamy's memory directory will be auto-created on first save.)
