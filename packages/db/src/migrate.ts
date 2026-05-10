@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 
 /**
  * Apply pending migrations from packages/db/migrations.
- * Run via `pnpm --filter @riffy/db migrate`.
+ * Run via `pnpm --filter @beamy/db migrate`.
  */
 async function main() {
   const url = process.env.DATABASE_URL;

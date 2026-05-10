@@ -5,7 +5,7 @@ export default function HomePage() {
         Milestone 0 — Scaffold + tenancy
       </p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-        Riffy is alive.
+        Beamy is alive.
       </h1>
       <p className="mt-3 text-slate-600">
         This is the bare web shell — a sidenav, a router, Tailwind, and tRPC

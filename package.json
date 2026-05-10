@@ -1,5 +1,5 @@
 {
-  "name": "riffy",
+  "name": "beamy",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,11 +8,11 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "pnpm --filter @riffy/web dev",
+    "dev": "pnpm --filter @beamy/web dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "db:generate": "pnpm --filter @riffy/db generate",
-    "db:migrate": "pnpm --filter @riffy/db migrate"
+    "db:generate": "pnpm --filter @beamy/db generate",
+    "db:migrate": "pnpm --filter @beamy/db migrate"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

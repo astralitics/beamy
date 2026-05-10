@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getDb, orgs } from "@riffy/db";
+import { getDb, orgs } from "@beamy/db";
 import { orgScopedProcedure, publicProcedure, router } from "../init";
 
 /**
