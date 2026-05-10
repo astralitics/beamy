@@ -8,6 +8,13 @@
       "when": 1778440745961,
       "tag": "0000_glossy_sebastian_shaw",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778443829710,
+      "tag": "0001_living_hiroim",
+      "breakpoints": true
     }
   ]
 }

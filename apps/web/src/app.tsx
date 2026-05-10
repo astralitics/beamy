@@ -1,6 +1,7 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import { Sidebar } from "./components/sidebar";
 import HomePage from "./pages/home";
+import ClientsPage from "./pages/clients";
 
 export default function App() {
   return (
@@ -9,6 +10,7 @@ export default function App() {
       <main className="flex-1 overflow-y-auto">
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/clients" element={<ClientsPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
