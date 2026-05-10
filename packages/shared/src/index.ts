@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./clients";
+
 export const orgRoleSchema = z.enum(["owner", "admin", "member"]);
 export type OrgRole = z.infer<typeof orgRoleSchema>;
 
