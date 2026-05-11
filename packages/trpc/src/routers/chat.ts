@@ -1,16 +1,17 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { and, asc, desc, eq } from "drizzle-orm";
+import type {
+  MessageParam,
+  ContentBlock,
+  ToolResultBlockParam,
+} from "@anthropic-ai/sdk/resources/messages";
+import { and, asc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   auditLog,
-  bills,
   chatMessages,
   clients,
   getDb,
-  invoices,
   projects,
-  rooms,
-  specItems,
 } from "@beamy/db";
 import {
   chatListInputSchema,
@@ -18,21 +19,30 @@ import {
   chatSendInputSchema,
 } from "@beamy/shared";
 import { orgScopedProcedure, router } from "../init";
+import { CHAT_TOOLS, runTool, type ToolContext } from "./chat-tools";
 
 const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5";
 const MAX_OUTPUT_TOKENS = 1024;
+/** Cap on tool-loop iterations per user turn. */
+const MAX_TOOL_ITERATIONS = 6;
 
 /**
  * `chat` router — the project-scoped assistant.
  *
- * Thin slice for v1: no streaming, no tool use. The system prompt is
- * rebuilt fresh each turn from current project state (project facts,
- * rooms, open specs, bills, invoices, recent activity), so the
- * assistant always sees up-to-date data without a stale snapshot.
+ * v2 mechanics: **tool use enabled.** The system prompt is now slim
+ * (project facts + a hint about what tools exist); the assistant pulls
+ * the rest via tool calls. This unlocks recall queries — "what fridge
+ * in the kitchen?" — that v1's prompt-stuffing couldn't answer (assets
+ * weren't in the prompt).
  *
- * Tool use (so the assistant can run its own queries) is the next
- * iteration; until then, "stuff the context" is the simple thing that
- * works for normal-size projects.
+ * Loop: call Anthropic with tools → if stop_reason='tool_use',
+ * execute each tool_use block → append tool_result block(s) as a user
+ * message → loop. Bail after MAX_TOOL_ITERATIONS to prevent runaway
+ * cost.
+ *
+ * Persistence: only the user message and the FINAL assistant text
+ * response land in chat_messages. Intermediate tool calls are
+ * implementation detail. Token usage is summed across all iterations.
  */
 export const chatRouter = router({
   list: orgScopedProcedure
@@ -78,7 +88,6 @@ export const chatRouter = router({
         });
       }
 
-      // Verify project ownership.
       const projectRow = await db
         .select()
         .from(projects)
@@ -91,16 +100,18 @@ export const chatRouter = router({
         .limit(1);
       if (!projectRow[0]) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // Build the system prompt from current project state. Parallel
-      // fetches; payload is just for the LLM, not held in DB.
+      // Build a slim system prompt — project facts + tool guidance.
+      // Tools fetch the deeper data (assets, materials, specs, bills).
       const systemPrompt = await buildSystemPrompt(
         db,
         ctx.orgId,
         projectRow[0],
       );
 
-      // Fetch existing conversation history (oldest first — Anthropic
-      // expects the message array in chronological order).
+      // Past conversation history as plain user/assistant text. Tool
+      // calls from earlier turns are not replayed — if the assistant
+      // needs that data again, it calls the tool again. (Trade-off:
+      // more API tokens; simpler state.)
       const history = await db
         .select({
           role: chatMessages.role,
@@ -116,8 +127,8 @@ export const chatRouter = router({
         .orderBy(asc(chatMessages.createdAt))
         .limit(40);
 
-      // Append the user message to the DB first so it's visible even
-      // if the LLM call fails.
+      // Persist the user message before calling the LLM so a failed
+      // turn isn't silently lost.
       const [userRow] = await db
         .insert(chatMessages)
         .values({
@@ -130,25 +141,88 @@ export const chatRouter = router({
         .returning();
       if (!userRow) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // Call Anthropic.
       const anthropic = new Anthropic({ apiKey });
-      let response;
+      const toolCtx: ToolContext = {
+        orgId: ctx.orgId,
+        projectId: input.projectId,
+      };
+
+      // Running message array — grows as we loop on tool use.
+      const messages: MessageParam[] = [
+        ...history.map<MessageParam>((h) => ({
+          role: h.role as "user" | "assistant",
+          content: h.content,
+        })),
+        { role: "user", content: input.content },
+      ];
+
+      let totalInputTokens = 0;
+      let totalOutputTokens = 0;
+      const toolsUsed: string[] = [];
+      let finalText = "";
+      let finalModel = DEFAULT_MODEL;
+
       try {
-        response = await anthropic.messages.create({
-          model: DEFAULT_MODEL,
-          max_tokens: MAX_OUTPUT_TOKENS,
-          system: systemPrompt,
-          messages: [
-            ...history.map((h) => ({
-              role: h.role as "user" | "assistant",
-              content: h.content,
-            })),
-            { role: "user" as const, content: input.content },
-          ],
-        });
+        for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+          const response = await anthropic.messages.create({
+            model: DEFAULT_MODEL,
+            max_tokens: MAX_OUTPUT_TOKENS,
+            system: systemPrompt,
+            tools: CHAT_TOOLS,
+            messages,
+          });
+
+          totalInputTokens += response.usage.input_tokens;
+          totalOutputTokens += response.usage.output_tokens;
+          finalModel = response.model;
+
+          // Append the assistant's full response (text + tool_use
+          // blocks) to the message array — required by the API for
+          // tool_result reconciliation on the next turn.
+          messages.push({ role: "assistant", content: response.content });
+
+          if (response.stop_reason !== "tool_use") {
+            // Final answer. Concatenate any text blocks.
+            finalText = response.content
+              .flatMap((c: ContentBlock) =>
+                c.type === "text" ? [c.text] : [],
+              )
+              .join("\n")
+              .trim();
+            break;
+          }
+
+          // Execute every tool_use block in this response, then send
+          // the results back as a single user message containing
+          // tool_result blocks (per the Anthropic API contract).
+          const toolResults: ToolResultBlockParam[] = [];
+          for (const block of response.content) {
+            if (block.type !== "tool_use") continue;
+            toolsUsed.push(block.name);
+            try {
+              const result = await runTool(
+                block.name,
+                (block.input ?? {}) as Record<string, unknown>,
+                toolCtx,
+              );
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: JSON.stringify(result),
+              });
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: `Error: ${msg}`,
+                is_error: true,
+              });
+            }
+          }
+          messages.push({ role: "user", content: toolResults });
+        }
       } catch (err) {
-        // The user message stays in the DB so the failed turn isn't
-        // lost. Surface a clear error.
         const msg = err instanceof Error ? err.message : String(err);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -156,12 +230,10 @@ export const chatRouter = router({
         });
       }
 
-      // Extract text from the response. Anthropic returns content as an
-      // array of blocks; we only handle text blocks in v1 (no tool use).
-      const replyText = response.content
-        .flatMap((c) => (c.type === "text" ? [c.text] : []))
-        .join("\n")
-        .trim();
+      if (!finalText) {
+        finalText =
+          "(I hit the tool-loop cap without converging on an answer. Try rephrasing the question.)";
+      }
 
       const [assistantRow] = await db
         .insert(chatMessages)
@@ -169,10 +241,10 @@ export const chatRouter = router({
           orgId: ctx.orgId,
           projectId: input.projectId,
           role: "assistant",
-          content: replyText || "(no reply)",
-          model: response.model,
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
+          content: finalText,
+          model: finalModel,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
           createdBy: "agent:claude",
         })
         .returning();
@@ -180,8 +252,6 @@ export const chatRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       }
 
-      // One audit_log entry per turn — captures the question + token
-      // usage. Cheap analytics for later.
       await db.insert(auditLog).values({
         orgId: ctx.orgId,
         actor: ctx.actor,
@@ -189,14 +259,15 @@ export const chatRouter = router({
         resourceType: "project",
         resourceId: input.projectId,
         payload: {
-          model: response.model,
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
+          model: finalModel,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
           contentLength: input.content.length,
+          toolsUsed,
         },
       });
 
-      return { user: userRow, assistant: assistantRow };
+      return { user: userRow, assistant: assistantRow, toolsUsed };
     }),
 
   reset: orgScopedProcedure
@@ -236,94 +307,43 @@ export const chatRouter = router({
     }),
 });
 
-// ──────────────────────── context builder ────────────────────────
+// ──────────────────────── system prompt ────────────────────────
 
 type ProjectRow = typeof projects.$inferSelect;
 
 /**
- * Assemble the system prompt fresh each turn. Includes:
- *   • project facts (name, client, address, contract, status)
- *   • rooms list
- *   • open specs (recent N)
- *   • assets / materials (recent N)
- *   • open bills + invoices
- *   • recent audit_log entries (last N)
+ * Slim system prompt for v2 (tool use): identity, project facts, and a
+ * nudge about which tools cover which data. Deep data (full asset
+ * inventory, every bill, etc.) is pulled via tools when the user asks
+ * something specific.
  *
- * Truncations are deliberate: the assistant should see the *current*
- * project state, not the entire history. If a user asks about something
- * we didn't include, the prompt instructs the assistant to say so
- * rather than hallucinate.
+ * This is much shorter than v1's prompt-stuffing approach — typical
+ * size ~500 tokens vs ~3000 — which both reduces baseline cost and
+ * leaves more room for multi-turn tool reasoning.
  */
 async function buildSystemPrompt(
   db: ReturnType<typeof getDb>,
   orgId: string,
   project: ProjectRow,
 ): Promise<string> {
-  const [
-    clientRow,
-    roomList,
-    specList,
-    billList,
-    invoiceList,
-    activityList,
-  ] = await Promise.all([
-    project.clientId
-      ? db
-          .select()
-          .from(clients)
-          .where(
-            and(eq(clients.id, project.clientId), eq(clients.orgId, orgId)),
-          )
-          .limit(1)
-          .then((r) => r[0])
-      : Promise.resolve(undefined),
-    db
-      .select()
-      .from(rooms)
-      .where(eq(rooms.projectId, project.id))
-      .orderBy(asc(rooms.name)),
-    db
-      .select()
-      .from(specItems)
-      .where(eq(specItems.projectId, project.id))
-      .orderBy(desc(specItems.updatedAt))
-      .limit(30),
-    db
-      .select()
-      .from(bills)
-      .where(eq(bills.projectId, project.id))
-      .orderBy(desc(bills.updatedAt))
-      .limit(30),
-    db
-      .select()
-      .from(invoices)
-      .where(eq(invoices.projectId, project.id))
-      .orderBy(desc(invoices.updatedAt))
-      .limit(30),
-    db
-      .select()
-      .from(auditLog)
-      .where(
-        and(
-          eq(auditLog.orgId, orgId),
-          eq(auditLog.resourceType, "project"),
-          eq(auditLog.resourceId, project.id),
-        ),
-      )
-      .orderBy(desc(auditLog.ts))
-      .limit(15),
-  ]);
+  const clientRow = project.clientId
+    ? await db
+        .select()
+        .from(clients)
+        .where(
+          and(eq(clients.id, project.clientId), eq(clients.orgId, orgId)),
+        )
+        .limit(1)
+        .then((r) => r[0])
+    : undefined;
 
   const lines: string[] = [];
   lines.push(
     "You are Beamy's project assistant. You help small construction & design firms keep track of one project at a time.",
   );
-  lines.push(
-    "You answer concisely. When asked something not in the context below, say you don't have that information — never invent vendors, prices, dates, or model numbers.",
-  );
   lines.push("");
-
-  lines.push(`# Project · ${project.name}`);
+  lines.push("# This project");
+  lines.push(`- Name: ${project.name}`);
   lines.push(`- Status: ${project.status}`);
   lines.push(`- Type: ${project.projectType}`);
   if (clientRow) lines.push(`- Client: ${clientRow.name}`);
@@ -340,82 +360,47 @@ async function buildSystemPrompt(
     );
   }
   if (project.notes) lines.push(`- Notes: ${project.notes}`);
-  if (project.tags.length > 0) lines.push(`- Tags: ${project.tags.join(", ")}`);
-  lines.push("");
-
-  lines.push(`# Rooms (${roomList.length})`);
-  if (roomList.length === 0) {
-    lines.push("(none yet)");
-  } else {
-    for (const r of roomList) {
-      const tag = r.roomType ? ` · ${r.roomType}` : "";
-      lines.push(`- ${r.name}${tag}${r.notes ? ` — ${r.notes}` : ""}`);
-    }
+  if (project.tags.length > 0) {
+    lines.push(`- Tags: ${project.tags.join(", ")}`);
   }
   lines.push("");
-
-  lines.push(`# Specs (showing ${specList.length})`);
-  if (specList.length === 0) {
-    lines.push("(none yet)");
-  } else {
-    for (const s of specList) {
-      const parts: string[] = [`${s.name} [${s.state}]`];
-      if (s.specType) parts.push(`→ ${s.specType}`);
-      if (s.category) parts.push(s.category);
-      if (s.clientPriceAmount && s.clientPriceCurrency) {
-        parts.push(
-          `client ${s.clientPriceAmount} ${s.clientPriceCurrency}`,
-        );
-      }
-      if (s.installedAt) parts.push(`installed ${s.installedAt}`);
-      lines.push(`- ${parts.join(" · ")}`);
-    }
-  }
+  lines.push("# Tools");
+  lines.push(
+    "You have read-only tools to query this project's data. Use them when answering specific questions:",
+  );
+  lines.push(
+    "- list_rooms — every room in the project (call first if a question mentions a room by name)",
+  );
+  lines.push(
+    "- list_assets — appliances, fixtures, HVAC, plumbing, etc. (per-instance, with manufacturer / model / serial / install date / warranty)",
+  );
+  lines.push(
+    "- list_materials — paint, tile, flooring, stone, etc. (per-batch, with lot number and attic stock)",
+  );
+  lines.push(
+    "- list_specs — the planning + procurement layer, with state machine (specified → approved → ordered → received → installed)",
+  );
+  lines.push(
+    "- list_bills — money the firm owes vendors, with status + due dates + overdue flag",
+  );
+  lines.push(
+    "- list_invoices — money clients owe the firm, with status + dates + overdue flag",
+  );
+  lines.push(
+    "- list_activity — recent project-level audit log entries (state transitions, edits)",
+  );
   lines.push("");
-
-  lines.push(`# Bills (showing ${billList.length}; ours to pay)`);
-  if (billList.length === 0) {
-    lines.push("(none yet)");
-  } else {
-    for (const b of billList) {
-      const parts: string[] = [
-        `${b.amount} ${b.currency}`,
-        `[${b.status}]`,
-      ];
-      if (b.description) parts.push(b.description);
-      if (b.dueAt) parts.push(`due ${b.dueAt}`);
-      if (b.paidAt) parts.push(`paid ${b.paidAt}`);
-      lines.push(`- ${parts.join(" · ")}`);
-    }
-  }
-  lines.push("");
-
-  lines.push(`# Invoices (showing ${invoiceList.length}; clients owe us)`);
-  if (invoiceList.length === 0) {
-    lines.push("(none yet)");
-  } else {
-    for (const i of invoiceList) {
-      const parts: string[] = [
-        `${i.amount} ${i.currency}`,
-        `[${i.status}]`,
-      ];
-      if (i.invoiceNumber) parts.push(`#${i.invoiceNumber}`);
-      if (i.description) parts.push(i.description);
-      if (i.dueAt) parts.push(`due ${i.dueAt}`);
-      if (i.paidAt) parts.push(`paid ${i.paidAt}`);
-      lines.push(`- ${parts.join(" · ")}`);
-    }
-  }
-  lines.push("");
-
-  lines.push(`# Recent project activity (last ${activityList.length})`);
-  if (activityList.length === 0) {
-    lines.push("(no recent project-level activity)");
-  } else {
-    for (const a of activityList) {
-      lines.push(`- ${a.ts.toISOString().slice(0, 10)} · ${a.action}`);
-    }
-  }
+  lines.push("# Style");
+  lines.push("- Answer concisely. Lead with the answer, not the reasoning.");
+  lines.push(
+    "- Cite specifics from tool results — names, prices, dates, lot numbers — don't paraphrase away the detail.",
+  );
+  lines.push(
+    "- If a tool returns no rows, say so. Don't invent data. Don't apologize — just state the gap and suggest a related tool if relevant.",
+  );
+  lines.push(
+    "- Don't narrate which tool you're about to call. Just call it and answer the question.",
+  );
 
   return lines.join("\n");
 }

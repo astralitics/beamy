@@ -110,17 +110,7 @@ export default function ProjectAssistant() {
         ) : (
           list.map((m) => <Bubble key={m.id} msg={m} />)
         )}
-        {send.isPending && (
-          <Bubble
-            msg={{
-              id: "pending",
-              role: "assistant",
-              content: "…",
-              createdAt: new Date(),
-            } as unknown as ChatMessage}
-            pending
-          />
-        )}
+        {send.isPending && <ThinkingBubble />}
         {send.error && (
           <div className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
             {send.error.message}
@@ -153,16 +143,53 @@ export default function ProjectAssistant() {
       </form>
 
       <p className="mt-2 text-[10px] text-slate-400">
-        v1 · sees current project state · no tool use yet · responses cached
-        once per turn
+        v2 · queries assets, materials, specs, money, activity on demand ·
+        results cached per turn
       </p>
+    </div>
+  );
+}
+
+// ────────────────────── thinking bubble ──────────────────────
+
+/**
+ * Bubble shown while the assistant is mid-tool-loop. Cycles through
+ * a friendly set of states so the wait doesn't feel dead — the actual
+ * tool sequence isn't streamed back, so this is a UI affordance only.
+ */
+function ThinkingBubble() {
+  const [phase, setPhase] = useState(0);
+  const phases = [
+    "Thinking…",
+    "Looking things up…",
+    "Cross-checking…",
+    "Putting it together…",
+  ];
+  useEffect(() => {
+    const id = setInterval(
+      () => setPhase((p) => (p + 1) % phases.length),
+      1400,
+    );
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[85%] rounded-lg border border-blueprint-100 bg-blueprint-50/80 px-3 py-2 text-sm">
+        <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">
+          assistant
+        </p>
+        <p className="mt-1 flex items-center gap-2 leading-relaxed text-slate-500">
+          <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-safety-700" />
+          {phases[phase]}
+        </p>
+      </div>
     </div>
   );
 }
 
 // ────────────────────── bubble ──────────────────────
 
-function Bubble({ msg, pending }: { msg: ChatMessage; pending?: boolean }) {
+function Bubble({ msg }: { msg: ChatMessage }) {
   const fmt = useFormatters();
   const isUser = msg.role === "user";
   return (
@@ -178,17 +205,11 @@ function Bubble({ msg, pending }: { msg: ChatMessage; pending?: boolean }) {
           <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">
             {isUser ? "you" : "assistant"}
           </p>
-          {!pending && (
-            <p className="font-mono text-[9px] uppercase tracking-wider text-slate-400">
-              {fmt.time(msg.createdAt)}
-            </p>
-          )}
+          <p className="font-mono text-[9px] uppercase tracking-wider text-slate-400">
+            {fmt.time(msg.createdAt)}
+          </p>
         </div>
-        <p
-          className={`mt-1 whitespace-pre-wrap leading-relaxed ${
-            pending ? "text-slate-400" : ""
-          }`}
-        >
+        <p className="mt-1 whitespace-pre-wrap leading-relaxed">
           {msg.content}
         </p>
       </div>
