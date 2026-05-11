@@ -20,7 +20,7 @@ const PLACEHOLDERS: Record<string, PlaceholderInfo> = {
   assets: {
     title: "Assets",
     blurb:
-      "Manufacturer / model / serial / warranty / install date / install photo. The killer recall record — \"what fridge in the Anderson kitchen?\" returns this row.",
+      "Manufacturer / model / serial / warranty / install date / install photo. The killer recall record — \"what fridge in the kitchen?\" returns this row.",
     milestone: "M2 · next PR",
   },
   materials: {
@@ -70,24 +70,37 @@ const PLACEHOLDERS: Record<string, PlaceholderInfo> = {
 export default function ProjectPlaceholder({ tab }: { tab: string }) {
   const info = PLACEHOLDERS[tab];
   if (!info) {
-    return (
-      <p className="text-sm text-slate-500">Unknown tab: {tab}</p>
-    );
+    return <p className="text-sm text-slate-500">Unknown tab: {tab}</p>;
   }
   return (
-    <div className="rounded-lg border border-dashed border-paper-200 bg-paper-50 p-8">
-      <p className="font-mono text-[10px] uppercase tracking-wider text-safety-700">
-        {info.milestone}
-      </p>
-      <h2 className="mt-2 text-xl font-semibold tracking-tight text-blueprint-900">
-        {info.title}
-      </h2>
-      <p className="mt-3 max-w-prose text-sm leading-relaxed text-slate-600">
-        {info.blurb}
-      </p>
-      <p className="mt-6 font-mono text-[10px] uppercase tracking-wider text-slate-400">
-        not poured yet · check back later
-      </p>
+    <div className="relative overflow-hidden rounded-lg border border-paper-200 bg-white">
+      {/* Faint blueprint grid only in the header band. */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-32 bg-blueprint-grid bg-grid-32 opacity-70"
+      />
+      <div className="relative p-10">
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-safety-700">
+            {info.milestone}
+          </span>
+          <span className="h-px flex-1 bg-paper-200" />
+        </div>
+        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-blueprint-900">
+          {info.title}
+        </h2>
+        <p className="mt-4 max-w-prose text-sm leading-relaxed text-slate-600">
+          {info.blurb}
+        </p>
+        <div className="mt-10 flex items-center gap-3 border-t border-paper-200 pt-4">
+          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">
+            Status
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
+            ▢ not poured yet · check back later
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
