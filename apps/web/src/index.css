@@ -9,6 +9,20 @@
     height: 100%;
   }
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-paper-50 text-slate-900 antialiased;
+    /* Subtle warm-paper grain: faint dot noise. Reads as "drafting paper"
+       on close inspection, neutral from afar. */
+    background-image: radial-gradient(
+      rgba(15, 23, 42, 0.018) 1px,
+      transparent 1px
+    );
+    background-size: 4px 4px;
+  }
+  /* Tighter tracking on display text — feels a little more architectural. */
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
+    font-feature-settings: "ss01", "cv11";
   }
 }

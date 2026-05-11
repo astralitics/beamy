@@ -50,10 +50,17 @@ function NotFound() {
   return (
     <div className="flex h-full items-center justify-center">
       <div className="text-center">
-        <p className="text-sm text-slate-500">404</p>
-        <h1 className="mt-2 text-xl font-semibold">Nothing here yet.</h1>
-        <NavLink to="/" className="mt-4 inline-block text-sm text-sky-600">
-          Back to Home →
+        <p className="font-mono text-xs uppercase tracking-wider text-slate-400">
+          404 · not on the plans
+        </p>
+        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-blueprint-900">
+          Nothing built here yet.
+        </h1>
+        <NavLink
+          to="/"
+          className="mt-5 inline-block text-sm font-medium text-safety-700 hover:text-safety-800"
+        >
+          Back to home →
         </NavLink>
       </div>
     </div>
