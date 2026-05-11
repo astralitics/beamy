@@ -14,7 +14,7 @@
  * it in `useT` based on `locale` from `LocaleContext`.
  */
 export const messagesEn = {
-  // ── sidebar nav ──
+  // ── sidebar nav (workspace mode) ──
   "nav.home": "Home",
   "nav.projects": "Projects",
   "nav.clients": "Clients",
@@ -25,6 +25,27 @@ export const messagesEn = {
   "nav.workflows": "Workflows",
   "nav.prompts": "Prompts",
   "nav.settings": "Settings",
+
+  // ── project picker ──
+  "picker.label": "Project",
+  "picker.empty": "No projects yet",
+  "picker.new": "+ New project",
+  "picker.view_all": "View all projects",
+  "picker.back_to_workspace": "← Back to workspace",
+
+  // ── sidebar nav (project mode) ──
+  "project_nav.overview": "Overview",
+  "project_nav.work_plan": "Work plan",
+  "project_nav.drawings": "Drawings",
+  "project_nav.specs": "Specs",
+  "project_nav.assets": "Assets",
+  "project_nav.materials": "Materials",
+  "project_nav.rfis": "RFIs",
+  "project_nav.punch": "Punch",
+  "project_nav.site_logs": "Site logs",
+  "project_nav.documents": "Documents",
+  "project_nav.money": "Money",
+  "project_nav.activity": "Activity",
 
   // ── home page ──
   "home.milestone": "Milestone 2 — Recall demo",
@@ -60,6 +81,23 @@ export const messagesEsMx: Partial<Record<keyof typeof messagesEn, string>> = {
   "nav.workflows": "Flujos de trabajo",
   "nav.prompts": "Prompts",
   "nav.settings": "Configuración",
+  "picker.label": "Proyecto",
+  "picker.empty": "No hay proyectos",
+  "picker.new": "+ Nuevo proyecto",
+  "picker.view_all": "Ver todos los proyectos",
+  "picker.back_to_workspace": "← Volver al espacio de trabajo",
+  "project_nav.overview": "Resumen",
+  "project_nav.work_plan": "Plan de obra",
+  "project_nav.drawings": "Planos",
+  "project_nav.specs": "Especificaciones",
+  "project_nav.assets": "Activos",
+  "project_nav.materials": "Materiales",
+  "project_nav.rfis": "RFI",
+  "project_nav.punch": "Punch",
+  "project_nav.site_logs": "Bitácoras",
+  "project_nav.documents": "Documentos",
+  "project_nav.money": "Dinero",
+  "project_nav.activity": "Actividad",
   "common.loading": "Cargando…",
   "common.cancel": "Cancelar",
   "common.save": "Guardar",
