@@ -3,6 +3,7 @@ import { Sidebar } from "./components/sidebar";
 import HomePage from "./pages/home";
 import ClientsPage from "./pages/clients";
 import ServicesPage from "./pages/services";
+import SettingsPage from "./pages/settings";
 import VendorsPage from "./pages/vendors";
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/vendors" element={<VendorsPage />} />
           <Route path="/services" element={<ServicesPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
