@@ -35,10 +35,39 @@ The `mcp/` app and the `workflow/` package don't exist yet. Domain packages will
 
 | Command | What |
 | --- | --- |
-| `pnpm dev` | Boot the web app on http://localhost:5173 (`pnpm` filter into `@beamy/web`). |
+| `pnpm dev` | Boot the web app on http://localhost:5190 (`pnpm` filter into `@beamy/web`). |
 | `pnpm typecheck` | Recursive typecheck across all packages. **Run before committing.** |
 | `pnpm db:generate` | `drizzle-kit generate` — emits a new SQL migration from schema files. Reads `DATABASE_URL`. |
-| `pnpm db:migrate` | Apply pending migrations against `DATABASE_URL`. Reads `.env`. |
+| `pnpm db:migrate` | Apply pending migrations against `DATABASE_URL` (auto-loads `.env` via tsx's `--env-file`). |
+| `pnpm db:seed` | Seed the dev user + Dev Workspace org + owner membership. Idempotent. |
+| `supabase start` | Boot the local Supabase stack (run from repo root). See port allocation below. |
+| `supabase status` | Show which ports the local stack is bound to. |
+
+## Local dev — Supabase port allocation
+
+Beamy uses the **`545XX`** port range so it can run simultaneously alongside other Astralitics apps locally. The convention across the line:
+
+| Project | Range | DB | API/Kong | Studio | Inbucket | Analytics | Web dev |
+|---|---|---|---|---|---|---|---|
+| Riffy | `543XX` | 54322 | 54321 | 54323 | 54324 | 54327 | 5173 |
+| Cadenza | `544XX` | 54422 | 54421 | 54423 | 54424 | 54427 | (varies) |
+| **Beamy** | **`545XX`** | **54522** | **54521** | **54523** | **54524** | **54527** | **5190** |
+
+**Conventions to keep:**
+
+- **Pick a fresh `54XYY` range for each new Astralitics app.** Update this table when scaffolding a new project.
+- **`supabase/config.toml` is committed.** It encodes the port assignments per-project. `supabase init` generates with default 543XX ports — remember to shift them before the first `supabase start`.
+- **`.env` and `.env.example` agree** on the project's DB port. Beamy's `.env.example` has `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54522/postgres`.
+- **One Beamy stack at a time.** If you need parallel Beamy worktrees with their own DBs, override `project_id` in `supabase/config.toml` per-worktree (e.g., `beamy-feat-x`) AND bump the ports another range up.
+- **Docker resource usage.** Each full Supabase stack is ~1–1.5 GB RAM. Running all three (Riffy + Cadenza + Beamy) is fine on a 16 GB machine but you may want to `supabase stop` the ones you're not using.
+
+Quick verify:
+
+```bash
+docker ps --filter "name=supabase" --format "table {{.Names}}\t{{.Ports}}"
+supabase status                  # from beamy dir
+curl -s http://localhost:5190/api/trpc/me.whoami | jq .   # should return "Dev Workspace"
+```
 
 ## Architectural invariants (don't break)
 
