@@ -2,6 +2,7 @@ import { router } from "./init";
 import { meRouter } from "./routers/me";
 import { assetsRouter } from "./routers/assets";
 import { billsRouter } from "./routers/bills";
+import { chatRouter } from "./routers/chat";
 import { clientsRouter } from "./routers/clients";
 import { invoicesRouter } from "./routers/invoices";
 import { materialsRouter } from "./routers/materials";
@@ -16,6 +17,7 @@ export const appRouter = router({
   me: meRouter,
   assets: assetsRouter,
   bills: billsRouter,
+  chat: chatRouter,
   clients: clientsRouter,
   invoices: invoicesRouter,
   materials: materialsRouter,

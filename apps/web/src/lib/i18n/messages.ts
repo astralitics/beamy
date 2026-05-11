@@ -35,6 +35,7 @@ export const messagesEn = {
 
   // ── sidebar nav (project mode) ──
   "project_nav.overview": "Overview",
+  "project_nav.assistant": "Assistant",
   "project_nav.work_plan": "Work plan",
   "project_nav.drawings": "Drawings",
   "project_nav.specs": "Specs",
@@ -87,6 +88,7 @@ export const messagesEsMx: Partial<Record<keyof typeof messagesEn, string>> = {
   "picker.view_all": "Ver todos los proyectos",
   "picker.back_to_workspace": "← Volver al espacio de trabajo",
   "project_nav.overview": "Resumen",
+  "project_nav.assistant": "Asistente",
   "project_nav.work_plan": "Plan de obra",
   "project_nav.drawings": "Planos",
   "project_nav.specs": "Especificaciones",

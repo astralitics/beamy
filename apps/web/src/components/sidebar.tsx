@@ -34,7 +34,10 @@ const WORKSPACE_NAV: NavItem[][] = [
  * `/projects/<id>/work-plan` thanks to the nested route layout.
  */
 const PROJECT_NAV: NavItem[][] = [
-  [{ to: "", labelKey: "project_nav.overview", end: true }],
+  [
+    { to: "", labelKey: "project_nav.overview", end: true },
+    { to: "assistant", labelKey: "project_nav.assistant" },
+  ],
   [
     { to: "work-plan", labelKey: "project_nav.work_plan" },
     { to: "drawings", labelKey: "project_nav.drawings" },
