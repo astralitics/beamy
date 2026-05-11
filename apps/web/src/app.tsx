@@ -1,12 +1,30 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import { Sidebar } from "./components/sidebar";
+import { RequireAuth } from "./components/require-auth";
 import HomePage from "./pages/home";
 import ClientsPage from "./pages/clients";
+import LoginPage from "./pages/login";
 import ServicesPage from "./pages/services";
 import SettingsPage from "./pages/settings";
 import VendorsPage from "./pages/vendors";
 
 export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/*"
+        element={
+          <RequireAuth>
+            <AppShell />
+          </RequireAuth>
+        }
+      />
+    </Routes>
+  );
+}
+
+function AppShell() {
   return (
     <div className="flex h-full">
       <Sidebar />

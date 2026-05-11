@@ -8,24 +8,39 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../..");
 
 /**
- * Default dev user — matches the row inserted by `pnpm db:seed`.
- * Real auth wiring (Supabase JWT → tRPC context) lands in a later M1 PR;
- * until then every tRPC call in dev runs as this user.
+ * Default dev user — matches the row inserted by `pnpm db:seed`. Used as
+ * a fallback when no Authorization header is present (so the dev-from-zero
+ * workflow keeps working before Supabase auth is configured / a user has
+ * actually signed in). Real Supabase auth, when present, supersedes it.
  */
 const DEFAULT_DEV_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 export default defineConfig(({ mode }) => {
-  // Load .env from the monorepo root (where it lives) and propagate the
-  // values our server-side middleware reads to process.env.
   const env = loadEnv(mode, REPO_ROOT, "");
-  for (const key of ["DATABASE_URL", "BEAMY_DEV_USER_ID"]) {
+  for (const key of [
+    "DATABASE_URL",
+    "BEAMY_DEV_USER_ID",
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+  ]) {
     if (env[key] && !process.env[key]) process.env[key] = env[key];
   }
   const devUserId = process.env.BEAMY_DEV_USER_ID || DEFAULT_DEV_USER_ID;
+  const supabaseUrl = process.env.SUPABASE_URL ?? "";
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  const authEnabled = Boolean(supabaseUrl && supabaseServiceKey);
 
   return {
     envDir: REPO_ROOT,
-    plugins: [react(), trpcDevServerPlugin(devUserId)],
+    plugins: [
+      react(),
+      trpcDevServerPlugin({
+        devUserId,
+        supabaseUrl,
+        supabaseServiceKey,
+        authEnabled,
+      }),
+    ],
     server: { port: 5173 },
   };
 });
@@ -34,12 +49,22 @@ export default defineConfig(({ mode }) => {
  * Mount the tRPC fetch handler as Vite middleware at /api/trpc so the SPA
  * can call tRPC procedures during dev with no separate API server.
  *
- * Routes module loading through `server.ssrLoadModule` rather than Node's
- * raw `import()`. Vite's transform pipeline handles workspace .ts sources
- * (TS Bundler-mode resolution); Node's ESM loader does not. `apply: "serve"`
- * scopes the plugin to dev only — `vite build` never runs configureServer.
+ * Auth resolution per request:
+ *   1. Authorization: Bearer <jwt>  →  verify with Supabase admin, use user.id
+ *   2. No header                    →  fall back to dev user (devUserId)
+ *
+ * The fallback exists so the dev-from-zero workflow keeps working even
+ * before .env has Supabase keys / before a user has signed in. Once
+ * everything's wired and we have real users, we'll harden by dropping
+ * the fallback in production builds (apply: "serve" already scopes the
+ * fallback to dev).
  */
-function trpcDevServerPlugin(devUserId: string) {
+function trpcDevServerPlugin(opts: {
+  devUserId: string;
+  supabaseUrl: string;
+  supabaseServiceKey: string;
+  authEnabled: boolean;
+}) {
   return {
     name: "beamy-trpc-dev",
     apply: "serve" as const,
@@ -52,15 +77,34 @@ function trpcDevServerPlugin(devUserId: string) {
       const buildContext = trpcModule.buildContext;
       const fetchRequestHandler = adapterModule.fetchRequestHandler;
 
+      // Supabase admin client for verifying user JWTs. Created lazily so
+      // dev-from-zero (no .env keys) doesn't fail to boot.
+      let supabaseAdmin: { auth: { getUser: (t: string) => Promise<{ data: { user: { id: string } | null } }> } } | null = null;
+      if (opts.authEnabled) {
+        const supabaseModule = await server.ssrLoadModule(
+          "@supabase/supabase-js",
+        );
+        supabaseAdmin = supabaseModule.createClient(
+          opts.supabaseUrl,
+          opts.supabaseServiceKey,
+          { auth: { persistSession: false, autoRefreshToken: false } },
+        );
+      }
+
       server.middlewares.use(async (req, res, next) => {
         if (!req.url || !req.url.startsWith("/api/trpc")) return next();
         try {
           const fetchReq = await nodeReqToFetch(req);
+          const userId = await resolveUserId(
+            fetchReq,
+            supabaseAdmin,
+            opts.devUserId,
+          );
           const fetchRes = await fetchRequestHandler({
             endpoint: "/api/trpc",
             req: fetchReq,
             router: appRouter,
-            createContext: () => buildContext({ userId: devUserId }),
+            createContext: () => buildContext({ userId }),
           });
           await pipeFetchToNode(fetchRes, res);
         } catch (err) {
@@ -71,6 +115,37 @@ function trpcDevServerPlugin(devUserId: string) {
       });
     },
   };
+}
+
+async function resolveUserId(
+  req: Request,
+  supabaseAdmin: { auth: { getUser: (t: string) => Promise<{ data: { user: { id: string } | null } }> } } | null,
+  devUserId: string,
+): Promise<string> {
+  const header = req.headers.get("authorization");
+  if (!header || !header.toLowerCase().startsWith("bearer ")) {
+    return devUserId;
+  }
+  if (!supabaseAdmin) {
+    // Header sent but server can't verify (no SUPABASE_SERVICE_ROLE_KEY).
+    // Fall back to dev user — surfaces in logs.
+    console.warn(
+      "[trpc] Authorization header present but Supabase admin not configured; falling back to dev user",
+    );
+    return devUserId;
+  }
+  const token = header.slice(7).trim();
+  try {
+    const { data } = await supabaseAdmin.auth.getUser(token);
+    if (!data.user) {
+      console.warn("[trpc] Supabase rejected token; falling back to dev user");
+      return devUserId;
+    }
+    return data.user.id;
+  } catch (err) {
+    console.warn("[trpc] token verification threw:", err);
+    return devUserId;
+  }
 }
 
 async function nodeReqToFetch(req: IncomingMessage): Promise<Request> {
