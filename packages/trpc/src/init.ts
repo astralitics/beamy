@@ -49,3 +49,21 @@ export const orgScopedProcedure = protectedProcedure.use(
     });
   },
 );
+
+/**
+ * Narrows `orgScopedProcedure` to org owners and admins. Use for procedures
+ * that mutate org-level configuration — inviting members, revoking
+ * invitations, changing roles, eventually billing.
+ *
+ * Members (the third role) can read org-shared data but cannot mutate
+ * settings.
+ */
+export const orgAdminProcedure = orgScopedProcedure.use(({ ctx, next }) => {
+  if (ctx.role !== "owner" && ctx.role !== "admin") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Admin role required",
+    });
+  }
+  return next({ ctx });
+});
