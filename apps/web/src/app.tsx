@@ -4,6 +4,8 @@ import { RequireAuth } from "./components/require-auth";
 import HomePage from "./pages/home";
 import ClientsPage from "./pages/clients";
 import LoginPage from "./pages/login";
+import ProjectDetailPage from "./pages/project-detail";
+import ProjectsPage from "./pages/projects";
 import ServicesPage from "./pages/services";
 import SettingsPage from "./pages/settings";
 import VendorsPage from "./pages/vendors";
@@ -34,6 +36,8 @@ function AppShell() {
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/vendors" element={<VendorsPage />} />
           <Route path="/services" element={<ServicesPage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

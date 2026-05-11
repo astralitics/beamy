@@ -27,14 +27,14 @@ export const messagesEn = {
   "nav.settings": "Settings",
 
   // ── home page ──
-  "home.milestone": "Milestone 1 — Core entities + auth",
+  "home.milestone": "Milestone 2 — Recall demo",
   "home.title": "Beamy is alive.",
   "home.lede":
-    "Web shell, sidenav, tRPC mounted as Vite middleware at /api/trpc. Real auth wiring lands later in M1; until then every request runs as the seeded dev user.",
+    "M1 complete: clients, vendors (+ compliance), services, contacts, members + invitations, i18n scaffold, Supabase Auth. M2 in flight — projects + rooms landed; assets, materials, photos, and recall search are next.",
   "home.repo.heading": "What's in the repo",
-  "home.next.heading": "Next up — M1",
+  "home.next.heading": "Next up — M2",
   "home.next.body":
-    "Apply the baseline migration + run pnpm db:seed, then land core entity CRUD (clients, vendors, services, vendor compliance), the i18n scaffold for US + MX, and Supabase auth wiring.",
+    "Assets (manufacturer / model / serial / warranty), materials with lot numbers + coverage, photo upload via Supabase Storage, and Postgres full-text search. The hero recall demo — \"what fridge in the Anderson kitchen?\" — lands at the end of M2.",
 
   // ── shared / common ──
   "common.loading": "Loading…",
