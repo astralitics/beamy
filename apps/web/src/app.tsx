@@ -4,8 +4,11 @@ import { RequireAuth } from "./components/require-auth";
 import HomePage from "./pages/home";
 import ClientsPage from "./pages/clients";
 import LoginPage from "./pages/login";
-import ProjectDetailPage from "./pages/project-detail";
 import ProjectsPage from "./pages/projects";
+import ProjectShell from "./pages/project/shell";
+import ProjectOverview from "./pages/project/overview";
+import ProjectWorkPlan from "./pages/project/work-plan";
+import ProjectPlaceholder from "./pages/project/placeholder";
 import ServicesPage from "./pages/services";
 import SettingsPage from "./pages/settings";
 import VendorsPage from "./pages/vendors";
@@ -37,7 +40,54 @@ function AppShell() {
           <Route path="/vendors" element={<VendorsPage />} />
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
-          <Route path="/projects/:id" element={<ProjectDetailPage />} />
+
+          {/* Project workspace mode — Vercel/Supabase pattern. Sidebar
+              switches to project-nav when the URL matches /projects/:id/*. */}
+          <Route path="/projects/:id" element={<ProjectShell />}>
+            <Route index element={<ProjectOverview />} />
+            <Route path="work-plan" element={<ProjectWorkPlan />} />
+            <Route
+              path="drawings"
+              element={<ProjectPlaceholder tab="drawings" />}
+            />
+            <Route
+              path="specs"
+              element={<ProjectPlaceholder tab="specs" />}
+            />
+            <Route
+              path="assets"
+              element={<ProjectPlaceholder tab="assets" />}
+            />
+            <Route
+              path="materials"
+              element={<ProjectPlaceholder tab="materials" />}
+            />
+            <Route
+              path="rfis"
+              element={<ProjectPlaceholder tab="rfis" />}
+            />
+            <Route
+              path="punch"
+              element={<ProjectPlaceholder tab="punch" />}
+            />
+            <Route
+              path="site-logs"
+              element={<ProjectPlaceholder tab="site-logs" />}
+            />
+            <Route
+              path="documents"
+              element={<ProjectPlaceholder tab="documents" />}
+            />
+            <Route
+              path="money"
+              element={<ProjectPlaceholder tab="money" />}
+            />
+            <Route
+              path="activity"
+              element={<ProjectPlaceholder tab="activity" />}
+            />
+          </Route>
+
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

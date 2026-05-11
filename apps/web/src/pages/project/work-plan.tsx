@@ -1,112 +1,32 @@
+import { useOutletContext } from "react-router-dom";
 import { useState, type FormEvent, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
-import {
-  PROJECT_TYPE_LABELS,
-  ROOM_TYPE_LABELS,
-  type ProjectStatus,
-  type RoomType,
-} from "@beamy/shared";
-import { trpc } from "../lib/trpc";
-import { useFormatters } from "../lib/i18n";
+import { ROOM_TYPE_LABELS, type RoomType } from "@beamy/shared";
+import { trpc } from "../../lib/trpc";
 
+type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type RoomRow = inferRouterOutputs<AppRouter>["projects"]["listRooms"][number];
 
-export default function ProjectDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const fmt = useFormatters();
-  const project = trpc.projects.get.useQuery({ id: id ?? "" }, { enabled: !!id });
-
-  if (!id) return null;
-  if (project.isLoading) {
-    return <p className="p-10 text-sm text-slate-500">Loading…</p>;
-  }
-  if (project.error) {
-    return (
-      <div className="p-10">
-        <p className="text-sm text-rose-700">{project.error.message}</p>
-        <Link to="/projects" className="mt-4 inline-block text-sm text-sky-600">
-          ← Back to projects
-        </Link>
-      </div>
-    );
-  }
-  if (!project.data) return null;
-
-  const p = project.data;
-  return (
-    <div className="mx-auto max-w-5xl p-10">
-      <Link
-        to="/projects"
-        className="text-xs text-slate-500 hover:text-slate-900"
-      >
-        ← Projects
-      </Link>
-
-      <div className="mt-3 flex items-start justify-between gap-6">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{p.name}</h1>
-            <StatusPill status={p.status} />
-          </div>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
-            <span>{PROJECT_TYPE_LABELS[p.projectType]}</span>
-            {p.client && (
-              <span>
-                Client: <span className="text-slate-900">{p.client.name}</span>
-              </span>
-            )}
-            {p.address && <span>{p.address}</span>}
-            {p.contractAmount && p.contractCurrency && (
-              <span>
-                Contract:{" "}
-                <span className="text-slate-900">
-                  {fmt.currency(p.contractAmount, p.contractCurrency)}
-                </span>
-              </span>
-            )}
-            {p.startedAt && (
-              <span>
-                Started: <span className="text-slate-900">{fmt.date(p.startedAt)}</span>
-              </span>
-            )}
-          </div>
-          {p.notes && (
-            <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
-              {p.notes}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <RoomsSection projectId={p.id} />
-
-      <div className="mt-12 rounded-lg border border-dashed border-slate-200 bg-slate-50/50 p-6 text-sm text-slate-500">
-        <p className="font-medium text-slate-700">Coming next in M2</p>
-        <ul className="mt-2 list-disc space-y-0.5 pl-5">
-          <li>Assets — manufacturer / model / serial / warranty / install</li>
-          <li>Materials — paint / tile / flooring with lot numbers + coverage</li>
-          <li>Photos — tagged to room / asset / material</li>
-          <li>Recall search — <em>"what fridge in the Anderson kitchen?"</em></li>
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-// ────────────────────── rooms section ──────────────────────
-
-function RoomsSection({ projectId }: { projectId: string }) {
-  const list = trpc.projects.listRooms.useQuery({ projectId });
+/**
+ * Work plan — the rooms layer. The starting point for everything spatial:
+ * assets, materials, drawings, RFIs all reference room IDs from here.
+ *
+ * (More work-plan content lands later: phases, scope items, schedule.)
+ */
+export default function ProjectWorkPlan() {
+  const { project } = useOutletContext<{ project: ProjectDetail }>();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<RoomRow | null>(null);
+  const list = trpc.projects.listRooms.useQuery({ projectId: project.id });
 
   return (
-    <section className="mt-10">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-start justify-between gap-6">
         <div>
-          <h2 className="text-base font-semibold tracking-tight">Rooms</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-blueprint-900">
+            Rooms
+          </h2>
           <p className="mt-0.5 text-xs text-slate-500">
             Each room anchors the assets, materials, and finishes that get
             installed in it.
@@ -116,7 +36,7 @@ function RoomsSection({ projectId }: { projectId: string }) {
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-100"
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
           >
             Add room
           </button>
@@ -125,14 +45,14 @@ function RoomsSection({ projectId }: { projectId: string }) {
 
       {adding && (
         <RoomForm
-          projectId={projectId}
+          projectId={project.id}
           mode="create"
           onClose={() => setAdding(false)}
         />
       )}
       {editing && (
         <RoomForm
-          projectId={projectId}
+          projectId={project.id}
           mode="edit"
           existing={editing}
           onClose={() => setEditing(null)}
@@ -143,7 +63,7 @@ function RoomsSection({ projectId }: { projectId: string }) {
         {list.isLoading ? (
           <p className="col-span-full text-xs text-slate-500">Loading…</p>
         ) : !list.data || list.data.length === 0 ? (
-          <p className="col-span-full rounded-md border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+          <p className="col-span-full rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
             No rooms yet. Click <strong>Add room</strong> to start.
           </p>
         ) : (
@@ -152,7 +72,7 @@ function RoomsSection({ projectId }: { projectId: string }) {
           ))
         )}
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -169,12 +89,12 @@ function RoomRowItem({
       utils.projects.listRooms.invalidate({ projectId: room.projectId }),
   });
   return (
-    <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+    <div className="flex items-center gap-3 rounded-md border border-paper-200 bg-white px-3 py-2 text-sm">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="font-medium text-slate-900">{room.name}</span>
           {room.roomType && (
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600">
+            <span className="rounded-full bg-paper-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
               {ROOM_TYPE_LABELS[room.roomType]}
             </span>
           )}
@@ -259,7 +179,7 @@ function RoomForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-3 rounded-md border border-slate-200 bg-white p-3"
+      className="mt-4 rounded-md border border-paper-200 bg-white p-3"
     >
       <div className="grid gap-2 sm:grid-cols-2">
         <Field label="Name *">
@@ -300,7 +220,7 @@ function RoomForm({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md border border-slate-200 px-3 py-1 text-xs hover:bg-slate-50"
+          className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
         >
           Cancel
         </button>
@@ -316,31 +236,11 @@ function RoomForm({
   );
 }
 
-// ────────────────────── shared ──────────────────────
-
-const STATUS_PILL_CLS: Record<ProjectStatus, string> = {
-  lead: "bg-sky-100 text-sky-800",
-  active: "bg-emerald-100 text-emerald-800",
-  on_hold: "bg-amber-100 text-amber-800",
-  completed: "bg-violet-100 text-violet-800",
-  archived: "bg-slate-100 text-slate-700",
-};
-
-function StatusPill({ status }: { status: ProjectStatus }) {
-  return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_PILL_CLS[status]}`}
-    >
-      {status.replace(/_/g, " ")}
-    </span>
-  );
-}
-
 const inputCls =
-  "block w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block w-full rounded-md border border-paper-200 px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
 
 const selectCls =
-  "block w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block w-full rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
 
 function Field({
   label,
