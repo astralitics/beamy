@@ -1,32 +1,26 @@
-import { NavLink } from "react-router-dom";
+import { Link, NavLink, useMatch } from "react-router-dom";
 import { useT } from "../lib/i18n";
 import type { MessageKey } from "../lib/i18n";
+import { ProjectPicker } from "./project-picker";
 
-type NavItem = { to: string; labelKey: MessageKey };
+type NavItem = { to: string; labelKey: MessageKey; end?: boolean };
 
 /**
- * Nav grouped into three subtle bands. Dividers are barely there —
- * they imply structure (like floor levels on a section drawing)
- * without shouting about it.
+ * Workspace-level nav. Visible when NOT inside a project.
+ * Grouped into bands — implies floor levels on a section drawing.
  */
-const NAV_GROUPS: NavItem[][] = [
-  // Primary surfaces
+const WORKSPACE_NAV: NavItem[][] = [
+  [{ to: "/", labelKey: "nav.home", end: true }],
   [
-    { to: "/", labelKey: "nav.home" },
     { to: "/projects", labelKey: "nav.projects" },
-  ],
-  // The people + offerings
-  [
     { to: "/clients", labelKey: "nav.clients" },
     { to: "/vendors", labelKey: "nav.vendors" },
     { to: "/services", labelKey: "nav.services" },
   ],
-  // Oversight / financial
   [
     { to: "/money", labelKey: "nav.money" },
     { to: "/compliance", labelKey: "nav.compliance" },
   ],
-  // System
   [
     { to: "/workflows", labelKey: "nav.workflows" },
     { to: "/prompts", labelKey: "nav.prompts" },
@@ -34,22 +28,72 @@ const NAV_GROUPS: NavItem[][] = [
   ],
 ];
 
+/**
+ * Project-level nav. Visible when inside `/projects/:id/*`.
+ * Sub-routes are relative — `<NavLink to="work-plan">` resolves to
+ * `/projects/<id>/work-plan` thanks to the nested route layout.
+ */
+const PROJECT_NAV: NavItem[][] = [
+  [{ to: "", labelKey: "project_nav.overview", end: true }],
+  [
+    { to: "work-plan", labelKey: "project_nav.work_plan" },
+    { to: "drawings", labelKey: "project_nav.drawings" },
+    { to: "specs", labelKey: "project_nav.specs" },
+  ],
+  [
+    { to: "assets", labelKey: "project_nav.assets" },
+    { to: "materials", labelKey: "project_nav.materials" },
+  ],
+  [
+    { to: "rfis", labelKey: "project_nav.rfis" },
+    { to: "punch", labelKey: "project_nav.punch" },
+    { to: "site-logs", labelKey: "project_nav.site_logs" },
+  ],
+  [
+    { to: "documents", labelKey: "project_nav.documents" },
+    { to: "money", labelKey: "project_nav.money" },
+    { to: "activity", labelKey: "project_nav.activity" },
+  ],
+];
+
 export function Sidebar() {
   const t = useT();
+  const projectMatch = useMatch("/projects/:id/*");
+  const inProject = Boolean(projectMatch);
+
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-paper-200 bg-paper-50">
-      <div className="flex h-14 items-center border-b border-paper-200 px-4">
-        <BeamMark className="h-3.5 w-3.5 text-blueprint-900" />
-        <span className="ml-2 text-lg font-semibold tracking-tight text-blueprint-900">
-          Beamy
-        </span>
-        <span className="ml-2 rounded-sm bg-safety-100 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-safety-800 ring-1 ring-inset ring-safety-200">
-          M2
-        </span>
+      <div className="border-b border-paper-200 px-4 py-3">
+        <div className="flex items-center">
+          <BeamMark className="h-3.5 w-3.5 text-blueprint-900" />
+          <Link
+            to="/"
+            className="ml-2 text-lg font-semibold tracking-tight text-blueprint-900 hover:text-blueprint-800"
+          >
+            Beamy
+          </Link>
+          <span className="ml-2 rounded-sm bg-safety-100 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-safety-800 ring-1 ring-inset ring-safety-200">
+            M2
+          </span>
+        </div>
+        <div className="mt-3">
+          <ProjectPicker />
+        </div>
       </div>
 
+      {inProject && (
+        <div className="border-b border-paper-200 px-4 py-2">
+          <Link
+            to="/"
+            className="font-mono text-[10px] uppercase tracking-wider text-slate-500 hover:text-blueprint-900"
+          >
+            {t("picker.back_to_workspace")}
+          </Link>
+        </div>
+      )}
+
       <nav className="flex-1 overflow-y-auto p-2">
-        {NAV_GROUPS.map((group, idx) => (
+        {(inProject ? PROJECT_NAV : WORKSPACE_NAV).map((group, idx) => (
           <ul
             key={idx}
             className={`space-y-0.5 ${idx > 0 ? "mt-3 border-t border-paper-200 pt-3" : ""}`}
@@ -58,7 +102,7 @@ export function Sidebar() {
               <li key={item.to}>
                 <NavLink
                   to={item.to}
-                  end={item.to === "/"}
+                  end={item.end ?? false}
                   className={({ isActive }) =>
                     [
                       "group relative block rounded-md px-3 py-1.5 text-sm transition-colors",
@@ -70,7 +114,6 @@ export function Sidebar() {
                 >
                   {({ isActive }) => (
                     <>
-                      {/* Tiny amber tick on the left edge of the active route. */}
                       {isActive && (
                         <span
                           aria-hidden
@@ -97,8 +140,8 @@ export function Sidebar() {
 }
 
 /**
- * I-beam profile (cross-section, end-on view). Three rects: top flange,
- * web, bottom flange. Reads as "beam" without spelling it out.
+ * I-beam profile (cross-section, end-on). Reads as "beam" without spelling
+ * it out — and doubles as the dot of the i.
  */
 function BeamMark({ className }: { className?: string }) {
   return (
