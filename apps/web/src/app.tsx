@@ -11,6 +11,7 @@ import ProjectWorkPlan from "./pages/project/work-plan";
 import ProjectAssets from "./pages/project/assets";
 import ProjectMaterials from "./pages/project/materials";
 import ProjectSpecs from "./pages/project/specs";
+import ProjectMoney from "./pages/project/money";
 import ProjectPlaceholder from "./pages/project/placeholder";
 import ServicesPage from "./pages/services";
 import SettingsPage from "./pages/settings";
@@ -72,10 +73,7 @@ function AppShell() {
               path="documents"
               element={<ProjectPlaceholder tab="documents" />}
             />
-            <Route
-              path="money"
-              element={<ProjectPlaceholder tab="money" />}
-            />
+            <Route path="money" element={<ProjectMoney />} />
             <Route
               path="activity"
               element={<ProjectPlaceholder tab="activity" />}

@@ -35,12 +35,6 @@ const PLACEHOLDERS: Record<string, PlaceholderInfo> = {
       "Project-scoped file library: contracts, warranties, manufacturer spec sheets, photos. Supabase Storage backend with project + room + asset tagging.",
     milestone: "M2 · this milestone",
   },
-  money: {
-    title: "Money",
-    blurb:
-      "Project-scoped view of bills (we owe vendors), invoices (clients owe us), payments, budget vs spend. The same money layer as the workspace view, filtered to this project.",
-    milestone: "M3",
-  },
   activity: {
     title: "Activity",
     blurb:
