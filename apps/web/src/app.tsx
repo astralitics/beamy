@@ -12,6 +12,7 @@ import ProjectAssets from "./pages/project/assets";
 import ProjectMaterials from "./pages/project/materials";
 import ProjectSpecs from "./pages/project/specs";
 import ProjectMoney from "./pages/project/money";
+import ProjectAssistant from "./pages/project/assistant";
 import ProjectPlaceholder from "./pages/project/placeholder";
 import ServicesPage from "./pages/services";
 import SettingsPage from "./pages/settings";
@@ -49,6 +50,7 @@ function AppShell() {
               switches to project-nav when the URL matches /projects/:id/*. */}
           <Route path="/projects/:id" element={<ProjectShell />}>
             <Route index element={<ProjectOverview />} />
+            <Route path="assistant" element={<ProjectAssistant />} />
             <Route path="work-plan" element={<ProjectWorkPlan />} />
             <Route
               path="drawings"
