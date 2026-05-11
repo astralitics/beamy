@@ -1,5 +1,6 @@
 import { router } from "./init";
 import { meRouter } from "./routers/me";
+import { activityRouter } from "./routers/activity";
 import { assetsRouter } from "./routers/assets";
 import { billsRouter } from "./routers/bills";
 import { chatRouter } from "./routers/chat";
@@ -15,6 +16,7 @@ import { vendorsRouter } from "./routers/vendors";
 
 export const appRouter = router({
   me: meRouter,
+  activity: activityRouter,
   assets: assetsRouter,
   bills: billsRouter,
   chat: chatRouter,

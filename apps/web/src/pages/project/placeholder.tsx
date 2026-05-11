@@ -35,12 +35,6 @@ const PLACEHOLDERS: Record<string, PlaceholderInfo> = {
       "Project-scoped file library: contracts, warranties, manufacturer spec sheets, photos. Supabase Storage backend with project + room + asset tagging.",
     milestone: "M2 · this milestone",
   },
-  activity: {
-    title: "Activity",
-    blurb:
-      "Project-scoped audit log. Every state transition, every record edited, every workflow run — with the actor string (user / agent / webhook) that did it.",
-    milestone: "v1",
-  },
 };
 
 export default function ProjectPlaceholder({ tab }: { tab: string }) {
