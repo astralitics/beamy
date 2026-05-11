@@ -17,18 +17,6 @@ const PLACEHOLDERS: Record<string, PlaceholderInfo> = {
       "spec_items — the planning + procurement layer. Lifecycle states (specified → approved → ordered → installed), client price markup, vendor links.",
     milestone: "M2 · later this milestone",
   },
-  assets: {
-    title: "Assets",
-    blurb:
-      "Manufacturer / model / serial / warranty / install date / install photo. The killer recall record — \"what fridge in the kitchen?\" returns this row.",
-    milestone: "M2 · next PR",
-  },
-  materials: {
-    title: "Materials",
-    blurb:
-      "Paint / tile / flooring with lot numbers, coverage by room × surface, attic stock tracking. Distinct from assets — per-batch rather than per-instance identity.",
-    milestone: "M2 · next PR",
-  },
   rfis: {
     title: "RFIs",
     blurb:
