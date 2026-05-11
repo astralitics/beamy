@@ -3,6 +3,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import type { InviteRole, OrgRole } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
+import { useAuth } from "../lib/auth";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type MemberRow = RouterOutputs["members"]["list"][number];
@@ -18,6 +19,7 @@ export default function SettingsPage() {
   const me = trpc.me.whoami.useQuery();
   const members = trpc.members.list.useQuery();
   const invites = trpc.members.listInvitations.useQuery();
+  const auth = useAuth();
   const [inviting, setInviting] = useState(false);
 
   const canInvite =
@@ -32,6 +34,18 @@ export default function SettingsPage() {
             Manage who's in {me.data?.org.name ?? "the workspace"}. Invitations
             expire after 7 days.
           </p>
+          {auth.session?.user?.email && (
+            <p className="mt-2 text-xs text-slate-500">
+              Signed in as <code>{auth.session.user.email}</code> ·{" "}
+              <button
+                type="button"
+                onClick={() => auth.signOut()}
+                className="text-rose-600 hover:text-rose-800"
+              >
+                Sign out
+              </button>
+            </p>
+          )}
         </div>
         {canInvite && (
           <button

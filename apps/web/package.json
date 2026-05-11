@@ -12,6 +12,7 @@
   "dependencies": {
     "@beamy/shared": "workspace:*",
     "@beamy/trpc": "workspace:*",
+    "@supabase/supabase-js": "^2.105.4",
     "@tanstack/react-query": "^5.62.7",
     "@trpc/client": "^11.0.0-rc.660",
     "@trpc/react-query": "^11.0.0-rc.660",

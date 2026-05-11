@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./app";
 import { trpc, makeTrpcClient } from "./lib/trpc";
 import { LocaleProvider } from "./lib/i18n";
+import { AuthProvider } from "./lib/auth";
 import "./index.css";
 
 const rootEl = document.getElementById("root");
@@ -17,14 +18,16 @@ const trpcClient = makeTrpcClient();
 
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <LocaleProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </LocaleProvider>
-      </QueryClientProvider>
-    </trpc.Provider>
+    <AuthProvider>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <LocaleProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </LocaleProvider>
+        </QueryClientProvider>
+      </trpc.Provider>
+    </AuthProvider>
   </React.StrictMode>,
 );
