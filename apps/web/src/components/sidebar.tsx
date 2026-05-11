@@ -30,8 +30,14 @@ const WORKSPACE_NAV: NavItem[][] = [
 
 /**
  * Project-level nav. Visible when inside `/projects/:id/*`.
- * Sub-routes are relative — `<NavLink to="work-plan">` resolves to
- * `/projects/<id>/work-plan` thanks to the nested route layout.
+ *
+ * `to` values are sub-route fragments — empty string for the project's
+ * Overview, otherwise the leaf path like `work-plan`. They're combined
+ * with the matched project id at render time to produce **absolute**
+ * paths like `/projects/<id>/work-plan`. Relative `<NavLink to="…">`
+ * would resolve against the current location, so clicking "Work plan"
+ * from `/projects/<id>/assistant` would produce
+ * `/projects/<id>/assistant/work-plan` → 404.
  */
 const PROJECT_NAV: NavItem[][] = [
   [
@@ -63,6 +69,17 @@ export function Sidebar() {
   const t = useT();
   const projectMatch = useMatch("/projects/:id/*");
   const inProject = Boolean(projectMatch);
+  const projectId = projectMatch?.params.id;
+
+  // Resolve project nav items to absolute paths (see PROJECT_NAV comment).
+  const projectGroups: NavItem[][] = inProject && projectId
+    ? PROJECT_NAV.map((g) =>
+        g.map((item) => ({
+          ...item,
+          to: item.to ? `/projects/${projectId}/${item.to}` : `/projects/${projectId}`,
+        })),
+      )
+    : [];
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-paper-200 bg-paper-50">
@@ -96,7 +113,7 @@ export function Sidebar() {
       )}
 
       <nav className="flex-1 overflow-y-auto p-2">
-        {(inProject ? PROJECT_NAV : WORKSPACE_NAV).map((group, idx) => (
+        {(inProject ? projectGroups : WORKSPACE_NAV).map((group, idx) => (
           <ul
             key={idx}
             className={`space-y-0.5 ${idx > 0 ? "mt-3 border-t border-paper-200 pt-3" : ""}`}
