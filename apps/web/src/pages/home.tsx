@@ -1,24 +1,24 @@
 import { trpc } from "../lib/trpc";
+import { useFormatters, useLocale, useT } from "../lib/i18n";
 
 export default function HomePage() {
+  const t = useT();
+  const fmt = useFormatters();
+  const { locale } = useLocale();
   const ping = trpc.me.ping.useQuery();
   const whoami = trpc.me.whoami.useQuery();
 
   return (
     <div className="mx-auto max-w-3xl p-10">
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-        Milestone 1 — Core entities + auth
+        {t("home.milestone")}
       </p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-        Beamy is alive.
+        {t("home.title")}
       </h1>
-      <p className="mt-3 text-slate-600">
-        Web shell, sidenav, tRPC mounted as Vite middleware at{" "}
-        <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
-          /api/trpc
-        </code>
-        . Real auth wiring lands later in M1; until then every request runs as
-        the seeded dev user.
+      <p className="mt-3 text-slate-600">{t("home.lede")}</p>
+      <p className="mt-1 text-xs text-slate-400">
+        locale: <code>{locale}</code>
       </p>
 
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -26,7 +26,7 @@ export default function HomePage() {
           label="me.ping"
           loading={ping.isLoading}
           error={ping.error?.message}
-          ok={ping.data ? `ok @ ${new Date(ping.data.ts).toLocaleTimeString()}` : null}
+          ok={ping.data ? `ok @ ${fmt.time(ping.data.ts)}` : null}
         />
         <SmokeStatus
           label="me.whoami"
@@ -41,7 +41,7 @@ export default function HomePage() {
       </div>
 
       <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5 text-sm">
-        <p className="font-medium text-slate-900">What&apos;s in the repo</p>
+        <p className="font-medium text-slate-900">{t("home.repo.heading")}</p>
         <ul className="mt-3 space-y-1.5 text-slate-600">
           <li>
             <code className="text-slate-800">apps/web</code> — this app.
@@ -64,12 +64,8 @@ export default function HomePage() {
       </div>
 
       <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-        <p className="font-medium">Next up — M1</p>
-        <p className="mt-1">
-          Apply the baseline migration + run <code>pnpm db:seed</code>, then
-          land core entity CRUD (clients, vendors, services, vendor
-          compliance), the i18n scaffold for US + MX, and Supabase auth wiring.
-        </p>
+        <p className="font-medium">{t("home.next.heading")}</p>
+        <p className="mt-1">{t("home.next.body")}</p>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./app";
 import { trpc, makeTrpcClient } from "./lib/trpc";
+import { LocaleProvider } from "./lib/i18n";
 import "./index.css";
 
 const rootEl = document.getElementById("root");
@@ -18,9 +19,11 @@ ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <LocaleProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </LocaleProvider>
       </QueryClientProvider>
     </trpc.Provider>
   </React.StrictMode>,
