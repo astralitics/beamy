@@ -7,6 +7,7 @@ import { membersRouter } from "./routers/members";
 import { orgsRouter } from "./routers/orgs";
 import { projectsRouter } from "./routers/projects";
 import { servicesRouter } from "./routers/services";
+import { specsRouter } from "./routers/specs";
 import { vendorsRouter } from "./routers/vendors";
 
 export const appRouter = router({
@@ -19,6 +20,7 @@ export const appRouter = router({
   members: membersRouter,
   orgs: orgsRouter,
   projects: projectsRouter,
+  specs: specsRouter,
 });
 
 export type AppRouter = typeof appRouter;

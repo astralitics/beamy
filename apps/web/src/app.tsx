@@ -10,6 +10,7 @@ import ProjectOverview from "./pages/project/overview";
 import ProjectWorkPlan from "./pages/project/work-plan";
 import ProjectAssets from "./pages/project/assets";
 import ProjectMaterials from "./pages/project/materials";
+import ProjectSpecs from "./pages/project/specs";
 import ProjectPlaceholder from "./pages/project/placeholder";
 import ServicesPage from "./pages/services";
 import SettingsPage from "./pages/settings";
@@ -52,10 +53,7 @@ function AppShell() {
               path="drawings"
               element={<ProjectPlaceholder tab="drawings" />}
             />
-            <Route
-              path="specs"
-              element={<ProjectPlaceholder tab="specs" />}
-            />
+            <Route path="specs" element={<ProjectSpecs />} />
             <Route path="assets" element={<ProjectAssets />} />
             <Route path="materials" element={<ProjectMaterials />} />
             <Route

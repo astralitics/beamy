@@ -11,12 +11,6 @@ const PLACEHOLDERS: Record<string, PlaceholderInfo> = {
       "Sheet sets with version tracking (IFP → IFB → IFC → as-built), NCS-aware sheet numbering, in-browser PDF viewer with search across the set.",
     milestone: "M8 · CAD + drawings",
   },
-  specs: {
-    title: "Specs & finishes",
-    blurb:
-      "spec_items — the planning + procurement layer. Lifecycle states (specified → approved → ordered → installed), client price markup, vendor links.",
-    milestone: "M2 · later this milestone",
-  },
   rfis: {
     title: "RFIs",
     blurb:
