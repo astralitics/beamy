@@ -35,6 +35,7 @@ export const meRouter = router({
         name: org.name,
         slug: org.slug,
         defaultCurrency: org.defaultCurrency,
+        locale: org.locale,
       },
     };
   }),
