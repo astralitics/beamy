@@ -180,3 +180,43 @@ export const complianceListInputSchema = z.object({
   vendorId: z.string().uuid(),
 });
 export type ComplianceListInput = z.infer<typeof complianceListInputSchema>;
+
+// ─────────────────── vendor_contacts ───────────────────
+
+export const vendorContactCreateInputSchema = z.object({
+  vendorId: z.string().uuid(),
+  name: z.string().trim().min(1, "Name is required").max(200),
+  role: z.string().trim().max(120).optional(),
+  email: z.string().trim().email().max(200).optional().or(z.literal("")),
+  phone: z.string().trim().max(60).optional(),
+  isPrimary: z.boolean().default(false),
+});
+export type VendorContactCreateInput = z.infer<
+  typeof vendorContactCreateInputSchema
+>;
+
+export const vendorContactUpdateInputSchema = z.object({
+  id: z.string().uuid(),
+  patch: z.object({
+    name: z.string().trim().min(1).max(200).optional(),
+    role: z.string().trim().max(120).optional(),
+    email: z.string().trim().email().max(200).optional().or(z.literal("")),
+    phone: z.string().trim().max(60).optional(),
+    isPrimary: z.boolean().optional(),
+  }),
+});
+export type VendorContactUpdateInput = z.infer<
+  typeof vendorContactUpdateInputSchema
+>;
+
+export const vendorContactIdInputSchema = z.object({
+  id: z.string().uuid(),
+});
+export type VendorContactIdInput = z.infer<typeof vendorContactIdInputSchema>;
+
+export const vendorContactListInputSchema = z.object({
+  vendorId: z.string().uuid(),
+});
+export type VendorContactListInput = z.infer<
+  typeof vendorContactListInputSchema
+>;

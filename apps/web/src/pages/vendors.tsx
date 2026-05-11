@@ -7,6 +7,7 @@ import {
   type VendorStatus,
 } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
+import { ContactsSection } from "../components/contacts-section";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type VendorRow = RouterOutputs["vendors"]["list"][number];
@@ -468,10 +469,42 @@ function VendorFormModal({
         </form>
 
         {isEdit && (
-          <ComplianceSection vendorId={state.vendor.id} />
+          <>
+            <VendorContactsWrapper vendorId={state.vendor.id} />
+            <ComplianceSection vendorId={state.vendor.id} />
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+// ────────────────────── contacts section wrapper ──────────────────────
+
+function VendorContactsWrapper({ vendorId }: { vendorId: string }) {
+  const utils = trpc.useUtils();
+  const list = trpc.vendors.listContacts.useQuery({ vendorId });
+  const add = trpc.vendors.addContact.useMutation({
+    onSuccess: () => utils.vendors.listContacts.invalidate({ vendorId }),
+  });
+  const update = trpc.vendors.updateContact.useMutation({
+    onSuccess: () => utils.vendors.listContacts.invalidate({ vendorId }),
+  });
+  const remove = trpc.vendors.removeContact.useMutation({
+    onSuccess: () => utils.vendors.listContacts.invalidate({ vendorId }),
+  });
+
+  return (
+    <ContactsSection
+      contacts={list.data}
+      isLoading={list.isLoading}
+      onAdd={(data) => add.mutate({ vendorId, ...data })}
+      onUpdate={(id, patch) => update.mutate({ id, patch })}
+      onRemove={(id) => remove.mutate({ id })}
+      removingId={remove.isPending ? remove.variables?.id ?? null : null}
+      addPending={add.isPending}
+      updatePending={update.isPending}
+    />
   );
 }
 

@@ -3,6 +3,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import type { ClientStatus } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
+import { ContactsSection } from "../components/contacts-section";
 
 type ClientRow = inferRouterOutputs<AppRouter>["clients"]["list"][number];
 type StatusFilter = ClientStatus | "all";
@@ -246,78 +247,108 @@ function ClientFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-8"
       onClick={onClose}
     >
-      <form
-        onSubmit={onSubmit}
+      <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl"
+        className="w-full max-w-lg rounded-lg bg-white shadow-xl"
       >
-        <h2 className="text-lg font-semibold tracking-tight">
-          {isEdit ? "Edit client" : "New client"}
-        </h2>
-        <div className="mt-4 space-y-3">
-          <Field label="Name *">
-            <input
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={inputCls}
-              autoFocus
-            />
-          </Field>
-          <Field label="Primary contact">
-            <input
-              value={primaryContact}
-              onChange={(e) => setPrimaryContact(e.target.value)}
-              className={inputCls}
-              placeholder="e.g. Sarah Anderson"
-            />
-          </Field>
-          <Field label="Address">
-            <input
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className={inputCls}
-            />
-          </Field>
-          <Field label="Notes">
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              className={inputCls}
-            />
-          </Field>
-          <Field label="Tags (comma-separated)">
-            <input
-              value={tagsRaw}
-              onChange={(e) => setTagsRaw(e.target.value)}
-              className={inputCls}
-              placeholder="residential, kitchen-reno"
-            />
-          </Field>
-        </div>
-        {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            {submitting ? "Saving…" : isEdit ? "Save" : "Create"}
-          </button>
-        </div>
-      </form>
+        <form onSubmit={onSubmit} className="p-6">
+          <h2 className="text-lg font-semibold tracking-tight">
+            {isEdit ? `Edit ${state.client.name}` : "New client"}
+          </h2>
+          <div className="mt-4 space-y-3">
+            <Field label="Name *">
+              <input
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={inputCls}
+                autoFocus
+              />
+            </Field>
+            <Field label="Primary contact">
+              <input
+                value={primaryContact}
+                onChange={(e) => setPrimaryContact(e.target.value)}
+                className={inputCls}
+                placeholder="e.g. Sarah Anderson"
+              />
+            </Field>
+            <Field label="Address">
+              <input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+            <Field label="Notes">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                className={inputCls}
+              />
+            </Field>
+            <Field label="Tags (comma-separated)">
+              <input
+                value={tagsRaw}
+                onChange={(e) => setTagsRaw(e.target.value)}
+                className={inputCls}
+                placeholder="residential, kitchen-reno"
+              />
+            </Field>
+          </div>
+          {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
+          <div className="mt-6 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {submitting ? "Saving…" : isEdit ? "Save" : "Create"}
+            </button>
+          </div>
+        </form>
+
+        {isEdit && <ClientContactsWrapper clientId={state.client.id} />}
+      </div>
     </div>
+  );
+}
+
+function ClientContactsWrapper({ clientId }: { clientId: string }) {
+  const utils = trpc.useUtils();
+  const list = trpc.clients.listContacts.useQuery({ clientId });
+  const add = trpc.clients.addContact.useMutation({
+    onSuccess: () => utils.clients.listContacts.invalidate({ clientId }),
+  });
+  const update = trpc.clients.updateContact.useMutation({
+    onSuccess: () => utils.clients.listContacts.invalidate({ clientId }),
+  });
+  const remove = trpc.clients.removeContact.useMutation({
+    onSuccess: () => utils.clients.listContacts.invalidate({ clientId }),
+  });
+
+  return (
+    <ContactsSection
+      contacts={list.data}
+      isLoading={list.isLoading}
+      onAdd={(data) => add.mutate({ clientId, ...data })}
+      onUpdate={(id, patch) => update.mutate({ id, patch })}
+      onRemove={(id) => remove.mutate({ id })}
+      removingId={remove.isPending ? remove.variables?.id ?? null : null}
+      addPending={add.isPending}
+      updatePending={update.isPending}
+    />
   );
 }
 

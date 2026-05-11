@@ -4,6 +4,7 @@ import {
   auditLog,
   getDb,
   vendorCompliance,
+  vendorContacts,
   vendors,
 } from "@beamy/db";
 import {
@@ -11,6 +12,10 @@ import {
   complianceIdInputSchema,
   complianceListInputSchema,
   complianceUpdateInputSchema,
+  vendorContactCreateInputSchema,
+  vendorContactIdInputSchema,
+  vendorContactListInputSchema,
+  vendorContactUpdateInputSchema,
   vendorCreateInputSchema,
   vendorIdInputSchema,
   vendorListInputSchema,
@@ -340,6 +345,155 @@ export const vendorsRouter = router({
           actor: ctx.actor,
           action: "vendor_compliance.deleted",
           resourceType: "vendor_compliance",
+          resourceId: input.id,
+          payload: existing[0],
+        });
+        return { ok: true as const };
+      });
+    }),
+
+  // ─────────────────── vendor_contacts sub-entity ───────────────────
+
+  listContacts: orgScopedProcedure
+    .input(vendorContactListInputSchema)
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const ownsVendor = await db
+        .select({ id: vendors.id })
+        .from(vendors)
+        .where(
+          and(eq(vendors.id, input.vendorId), eq(vendors.orgId, ctx.orgId)),
+        )
+        .limit(1);
+      if (!ownsVendor[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+      return await db
+        .select()
+        .from(vendorContacts)
+        .where(
+          and(
+            eq(vendorContacts.vendorId, input.vendorId),
+            eq(vendorContacts.orgId, ctx.orgId),
+          ),
+        )
+        .orderBy(desc(vendorContacts.isPrimary), asc(vendorContacts.name));
+    }),
+
+  addContact: orgScopedProcedure
+    .input(vendorContactCreateInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        const ownsVendor = await tx
+          .select({ id: vendors.id })
+          .from(vendors)
+          .where(
+            and(eq(vendors.id, input.vendorId), eq(vendors.orgId, ctx.orgId)),
+          )
+          .limit(1);
+        if (!ownsVendor[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const [row] = await tx
+          .insert(vendorContacts)
+          .values({
+            orgId: ctx.orgId,
+            vendorId: input.vendorId,
+            name: input.name,
+            role: emptyToNull(input.role),
+            email: emptyToNull(input.email),
+            phone: emptyToNull(input.phone),
+            isPrimary: input.isPrimary ?? false,
+            createdBy: ctx.actor,
+            updatedBy: ctx.actor,
+          })
+          .returning();
+        if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        await tx.insert(auditLog).values({
+          orgId: ctx.orgId,
+          actor: ctx.actor,
+          action: "vendor_contact.created",
+          resourceType: "vendor_contact",
+          resourceId: row.id,
+          payload: input,
+        });
+        return row;
+      });
+    }),
+
+  updateContact: orgScopedProcedure
+    .input(vendorContactUpdateInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        const existing = await tx
+          .select()
+          .from(vendorContacts)
+          .where(
+            and(
+              eq(vendorContacts.id, input.id),
+              eq(vendorContacts.orgId, ctx.orgId),
+            ),
+          )
+          .limit(1);
+        if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const setClause: Partial<typeof vendorContacts.$inferInsert> = {
+          updatedAt: new Date(),
+          updatedBy: ctx.actor,
+        };
+        const p = input.patch;
+        if (p.name !== undefined) setClause.name = p.name;
+        if (p.role !== undefined) setClause.role = emptyToNull(p.role);
+        if (p.email !== undefined) setClause.email = emptyToNull(p.email);
+        if (p.phone !== undefined) setClause.phone = emptyToNull(p.phone);
+        if (p.isPrimary !== undefined) setClause.isPrimary = p.isPrimary;
+
+        const [updated] = await tx
+          .update(vendorContacts)
+          .set(setClause)
+          .where(eq(vendorContacts.id, input.id))
+          .returning();
+        if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        await tx.insert(auditLog).values({
+          orgId: ctx.orgId,
+          actor: ctx.actor,
+          action: "vendor_contact.updated",
+          resourceType: "vendor_contact",
+          resourceId: input.id,
+          payload: input.patch,
+        });
+        return updated;
+      });
+    }),
+
+  removeContact: orgScopedProcedure
+    .input(vendorContactIdInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        const existing = await tx
+          .select()
+          .from(vendorContacts)
+          .where(
+            and(
+              eq(vendorContacts.id, input.id),
+              eq(vendorContacts.orgId, ctx.orgId),
+            ),
+          )
+          .limit(1);
+        if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+        await tx
+          .delete(vendorContacts)
+          .where(eq(vendorContacts.id, input.id));
+
+        await tx.insert(auditLog).values({
+          orgId: ctx.orgId,
+          actor: ctx.actor,
+          action: "vendor_contact.deleted",
+          resourceType: "vendor_contact",
           resourceId: input.id,
           payload: existing[0],
         });
