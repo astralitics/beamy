@@ -2,12 +2,17 @@ import { Link, useOutletContext } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
-import { PROPOSAL_STATUS_LABELS } from "@beamy/shared";
+import {
+  PROJECT_SECTION_LABELS,
+  PROPOSAL_STATUS_LABELS,
+  type ProjectSection,
+} from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useFormatters } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type Stats = inferRouterOutputs<AppRouter>["projects"]["overviewStats"];
+type Phase = inferRouterOutputs<AppRouter>["projects"]["phaseAndCompleteness"];
 type MoneyByCurrency = { currency: string; amount: string };
 
 /**
@@ -19,6 +24,9 @@ type MoneyByCurrency = { currency: string; amount: string };
 export default function ProjectOverview() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const stats = trpc.projects.overviewStats.useQuery({ projectId: project.id });
+  const phase = trpc.projects.phaseAndCompleteness.useQuery({
+    projectId: project.id,
+  });
   const fmt = useFormatters();
 
   if (stats.isLoading) {
@@ -46,6 +54,8 @@ export default function ProjectOverview() {
       ) : (
         <PulseGrid projectId={project.id} s={s} />
       )}
+
+      {phase.data && <CompletenessSection phase={phase.data} />}
 
       <MoneySection projectId={project.id} s={s} />
       <ProposalsSection projectId={project.id} s={s} fmt={fmt} />
@@ -313,6 +323,141 @@ function ProposalsSection({
 }
 
 // ───────────────────────────────────── primitives ─────────────
+
+// ───────────────────────────────────── completeness ──────────
+
+function CompletenessSection({ phase }: { phase: Phase }) {
+  const sectionOrder: ProjectSection[] = [
+    "property",
+    "work_proposal",
+    "execution",
+  ];
+  return (
+    <Section label="Completeness">
+      <div className="grid gap-3 sm:grid-cols-3">
+        {sectionOrder.map((id) => (
+          <CompletenessCard
+            key={id}
+            id={id}
+            section={phase.sections[id]}
+          />
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function CompletenessCard({
+  id,
+  section,
+}: {
+  id: ProjectSection;
+  section: Phase["sections"][ProjectSection];
+}) {
+  const pct = Math.round(section.ratio * 100);
+  const allDone = section.filled === section.total;
+  const ringColor = allDone
+    ? "text-emerald-600"
+    : pct >= 50
+      ? "text-safety-600"
+      : "text-slate-400";
+
+  const missing = section.checks.filter((c) => !c.passed);
+
+  return (
+    <div className="rounded-lg border border-paper-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+            {PROJECT_SECTION_LABELS[id]}
+          </p>
+          <p className="mt-1 font-mono text-2xl font-semibold text-blueprint-900">
+            {section.filled}
+            <span className="text-base text-slate-400">/{section.total}</span>
+          </p>
+        </div>
+        <CompletenessRing pct={pct} className={ringColor} />
+      </div>
+      {missing.length === 0 ? (
+        <p className="mt-3 text-[11px] text-emerald-700">
+          All set — nothing missing here.
+        </p>
+      ) : (
+        <ul className="mt-3 space-y-1">
+          {missing.slice(0, 4).map((c) => (
+            <li key={c.id} className="flex items-start gap-1.5 text-[11px]">
+              <span aria-hidden className="mt-0.5 text-slate-400">○</span>
+              {c.deepLink ? (
+                <Link
+                  to={c.deepLink}
+                  className="text-slate-600 hover:text-blueprint-900"
+                >
+                  {c.label}
+                </Link>
+              ) : (
+                <span className="text-slate-600">{c.label}</span>
+              )}
+            </li>
+          ))}
+          {missing.length > 4 && (
+            <li className="text-[10px] text-slate-400">
+              +{missing.length - 4} more
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function CompletenessRing({
+  pct,
+  className,
+}: {
+  pct: number;
+  className: string;
+}) {
+  const SIZE = 36;
+  const STROKE = 4;
+  const R = (SIZE - STROKE) / 2;
+  const C = 2 * Math.PI * R;
+  const offset = C * (1 - pct / 100);
+  return (
+    <svg width={SIZE} height={SIZE} className="shrink-0">
+      <circle
+        cx={SIZE / 2}
+        cy={SIZE / 2}
+        r={R}
+        fill="none"
+        stroke="#e6e9ef"
+        strokeWidth={STROKE}
+      />
+      <circle
+        cx={SIZE / 2}
+        cy={SIZE / 2}
+        r={R}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={STROKE}
+        strokeDasharray={C}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+        className={className}
+      />
+      <text
+        x={SIZE / 2}
+        y={SIZE / 2 + 3}
+        textAnchor="middle"
+        fontSize={9}
+        fontFamily="ui-monospace, monospace"
+        fill="#475569"
+      >
+        {pct}%
+      </text>
+    </svg>
+  );
+}
 
 function Section({
   label,
