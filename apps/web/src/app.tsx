@@ -7,6 +7,7 @@ import LoginPage from "./pages/login";
 import ProjectsPage from "./pages/projects";
 import ProjectShell from "./pages/project/shell";
 import ProjectOverview from "./pages/project/overview";
+import ProjectBids from "./pages/project/bids";
 import ProjectWorkPlan from "./pages/project/work-plan";
 import ProjectAssets from "./pages/project/assets";
 import ProjectMaterials from "./pages/project/materials";
@@ -57,7 +58,10 @@ function AppShell() {
           <Route path="/projects/:id" element={<ProjectShell />}>
             <Route index element={<ProjectOverview />} />
             <Route path="assistant" element={<ProjectAssistant />} />
+            {/* `plan` is canonical; `work-plan` kept as alias for old bookmarks. */}
+            <Route path="plan" element={<ProjectWorkPlan />} />
             <Route path="work-plan" element={<ProjectWorkPlan />} />
+            <Route path="bids" element={<ProjectBids />} />
             <Route
               path="drawings"
               element={<ProjectPlaceholder tab="drawings" />}
