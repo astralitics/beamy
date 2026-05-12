@@ -10,6 +10,7 @@ export * from "./invoices";
 export * from "./materials";
 export * from "./members";
 export * from "./projects";
+export * from "./proposals";
 export * from "./services";
 export * from "./specs";
 export * from "./vendors";

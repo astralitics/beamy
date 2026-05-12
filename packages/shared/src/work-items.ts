@@ -12,6 +12,9 @@ import { z } from "zod";
 const moneyAmount = z
   .string()
   .regex(/^-?\d+(\.\d{1,2})?$/, "decimal with up to 2 decimal places");
+const markupPct = z
+  .string()
+  .regex(/^-?\d+(\.\d{1,2})?$/, "decimal with up to 2 decimal places");
 const qtyAmount = z
   .string()
   .regex(/^-?\d+(\.\d{1,4})?$/, "decimal with up to 4 decimal places");
@@ -116,6 +119,10 @@ export const workItemUpdateInputSchema = z.object({
       unitPriceCurrency: currencyCode.nullable().optional(),
       totalAmount: moneyAmount.nullable().optional(),
       totalCurrency: currencyCode.nullable().optional(),
+      clientMarkupPct: markupPct.nullable().optional(),
+      clientUnitPrice: moneyAmount.nullable().optional(),
+      clientTotal: moneyAmount.nullable().optional(),
+      clientCurrency: currencyCode.nullable().optional(),
       status: workItemStatusSchema.optional(),
       plannedStart: isoDate.nullable().optional(),
       plannedEnd: isoDate.nullable().optional(),
