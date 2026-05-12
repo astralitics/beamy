@@ -14,6 +14,7 @@ import ProjectSpecs from "./pages/project/specs";
 import ProjectMoney from "./pages/project/money";
 import ProjectAssistant from "./pages/project/assistant";
 import ProjectActivity from "./pages/project/activity";
+import ProjectDocuments from "./pages/project/documents";
 import ProjectPlaceholder from "./pages/project/placeholder";
 import ServicesPage from "./pages/services";
 import SettingsPage from "./pages/settings";
@@ -74,7 +75,7 @@ function AppShell() {
             />
             <Route
               path="documents"
-              element={<ProjectPlaceholder tab="documents" />}
+              element={<ProjectDocuments />}
             />
             <Route path="money" element={<ProjectMoney />} />
             <Route path="activity" element={<ProjectActivity />} />

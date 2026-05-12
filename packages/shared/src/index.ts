@@ -4,6 +4,7 @@ export * from "./assets";
 export * from "./bills";
 export * from "./chat";
 export * from "./clients";
+export * from "./documents";
 export * from "./invoices";
 export * from "./materials";
 export * from "./members";
