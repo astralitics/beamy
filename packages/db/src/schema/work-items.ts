@@ -67,6 +67,17 @@ export const workItems = pgTable(
     unitPriceCurrency: text("unit_price_currency"),
     totalAmount: numeric("total_amount", { precision: 14, scale: 2 }),
     totalCurrency: text("total_currency"),
+    /**
+     * Client-facing price overrides. Populated when this work item
+     * rolls into a client proposal — either via the generator's
+     * project-level markup default, or per-line override.
+     * `clientUnitPrice` set takes precedence over markup math.
+     * `clientTotal` is the snapshot at last proposal generation.
+     */
+    clientMarkupPct: numeric("client_markup_pct", { precision: 6, scale: 2 }),
+    clientUnitPrice: numeric("client_unit_price", { precision: 14, scale: 2 }),
+    clientTotal: numeric("client_total", { precision: 14, scale: 2 }),
+    clientCurrency: text("client_currency"),
     status: text("status", {
       enum: [
         "specified",

@@ -12,6 +12,7 @@ import { bidsRouter } from "./routers/bids";
 import { membersRouter } from "./routers/members";
 import { orgsRouter } from "./routers/orgs";
 import { projectsRouter } from "./routers/projects";
+import { proposalsRouter } from "./routers/proposals";
 import { servicesRouter } from "./routers/services";
 import { specsRouter } from "./routers/specs";
 import { vendorsRouter } from "./routers/vendors";
@@ -33,6 +34,7 @@ export const appRouter = router({
   members: membersRouter,
   orgs: orgsRouter,
   projects: projectsRouter,
+  proposals: proposalsRouter,
   specs: specsRouter,
   workItems: workItemsRouter,
 });

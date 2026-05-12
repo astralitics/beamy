@@ -61,6 +61,7 @@ const PROJECT_NAV: NavItem[][] = [
   [
     { to: "documents", labelKey: "project_nav.documents" },
     { to: "money", labelKey: "project_nav.money" },
+    { to: "proposals", labelKey: "project_nav.proposals" },
     { to: "activity", labelKey: "project_nav.activity" },
   ],
 ];

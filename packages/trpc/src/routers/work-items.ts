@@ -280,6 +280,16 @@ export const workItemsRouter = router({
         if (p.totalCurrency !== undefined) {
           setClause.totalCurrency = p.totalCurrency;
         }
+        if (p.clientMarkupPct !== undefined) {
+          setClause.clientMarkupPct = p.clientMarkupPct;
+        }
+        if (p.clientUnitPrice !== undefined) {
+          setClause.clientUnitPrice = p.clientUnitPrice;
+        }
+        if (p.clientTotal !== undefined) setClause.clientTotal = p.clientTotal;
+        if (p.clientCurrency !== undefined) {
+          setClause.clientCurrency = p.clientCurrency;
+        }
         if (p.status !== undefined) setClause.status = p.status;
         if (p.plannedStart !== undefined) {
           setClause.plannedStart = p.plannedStart;
