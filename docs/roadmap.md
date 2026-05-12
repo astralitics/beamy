@@ -26,7 +26,8 @@ The Rubén Darío 123 proposal data is more sophisticated than what M2 currently
 
 And one *structural* lesson: **the line item is the natural unit of work.** Not specs (one fridge per row, no quantity), not bills (post-work, lump sum). A line item is what:
 
-- A vendor **quoted** (their proposal carries N of these)
+- A subcontractor **bid** (their bid carries N of these)
+- The firm **rolled into a client proposal** (with markup)
 - The client **approved**
 - The firm **scheduled**
 - The crew **executed**
@@ -35,64 +36,119 @@ And one *structural* lesson: **the line item is the natural unit of work.** Not 
 
 This redefines what "the project plan" *is* in Beamy: it's the table of work_items, filtered by status / trade / room / vendor / overdue. The "Work plan" tab gets repurposed from a rooms-only list to this real plan view.
 
+### Two directions of paper
+
+Proposals flow **both ways** on a project like Rubén Darío:
+
+- **Inbound: bids** — 16 subcontractors send PDFs (their quotes to the firm). Beamy normalizes them: one **`bid`** per PDF, with N line items, in whatever currency the vendor quoted in. The 16 PDFs in Propuesta's `02_subcontractor-quotes/` are exactly this.
+- **Outbound: client proposal** — the firm picks accepted bids per trade, applies markup, and **generates** one **`proposal`** for the client. That's the aggregated dashboard / printable artifact Propuesta's `dashboard.html` produced — but generated *from Beamy data*, not hand-coded.
+
+These are different entities with different lifecycles. The Tier 0 work has to model both, and the **generator** that produces the client proposal from accepted bids is part of the same sprint.
+
 ---
 
-## 2. Tier 0 — base (the next PR, then the one after)
+## 2. Tier 0 — base (three PRs)
 
-These are the new entities required before anything else makes sense. Two PRs:
+The new entities + the two directions of paper. Three PRs:
 
-### 2.1 `work_items` + `proposals` + `work_item_rooms` (M3-A)
+### 2.1 `bids` + `work_items` + `work_item_rooms` — inbound subcontractor side (M3-A)
 
-**`proposals`** — vendor bid container. One row per vendor's quote PDF.
+**`bids`** — what a subcontractor sent us. One row per quote PDF.
 
 ```
 id, org_id, project_id, vendor_id, trade
-quote_number, quote_date, valid_until
+bid_number, bid_date, valid_until
 subtotal, iva, total, currency
-flags text[]   -- "iva-not-included", "validity-likely-expired", etc.
+iva_included (bool)
+flags text[]   -- "iva-not-included", "validity-likely-expired", "missing-cotizacion-only-credentials", etc.
 status: received | comparing | accepted | rejected | expired
 decided_at
-source_document_id  -- FK to documents (the PDF)
+source_document_id  -- FK to documents (the PDF the vendor sent)
 notes
 ```
 
-**`work_items`** — the unit of work. One row per Propuesta line item.
+**`work_items`** — the unit of work. One row per bid line item.
 
 ```
-id, org_id, project_id, proposal_id (nullable), vendor_id (nullable until contracted)
+id, org_id, project_id, bid_id (nullable), vendor_id (nullable until contracted)
 trade
 ref            -- vendor's internal code (V01, S1-01) or auto-assigned
 description
 qty (numeric), unit (text — "ea", "m2", "ml", "lote", "yd")
 unit_price (numeric), unit_price_currency
 total (numeric, derived), total_currency
+-- client-facing fields (populated when this rolls into a proposal):
+client_markup_pct (numeric, nullable)
+client_unit_price (numeric, nullable — overrides the markup calc)
+client_total (numeric, derived)
+client_currency
+-- execution fields:
 status: specified | approved | scheduled | in_progress | done | accepted | cancelled
 planned_start, planned_end, actual_start, actual_end  -- all date, nullable
 notes
 ```
 
-**`work_item_rooms`** — M2M join. Lets V14 attach to all three bathrooms cleanly.
+**`work_item_rooms`** — M2M join. Lets V14 ("cambio de empaques de policarbonato") attach to all three bathrooms cleanly.
 
-Importer: read `Propuesta/00_dashboard/data/proposal.js`, create the project + rooms + vendors + 1 proposal per vendor + 122 work_items + room joins. Loads the Rubén Darío project as a real workable plan in one shot. (`pnpm db:import-propuesta` or similar.)
+UI: Work Plan tab becomes the work_items view (table with filters by status / trade / room / vendor / overdue). Bids get their own sub-tab where each row is one vendor's bid; clicking opens its line items. Rooms move to a sub-section or sibling tab.
 
-UI: Work Plan tab becomes the work_items view (table with filters by status / trade / room / vendor / overdue). Rooms section moves to its own sub-section or its own tab.
+### 2.2 `proposals` + the generator — outbound client side (M3-B)
 
-### 2.2 Overview-as-dashboard (M3-B)
+The firm aggregates accepted bids into one client-facing proposal. Beamy generates the artifact (HTML, printable PDF) from data.
 
-Cards on the Overview tab surfacing **what needs attention**, reading from the data #2.1 lands:
+**`proposals`** — what the firm sent the client. May go through several versions before the client signs.
+
+```
+id, org_id, project_id
+number          -- "PROP-2026-0001" auto-assigned
+version         -- 1, 2, 3… (revisions)
+title, intro_text
+status: drafted | sent | accepted | rejected | superseded
+sent_at, decided_at
+total_amount, total_currency        -- the bottom line client sees
+expires_at
+notes
+generated_document_id  -- FK to documents (the PDF Beamy produced)
+```
+
+**`proposal_lines`** — what's on the client-facing proposal. Each row references a work_item (1:N) and carries the client-facing override fields if any. By default it's the work_item's `client_*` fields, but the firm can override here for presentation-only changes.
+
+```
+id, proposal_id, work_item_id
+display_order
+display_description  -- can differ from work_item.description for client presentation
+display_qty
+display_unit_price, currency
+display_total
+markup_pct_applied  -- snapshot at generation time
+section_label  -- "Cancelería", "Domótica", optional grouping header
+```
+
+**Generator** (the verb, not an entity). One mutation: `proposals.generate({ projectId, includeBidIds: uuid[], options: { ... } })`. Server-side renders a single HTML artifact (or HTML → PDF via headless print) from project + rooms + accepted bids + markup rules, uploads it to the documents bucket, and creates the `proposals` row pointing at the document. Output is a styled, printable client proposal — Propuesta's `dashboard.html` reborn as a real Beamy capability.
+
+UI: A new "Proposals" tab on the project. Each row is one outbound proposal. "Generate new proposal" picks bids + applies project-level markup defaults + opens a review screen before finalizing. Client-facing copy (description text, section labels) is editable before generation.
+
+### 2.3 Overview-as-dashboard + scope-by-room (M3-C)
+
+Cards on the Overview tab surfacing **what needs attention**, reading from the data #2.1 + #2.2 land:
 
 - N work items past `planned_end` (overdue)
 - N work items scheduled this week
-- N proposals past `valid_until` (need re-quote)
-- N proposals in `comparing` state with no decision yet
-- Money: committed (sum of accepted-proposal totals) vs billed vs paid, in MXN equivalent
+- N **bids** past `valid_until` (need re-quote)
+- N **bids** in `comparing` state with no decision yet
+- Most-recent **proposals** to the client: status (drafted / sent / accepted), days since sent
+- Money: **committed** (sum of accepted-bid totals) vs **sold** (sum of accepted proposal totals) vs **billed** vs **paid**, in project's primary currency
 - Plus the existing per-tab pulses (overdue bills, overdue invoices, etc.) consolidated here
 
 Each card deep-links to the relevant tab pre-filtered. The Overview tab becomes the daily-driver landing surface instead of a static fact block.
 
-### 2.3 Scope-by-room secondary lens (M3-B, same PR)
+**Scope-by-room secondary lens** — same PR. Lift Propuesta's `scope-by-room.html` as a second view of the same work_items table. Same data, pivoted: group by room, show every line item that touches that room. Natural for site-walk reviews ("what's happening in the kitchen?"). Toggle between work_items table view and scope-by-room view on the Work Plan tab.
 
-Lift the `scope-by-room.html` from Propuesta as a second view of the same work_items table. Same data, pivoted: group by room, show every line item that touches that room. Natural for site-walk reviews ("what's happening in the kitchen?"). Toggle between the two views on the Work Plan tab.
+### 2.4 Dev seeding — separate from the workflow
+
+The existing Rubén Darío Propuesta JSON (`Propuesta/00_dashboard/data/proposal.js`) is one-off data for dev/demo. A small admin script (`pnpm db:seed-propuesta`) reads it and populates a new project's bids + work_items + room joins so we can poke real numbers without manual entry.
+
+**This is not the production workflow.** The production flow is: vendor sends PDF → user uploads to documents + creates a bid in the UI → user enters or AI-extracts line items → user accepts the bids they want → user clicks "Generate proposal" → Beamy renders the client-facing artifact. The seed script is a development convenience that disappears the moment Beamy has other projects with real data.
 
 ---
 
@@ -100,7 +156,7 @@ Lift the `scope-by-room.html` from Propuesta as a second view of the same work_i
 
 These are the depth-of-execution features. Without them, the plan layer is a frozen snapshot, not a living document. Three PRs in this tier; **change orders is mandatory**, the rest in priority order.
 
-### 3.1 Change orders (M3-C) — mandatory
+### 3.1 Change orders (M3-D) — mandatory
 
 > **Why it's Tier 1, not Tier 2:** the #1 source of budget creep in construction. Without COs, the work_items table becomes fiction the moment execution starts. Day 12, the carpenter pulls baseboards and finds rotted wood. New scope. New money. Client must approve. Skip this and the dashboard's "money committed vs spent" is lying within two weeks.
 
@@ -128,7 +184,7 @@ change_order_lines:  -- what the CO actually changes
 
 UI: COs are their own tab or a section of Work Plan. Each row shows what changed, who approved, how much it moves the budget. Approved COs immediately apply to work_items.
 
-### 3.2 Work item dependencies (M3-D)
+### 3.2 Work item dependencies (M3-E)
 
 ```
 work_item_dependencies:
@@ -141,7 +197,7 @@ Adds `depends_on` semantics to the plan view. "Floor refinish can't start until 
 - **Slip propagation**: when X moves, everything downstream updates
 - A simple Gantt-ish timeline view (not full CPM, but enough to see the critical chain)
 
-### 3.3 Progress billing milestones (M3-E)
+### 3.3 Progress billing milestones (M3-F)
 
 > **The connective tissue between scope and cash.** INTEGRA's $1M+ smart-home isn't one invoice; it's 30% deposit / 30% delivery / 30% programming / 10% completion. Each milestone is tied to a state transition on its work_items. This is what turns Beamy from "data model" into the firm's books.
 
@@ -163,7 +219,7 @@ Bills (existing table) gain `milestone_id` (nullable). The Money tab's pulse car
 
 ## 4. Tier 2 — real, but ship after Tier 1 is solid
 
-### 4.1 Site observations / visit log (M3-F)
+### 4.1 Site observations / visit log (M3-G)
 
 The day-by-day execution diary. Designer visits twice a week, takes 30 photos. Right now those photos live in WhatsApp; in Beamy they should live tied to rooms + work_items + date.
 
@@ -244,16 +300,17 @@ Not features per se — design discipline that applies to everything in Tier 0�
 
 ## 7. Proposed sprint sequence
 
-- **Sprint M3-α** (1–2 days):
-  - PR M3-A: `work_items` + `proposals` + `work_item_rooms` + Propuesta importer.
-  - PR M3-B: Overview-as-dashboard + scope-by-room secondary lens.
+- **Sprint M3-α** (2 days):
+  - **PR M3-A:** `bids` + `work_items` + `work_item_rooms` schema, routers, UI. Inbound subcontractor side. Includes `pnpm db:seed-propuesta` admin script for dev seeding.
+  - **PR M3-B:** `proposals` + `proposal_lines` schema + the **generator** (HTML → PDF artifact, stored in the documents bucket). Outbound client side.
+  - **PR M3-C:** Overview-as-dashboard + scope-by-room secondary lens.
 - **Sprint M3-β** (1–2 days):
-  - PR M3-C: Change orders.
-  - PR M3-D: Work item dependencies + Gantt-ish view.
+  - PR M3-D: Change orders.
+  - PR M3-E: Work item dependencies + Gantt-ish view.
 - **Sprint M3-γ** (1 day):
-  - PR M3-E: Progress billing milestones.
+  - PR M3-F: Progress billing milestones.
 
-After γ: Beamy can run Rubén Darío 123 end-to-end as a real execution tool, not just a recall record. Tier 2 features layer on as the team uses the product on a second/third real project.
+After γ: Beamy can run Rubén Darío 123 end-to-end as a real execution tool, not just a recall record. The full cycle — receive 16 bids, accept the keepers, generate a client proposal, manage execution, bill against milestones — all lives in Beamy. Tier 2 features layer on as the team uses the product on a second/third real project.
 
 ---
 
@@ -263,7 +320,10 @@ The pivot doesn't kill M2's existing tables — it reframes them:
 
 - **`spec_items`** stays as the *finish specification* record (the fridge model, the paint color). They feed into work_items at procurement time. May ultimately be merged with work_items if duplication shows up; defer that call to when 1+ project is loaded.
 - **`assets`** and **`materials`** become **the install record** at the end of a work_item, not parallel planning entities. Their state field collapses to just identity (no lifecycle). They're the "what got installed" half of the recall demo, exactly what they were designed for.
-- **`bills`** gain `milestone_id` and link back to the work_items they cover. Money view becomes traceable to scope.
-- **`documents`** already supports the document FKs we'll add (`change_order_id`, `site_observation_id`, etc.) — just new columns, no architecture change.
+- **`bills`** gain `milestone_id` and `work_item_id` (or M2M to work_items) — link back to the scope they cover. Money view becomes traceable to scope.
+- **`invoices`** gain `proposal_id` (nullable) — when an invoice is the formal version of an accepted client proposal, the link is recorded. The proposal's `total_amount` and the invoice's `amount` should reconcile.
+- **`documents`** already supports the document FKs we'll add (`bid_id`, `proposal_id`, `change_order_id`, `site_observation_id`, etc.) — just new columns, no architecture change. The PDF a vendor sent → attached to a bid. The PDF Beamy generates → attached to a proposal.
+- **`vendors`** are the actors on the inbound side. The flag/compliance machinery already there feeds bid-quality signals to the dashboard.
+- **`clients`** are the actors on the outbound side. The proposal is sent to a client; the client's contacts (from `client_contacts`) are the addressees.
 
 No M2 entity goes away. Several get more useful once they have a real plan to attach to.
