@@ -50,9 +50,12 @@ const STATUS_PILL_CLS: Record<WorkItemStatus, string> = {
   cancelled: "bg-rose-50 text-rose-700 ring-rose-200",
 };
 
+type PlanView = "table" | "rooms";
+
 function WorkItemsSection({ projectId }: { projectId: string }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<WorkItemRow | null>(null);
+  const [view, setView] = useState<PlanView>("table");
   const [statusFilter, setStatusFilter] = useState<WorkItemStatus | "open" | "all">(
     "open",
   );
@@ -116,13 +119,16 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
           </p>
         </div>
         {!adding && !editing && (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
-          >
-            Add work item
-          </button>
+          <div className="flex items-center gap-2">
+            <ViewToggle view={view} onChange={setView} />
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+            >
+              Add work item
+            </button>
+          </div>
         )}
       </div>
 
@@ -242,6 +248,12 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
               </>
             )}
           </p>
+        ) : view === "rooms" ? (
+          <ScopeByRoom
+            items={filtered}
+            rooms={rooms.data ?? []}
+            onEdit={setEditing}
+          />
         ) : (
           <WorkItemsTable items={filtered} onEdit={setEditing} />
         )}
@@ -269,6 +281,225 @@ function SubtotalChip({
   const fmt = useFormatters();
   return (
     <span className="text-slate-700">{fmt.currency(amount, currency)}</span>
+  );
+}
+
+function ViewToggle({
+  view,
+  onChange,
+}: {
+  view: PlanView;
+  onChange: (v: PlanView) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-md border border-paper-200 bg-white p-0.5 text-xs">
+      <button
+        type="button"
+        onClick={() => onChange("table")}
+        className={`rounded px-2.5 py-1 transition-colors ${
+          view === "table"
+            ? "bg-paper-100 font-medium text-blueprint-900"
+            : "text-slate-500 hover:text-slate-900"
+        }`}
+      >
+        Table
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("rooms")}
+        className={`rounded px-2.5 py-1 transition-colors ${
+          view === "rooms"
+            ? "bg-paper-100 font-medium text-blueprint-900"
+            : "text-slate-500 hover:text-slate-900"
+        }`}
+      >
+        By room
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Scope-by-room — the spatial pivot. Same work_items, grouped by
+ * room. A line item that touches 3 rooms shows up under each
+ * (signaled with a small "+2 more rooms" badge so the user knows
+ * it's the same work item). Items with no room go in the
+ * "Unassigned" bucket at the end.
+ *
+ * Natural for site-walk reviews: open the tab, scroll to the
+ * kitchen header, see everything happening there.
+ */
+function ScopeByRoom({
+  items,
+  rooms,
+  onEdit,
+}: {
+  items: WorkItemRow[];
+  rooms: RoomRow[];
+  onEdit: (w: WorkItemRow) => void;
+}) {
+  const groups = useMemo(() => {
+    type Group = { room: RoomRow | null; items: WorkItemRow[] };
+    const byRoomId = new Map<string, Group>();
+    const unassigned: WorkItemRow[] = [];
+
+    for (const w of items) {
+      if (w.rooms.length === 0) {
+        unassigned.push(w);
+        continue;
+      }
+      for (const r of w.rooms) {
+        let g = byRoomId.get(r.id);
+        if (!g) {
+          // r is a lite (id+name) shape from workItems.list; resolve
+          // back to the full RoomRow if we have it for the type chip.
+          const full = rooms.find((rr) => rr.id === r.id) ?? null;
+          g = { room: full ?? (r as RoomRow), items: [] };
+          byRoomId.set(r.id, g);
+        }
+        g.items.push(w);
+      }
+    }
+
+    // Sort rooms by name; unassigned last.
+    const ordered: Group[] = Array.from(byRoomId.values()).sort((a, b) =>
+      (a.room?.name ?? "").localeCompare(b.room?.name ?? ""),
+    );
+    if (unassigned.length > 0) {
+      ordered.push({ room: null, items: unassigned });
+    }
+    return ordered;
+  }, [items, rooms]);
+
+  if (groups.length === 0) {
+    return (
+      <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
+        No work items to group.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {groups.map((g) => (
+        <div
+          key={g.room?.id ?? "_unassigned"}
+          className="overflow-hidden rounded-md border border-paper-200 bg-white"
+        >
+          <div className="flex items-baseline justify-between border-b border-paper-200 bg-paper-50 px-3 py-2">
+            <div className="flex items-baseline gap-2">
+              <h3 className="text-sm font-semibold text-blueprint-900">
+                {g.room?.name ?? "Unassigned"}
+              </h3>
+              {g.room?.roomType && (
+                <span className="rounded-full bg-paper-100 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
+                  {ROOM_TYPE_LABELS[g.room.roomType]}
+                </span>
+              )}
+            </div>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400">
+              {g.items.length} item{g.items.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="text-left">
+              <tr className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+                <th className="px-3 py-1.5">Ref</th>
+                <th className="px-3 py-1.5">Description</th>
+                <th className="px-3 py-1.5 text-right">Qty</th>
+                <th className="px-3 py-1.5 text-right">Total</th>
+                <th className="px-3 py-1.5">Status</th>
+                <th className="px-3 py-1.5"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-paper-200">
+              {g.items.map((w) => (
+                <ScopeByRoomRow
+                  key={`${g.room?.id ?? "u"}:${w.id}`}
+                  item={w}
+                  currentRoomId={g.room?.id ?? null}
+                  onEdit={() => onEdit(w)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ScopeByRoomRow({
+  item,
+  currentRoomId,
+  onEdit,
+}: {
+  item: WorkItemRow;
+  currentRoomId: string | null;
+  onEdit: () => void;
+}) {
+  const fmt = useFormatters();
+  const otherRooms =
+    currentRoomId == null
+      ? []
+      : item.rooms.filter((r) => r.id !== currentRoomId);
+
+  return (
+    <tr className="align-top">
+      <td className="px-3 py-2 font-mono text-[11px] text-slate-500">
+        {item.ref ?? "—"}
+      </td>
+      <td className="px-3 py-2">
+        <div className="font-medium text-blueprint-900">{item.description}</div>
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {item.trade && (
+            <span className="rounded-full bg-paper-100 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
+              {item.trade}
+            </span>
+          )}
+          {otherRooms.length > 0 && (
+            <span
+              className="rounded-full bg-blueprint-50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-blueprint-700 ring-1 ring-inset ring-blueprint-100"
+              title={otherRooms.map((r) => r.name).join(", ")}
+            >
+              also in {otherRooms.length} more
+            </span>
+          )}
+          {item.vendor && (
+            <span className="font-mono text-[9px] uppercase tracking-wide text-slate-400">
+              · {item.vendor.name}
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px] text-slate-700">
+        {item.qty
+          ? `${trimQty(item.qty)}${item.unit ? ` ${item.unit}` : ""}`
+          : "—"}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px] font-medium text-blueprint-900">
+        {item.totalAmount && item.totalCurrency
+          ? fmt.currency(item.totalAmount, item.totalCurrency)
+          : "—"}
+      </td>
+      <td className="px-3 py-2">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[item.status]}`}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
+          {WORK_ITEM_STATUS_LABELS[item.status].toLowerCase()}
+        </span>
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="text-xs text-slate-500 hover:text-slate-900"
+        >
+          Edit
+        </button>
+      </td>
+    </tr>
   );
 }
 
