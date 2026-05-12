@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { assets } from "./assets";
 import { bids } from "./bids";
+import { changeOrders } from "./change-orders";
 import { materials } from "./materials";
 import { orgs } from "./orgs";
 import { projects, rooms } from "./projects";
@@ -59,6 +60,9 @@ export const documents = pgTable(
     proposalId: uuid("proposal_id").references(() => proposals.id, {
       onDelete: "set null",
     }),
+    changeOrderId: uuid("change_order_id").references(() => changeOrders.id, {
+      onDelete: "set null",
+    }),
     /** User-facing display name (with extension). Defaults to upload filename. */
     name: text("name").notNull(),
     description: text("description"),
@@ -85,6 +89,7 @@ export const documents = pgTable(
     byMaterial: index("documents_by_material").on(table.materialId),
     byBid: index("documents_by_bid").on(table.bidId),
     byProposal: index("documents_by_proposal").on(table.proposalId),
+    byChangeOrder: index("documents_by_change_order").on(table.changeOrderId),
   }),
 );
 

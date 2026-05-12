@@ -14,6 +14,8 @@ import ProjectSpecs from "./pages/project/specs";
 import ProjectMoney from "./pages/project/money";
 import ProjectProposals from "./pages/project/proposals";
 import ProjectProposalDetail from "./pages/project/proposal-detail";
+import ProjectChangeOrders from "./pages/project/change-orders";
+import ProjectChangeOrderDetail from "./pages/project/change-order-detail";
 import ProjectAssistant from "./pages/project/assistant";
 import ProjectActivity from "./pages/project/activity";
 import ProjectDocuments from "./pages/project/documents";
@@ -84,6 +86,14 @@ function AppShell() {
             <Route
               path="proposals/:proposalId"
               element={<ProjectProposalDetail />}
+            />
+            <Route
+              path="change-orders"
+              element={<ProjectChangeOrders />}
+            />
+            <Route
+              path="change-orders/:changeOrderId"
+              element={<ProjectChangeOrderDetail />}
             />
             <Route path="activity" element={<ProjectActivity />} />
           </Route>

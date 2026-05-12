@@ -4,6 +4,7 @@ import {
   auditLog,
   bids,
   bills,
+  changeOrders,
   clients,
   getDb,
   invoices,
@@ -140,6 +141,10 @@ export const projectsRouter = router({
         eq(invoices.projectId, input.projectId),
         eq(invoices.orgId, ctx.orgId),
       );
+      const changeOrderScope = and(
+        eq(changeOrders.projectId, input.projectId),
+        eq(changeOrders.orgId, ctx.orgId),
+      );
 
       const [
         workItemOverdue,
@@ -154,6 +159,8 @@ export const projectsRouter = router({
         invoicesPaidByCurrency,
         billsOverdue,
         invoicesOverdue,
+        coAwaitingDecision,
+        coApprovedDeltaByCurrency,
       ] = await Promise.all([
         // Overdue work items: planned_end < today AND not done/accepted/cancelled.
         db
@@ -267,6 +274,21 @@ export const projectsRouter = router({
               lt(invoices.dueAt, today),
             ),
           ),
+        // Change orders awaiting client decision (status = sent).
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(changeOrders)
+          .where(and(changeOrderScope, eq(changeOrders.status, "sent"))),
+        // Approved CO net delta — per currency. Negative deductive
+        // COs subtract, additive add. Pairs with the Money tile.
+        db
+          .select({
+            currency: changeOrders.totalDeltaCurrency,
+            total: sql<string>`coalesce(sum(${changeOrders.totalDeltaAmount}), 0)::text`,
+          })
+          .from(changeOrders)
+          .where(and(changeOrderScope, eq(changeOrders.status, "approved")))
+          .groupBy(changeOrders.totalDeltaCurrency),
       ]);
 
       const wiByStatus: Record<string, number> = {};
@@ -310,6 +332,12 @@ export const projectsRouter = router({
         billsInvoices: {
           overdueBillsCount: billsOverdue[0]?.count ?? 0,
           overdueInvoicesCount: invoicesOverdue[0]?.count ?? 0,
+        },
+        changeOrders: {
+          awaitingDecisionCount: coAwaitingDecision[0]?.count ?? 0,
+          approvedDeltaByCurrency: coApprovedDeltaByCurrency
+            .filter((r) => r.currency != null)
+            .map((r) => ({ currency: r.currency!, amount: r.total })),
         },
         asOf: new Date().toISOString(),
       };
