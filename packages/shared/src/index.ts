@@ -12,6 +12,7 @@ export * from "./projects";
 export * from "./services";
 export * from "./specs";
 export * from "./vendors";
+export * from "./work-items";
 
 export const orgRoleSchema = z.enum(["owner", "admin", "member"]);
 export type OrgRole = z.infer<typeof orgRoleSchema>;
