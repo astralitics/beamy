@@ -1,5 +1,12 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { useOutletContext } from "react-router-dom";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+import { useOutletContext, useSearchParams } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
@@ -33,10 +40,25 @@ type DepRow =
  */
 export default function ProjectPlan() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
+
+  // Honor the `#rooms` hash from the Rooms sidebar link by scrolling
+  // the room section into view after first render. Runs once on hash
+  // change so the user can manually scroll back to top without us
+  // fighting them.
+  useEffect(() => {
+    if (window.location.hash === "#rooms") {
+      const el = document.getElementById("rooms");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
   return (
     <div>
       <WorkItemsSection projectId={project.id} />
-      <div className="mt-10 border-t border-paper-200 pt-8">
+      <div
+        id="rooms"
+        className="mt-10 scroll-mt-24 border-t border-paper-200 pt-8"
+      >
         <RoomsSection projectId={project.id} />
       </div>
     </div>
@@ -57,21 +79,94 @@ const STATUS_PILL_CLS: Record<WorkItemStatus, string> = {
 
 type PlanView = "table" | "rooms" | "timeline";
 
+type PhaseLens = "proposal" | "execution" | null;
+
+/**
+ * Parse `?phase=` and `?view=` query params. They drive the initial
+ * defaults for the view toggle and status filter:
+ *   phase=proposal   → table view, status=specified-or-approved
+ *   phase=execution  → table view, status=scheduled-or-in-progress
+ *   view=timeline    → timeline view (independent of phase)
+ *   (none)           → table view, status=open
+ */
+function readUrlDefaults(search: URLSearchParams): {
+  view: PlanView;
+  statusFilter: WorkItemStatus | "open" | "all" | "scope_active" | "execution_active";
+  lens: PhaseLens;
+} {
+  const view = (search.get("view") as PlanView | null) ?? "table";
+  const phase = search.get("phase");
+  if (phase === "proposal") {
+    return {
+      view: view === "timeline" || view === "rooms" ? view : "table",
+      statusFilter: "scope_active",
+      lens: "proposal",
+    };
+  }
+  if (phase === "execution") {
+    return {
+      view: view === "timeline" || view === "rooms" ? view : "table",
+      statusFilter: "execution_active",
+      lens: "execution",
+    };
+  }
+  return {
+    view: ["table", "rooms", "timeline"].includes(view) ? view : "table",
+    statusFilter: "open",
+    lens: null,
+  };
+}
+
 function WorkItemsSection({ projectId }: { projectId: string }) {
+  const [searchParams] = useSearchParams();
+  const urlDefaults = useMemo(
+    () => readUrlDefaults(searchParams),
+    [searchParams],
+  );
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<WorkItemRow | null>(null);
-  const [view, setView] = useState<PlanView>("table");
-  const [statusFilter, setStatusFilter] = useState<WorkItemStatus | "open" | "all">(
-    "open",
-  );
+  const [view, setView] = useState<PlanView>(urlDefaults.view);
+  const [statusFilter, setStatusFilter] = useState<
+    | WorkItemStatus
+    | "open"
+    | "all"
+    | "scope_active"
+    | "execution_active"
+  >(urlDefaults.statusFilter);
+
+  // When the URL changes (user clicks a different sidebar phase link),
+  // reset the controls to the new defaults. We only do this on URL
+  // change so the user's local state edits aren't clobbered.
+  const lastSearch = useRef(searchParams.toString());
+  useEffect(() => {
+    const cur = searchParams.toString();
+    if (cur !== lastSearch.current) {
+      const d = readUrlDefaults(searchParams);
+      setView(d.view);
+      setStatusFilter(d.statusFilter);
+      lastSearch.current = cur;
+    }
+  }, [searchParams]);
+
   const [tradeFilter, setTradeFilter] = useState<string>("");
   const [roomFilter, setRoomFilter] = useState<string>("");
   const [vendorFilter, setVendorFilter] = useState<string>("");
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [search, setSearch] = useState("");
 
+  // Multi-status filters (open / scope_active / execution_active) are
+  // client-side because the API takes a single status. Single-status
+  // values pass straight through to the server.
+  const multiStatusFilters: Record<string, WorkItemStatus[]> = {
+    open: ["specified", "approved", "scheduled", "in_progress"],
+    scope_active: ["specified", "approved"],
+    execution_active: ["scheduled", "in_progress", "done"],
+  };
+  const isMulti = statusFilter in multiStatusFilters;
   const statusInput =
-    statusFilter === "all" || statusFilter === "open" ? undefined : statusFilter;
+    isMulti || statusFilter === "all"
+      ? undefined
+      : (statusFilter as WorkItemStatus);
   const list = trpc.workItems.list.useQuery({
     projectId,
     status: statusInput,
@@ -86,17 +181,12 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
   const vendors = trpc.vendors.list.useQuery({});
   const deps = trpc.workItems.listDependencies.useQuery({ projectId });
 
-  // "open" = not done/accepted/cancelled. Client-side because the API
-  // takes a single status filter.
   const filtered = useMemo(() => {
-    if (statusFilter !== "open") return list.data ?? [];
-    return (list.data ?? []).filter(
-      (w) =>
-        w.status !== "done" &&
-        w.status !== "accepted" &&
-        w.status !== "cancelled",
-    );
-  }, [list.data, statusFilter]);
+    if (!isMulti) return list.data ?? [];
+    const allowed = new Set(multiStatusFilters[statusFilter as string]);
+    return (list.data ?? []).filter((w) => allowed.has(w.status));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.data, statusFilter, isMulti]);
 
   // Dependency indexes derived from the deps query + full work_items
   // list. We want:
@@ -181,12 +271,19 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             value={statusFilter}
             onChange={(e) =>
               setStatusFilter(
-                e.target.value as WorkItemStatus | "open" | "all",
+                e.target.value as
+                  | WorkItemStatus
+                  | "open"
+                  | "all"
+                  | "scope_active"
+                  | "execution_active",
               )
             }
             className={selectCls}
           >
             <option value="open">Open (not done)</option>
+            <option value="scope_active">Scope · specified+approved</option>
+            <option value="execution_active">Execution · scheduled+in progress</option>
             <option value="all">All statuses</option>
             {WORK_ITEM_STATUS_FLOW.map((s) => (
               <option key={s} value={s}>

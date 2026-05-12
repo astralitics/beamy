@@ -1,5 +1,9 @@
 import { Link, Outlet, useParams } from "react-router-dom";
-import type { ProjectStatus } from "@beamy/shared";
+import {
+  PROJECT_PHASE_LABELS,
+  PROJECT_PHASE_ORDER,
+  type ProjectStatus,
+} from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useFormatters } from "../../lib/i18n";
 
@@ -114,10 +118,124 @@ export default function ProjectShell() {
         </FactRow>
       </TitleBlock>
 
-      <div className="mt-10">
+      <div className="mt-6">
+        <PhaseBar projectId={p.id} />
+      </div>
+
+      <div className="mt-8">
         <Outlet context={{ project: p }} />
       </div>
     </div>
+  );
+}
+
+// ────────────────────── phase bar ──────────────────────
+
+/**
+ * Horizontal stepper showing where the project is in the workflow.
+ * Phase is derived server-side from data state; this component is a
+ * read-only renderer.
+ *
+ * Visual model: dots connected by a hairline, completed phases
+ * filled, current phase ringed in the safety color, future phases
+ * left muted. `on_hold` and `archived` show as orthogonal pills to
+ * the right.
+ */
+function PhaseBar({ projectId }: { projectId: string }) {
+  const q = trpc.projects.phaseAndCompleteness.useQuery({ projectId });
+  if (q.isLoading) return null;
+  if (q.error || !q.data) return null;
+  const { phase, phaseLabel, onHold, archived } = q.data;
+  const currentIdx = PROJECT_PHASE_ORDER.indexOf(phase);
+
+  return (
+    <div className="rounded-lg border border-paper-200 bg-white px-5 py-3">
+      <div className="flex items-center justify-between gap-4">
+        <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-slate-400">
+          Phase
+        </p>
+        <div className="flex items-center gap-1.5">
+          {onHold && (
+            <span className="inline-flex items-center gap-1 rounded-sm bg-amber-50 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-amber-800 ring-1 ring-inset ring-amber-200">
+              on hold
+            </span>
+          )}
+          {archived && (
+            <span className="inline-flex items-center gap-1 rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-slate-600 ring-1 ring-inset ring-slate-200">
+              archived
+            </span>
+          )}
+        </div>
+      </div>
+      <ol className="mt-2 flex items-center gap-0">
+        {PROJECT_PHASE_ORDER.map((p, i) => {
+          const done = i < currentIdx;
+          const current = i === currentIdx;
+          const label =
+            current && phaseLabel ? phaseLabel : PROJECT_PHASE_LABELS[p];
+          return (
+            <li key={p} className="flex flex-1 items-center">
+              <PhaseDot done={done} current={current} />
+              <div className="flex-1 px-1.5">
+                <p
+                  className={`truncate font-mono text-[10px] uppercase tracking-[0.1em] ${
+                    current
+                      ? "font-semibold text-blueprint-900"
+                      : done
+                        ? "text-slate-600"
+                        : "text-slate-400"
+                  }`}
+                  title={label}
+                >
+                  {label}
+                </p>
+              </div>
+              {i < PROJECT_PHASE_ORDER.length - 1 && (
+                <div
+                  className={`h-px flex-1 ${
+                    done ? "bg-safety-300" : "bg-paper-200"
+                  }`}
+                  aria-hidden
+                />
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+function PhaseDot({
+  done,
+  current,
+}: {
+  done: boolean;
+  current: boolean;
+}) {
+  if (done) {
+    return (
+      <span
+        aria-hidden
+        className="inline-flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-safety-700 text-white"
+      />
+    );
+  }
+  if (current) {
+    return (
+      <span
+        aria-hidden
+        className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-safety-50 ring-2 ring-safety-700"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-safety-700" />
+      </span>
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-paper-200"
+    />
   );
 }
 
