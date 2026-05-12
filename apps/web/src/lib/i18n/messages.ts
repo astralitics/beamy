@@ -46,6 +46,7 @@ export const messagesEn = {
   "project_nav.site_logs": "Site logs",
   "project_nav.documents": "Documents",
   "project_nav.money": "Money",
+  "project_nav.proposals": "Proposals",
   "project_nav.activity": "Activity",
 
   // ── home page ──
@@ -99,6 +100,7 @@ export const messagesEsMx: Partial<Record<keyof typeof messagesEn, string>> = {
   "project_nav.site_logs": "Bitácoras",
   "project_nav.documents": "Documentos",
   "project_nav.money": "Dinero",
+  "project_nav.proposals": "Propuestas",
   "project_nav.activity": "Actividad",
   "common.loading": "Cargando…",
   "common.cancel": "Cancelar",

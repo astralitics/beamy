@@ -12,6 +12,8 @@ import ProjectAssets from "./pages/project/assets";
 import ProjectMaterials from "./pages/project/materials";
 import ProjectSpecs from "./pages/project/specs";
 import ProjectMoney from "./pages/project/money";
+import ProjectProposals from "./pages/project/proposals";
+import ProjectProposalDetail from "./pages/project/proposal-detail";
 import ProjectAssistant from "./pages/project/assistant";
 import ProjectActivity from "./pages/project/activity";
 import ProjectDocuments from "./pages/project/documents";
@@ -78,6 +80,11 @@ function AppShell() {
               element={<ProjectDocuments />}
             />
             <Route path="money" element={<ProjectMoney />} />
+            <Route path="proposals" element={<ProjectProposals />} />
+            <Route
+              path="proposals/:proposalId"
+              element={<ProjectProposalDetail />}
+            />
             <Route path="activity" element={<ProjectActivity />} />
           </Route>
 
