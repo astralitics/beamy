@@ -3,6 +3,7 @@ import { z } from "zod";
 export * from "./assets";
 export * from "./bids";
 export * from "./bills";
+export * from "./change-orders";
 export * from "./chat";
 export * from "./clients";
 export * from "./documents";
