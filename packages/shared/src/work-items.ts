@@ -166,3 +166,58 @@ export const workItemTransitionInputSchema = z.object({
 export type WorkItemTransitionInput = z.infer<
   typeof workItemTransitionInputSchema
 >;
+
+// ─────────────────────────────────────── dependencies ─────────
+
+export const workItemDependencyKindSchema = z.enum([
+  "finish_to_start",
+  "start_to_start",
+  "finish_to_finish",
+]);
+export type WorkItemDependencyKind = z.infer<
+  typeof workItemDependencyKindSchema
+>;
+
+export const WORK_ITEM_DEPENDENCY_KIND_LABELS: Record<
+  WorkItemDependencyKind,
+  string
+> = {
+  finish_to_start: "Finish → start",
+  start_to_start: "Start → start",
+  finish_to_finish: "Finish → finish",
+};
+
+/** Short-form labels for chips/rows. */
+export const WORK_ITEM_DEPENDENCY_KIND_SHORT: Record<
+  WorkItemDependencyKind,
+  string
+> = {
+  finish_to_start: "FS",
+  start_to_start: "SS",
+  finish_to_finish: "FF",
+};
+
+export const workItemDependencyCreateInputSchema = z.object({
+  workItemId: z.string().uuid(),
+  dependsOnId: z.string().uuid(),
+  kind: workItemDependencyKindSchema.default("finish_to_start"),
+  notes: z.string().trim().max(2000).optional(),
+});
+export type WorkItemDependencyCreateInput = z.infer<
+  typeof workItemDependencyCreateInputSchema
+>;
+
+export const workItemDependencyRemoveInputSchema = z.object({
+  workItemId: z.string().uuid(),
+  dependsOnId: z.string().uuid(),
+});
+export type WorkItemDependencyRemoveInput = z.infer<
+  typeof workItemDependencyRemoveInputSchema
+>;
+
+export const workItemDependencyListInputSchema = z.object({
+  projectId: z.string().uuid(),
+});
+export type WorkItemDependencyListInput = z.infer<
+  typeof workItemDependencyListInputSchema
+>;

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, lt, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
@@ -8,11 +8,15 @@ import {
   projects,
   rooms,
   vendors,
+  workItemDependencies,
   workItemRooms,
   workItems,
 } from "@beamy/db";
 import {
   workItemCreateInputSchema,
+  workItemDependencyCreateInputSchema,
+  workItemDependencyListInputSchema,
+  workItemDependencyRemoveInputSchema,
   workItemIdInputSchema,
   workItemListInputSchema,
   workItemTransitionInputSchema,
@@ -375,6 +379,180 @@ export const workItemsRouter = router({
         return updated;
       });
     }),
+
+  // ─────────────────────────────────────── dependencies ────────
+
+  /**
+   * All dependency edges in a project. UI consumes this for the
+   * Timeline view's arrow rendering and the per-item "blocked"
+   * indicator.
+   */
+  listDependencies: orgScopedProcedure
+    .input(workItemDependencyListInputSchema)
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const ownsProject = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(
+          and(
+            eq(projects.id, input.projectId),
+            eq(projects.orgId, ctx.orgId),
+          ),
+        )
+        .limit(1);
+      if (!ownsProject[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Only return edges where BOTH endpoints are in this project.
+      // Defense against cross-project leakage even if a stale edge
+      // somehow got created.
+      return await db
+        .select({
+          id: workItemDependencies.id,
+          workItemId: workItemDependencies.workItemId,
+          dependsOnId: workItemDependencies.dependsOnId,
+          kind: workItemDependencies.kind,
+          notes: workItemDependencies.notes,
+          createdAt: workItemDependencies.createdAt,
+        })
+        .from(workItemDependencies)
+        .innerJoin(
+          workItems,
+          eq(workItemDependencies.workItemId, workItems.id),
+        )
+        .where(
+          and(
+            eq(workItemDependencies.orgId, ctx.orgId),
+            eq(workItems.projectId, input.projectId),
+          ),
+        );
+    }),
+
+  addDependency: orgScopedProcedure
+    .input(workItemDependencyCreateInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      if (input.workItemId === input.dependsOnId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "A work item can't depend on itself.",
+        });
+      }
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        // Verify both items exist + share a project + belong to the org.
+        const items = await tx
+          .select({ id: workItems.id, projectId: workItems.projectId })
+          .from(workItems)
+          .where(
+            and(
+              inArray(workItems.id, [input.workItemId, input.dependsOnId]),
+              eq(workItems.orgId, ctx.orgId),
+            ),
+          );
+        if (items.length !== 2) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "One or both work items not found in this org.",
+          });
+        }
+        const projectIds = new Set(items.map((i) => i.projectId));
+        if (projectIds.size !== 1) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Dependencies must connect work items in the same project.",
+          });
+        }
+
+        // Cycle detection via recursive CTE: walk forward from
+        // dependsOnId through its own predecessors. If workItemId
+        // appears in that closure, adding the edge would close a
+        // cycle.
+        const cycleCheck = await tx.execute<{ ancestor_id: string }>(sql`
+          WITH RECURSIVE ancestors AS (
+            SELECT depends_on_id AS ancestor_id
+            FROM work_item_dependencies
+            WHERE work_item_id = ${input.dependsOnId}
+              AND org_id = ${ctx.orgId}
+            UNION
+            SELECT d.depends_on_id
+            FROM work_item_dependencies d
+            INNER JOIN ancestors a ON d.work_item_id = a.ancestor_id
+            WHERE d.org_id = ${ctx.orgId}
+          )
+          SELECT ancestor_id FROM ancestors WHERE ancestor_id = ${input.workItemId} LIMIT 1
+        `);
+        const hasCycle = cycleCheck.length > 0;
+        if (hasCycle) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "That dependency would create a cycle (this item already feeds, directly or transitively, into the one you're trying to depend on).",
+          });
+        }
+
+        const [row] = await tx
+          .insert(workItemDependencies)
+          .values({
+            orgId: ctx.orgId,
+            workItemId: input.workItemId,
+            dependsOnId: input.dependsOnId,
+            kind: input.kind,
+            notes: input.notes ?? null,
+            createdBy: ctx.actor,
+          })
+          .returning();
+        if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        await tx.insert(auditLog).values({
+          orgId: ctx.orgId,
+          actor: ctx.actor,
+          action: "work_item.dependency.added",
+          resourceType: "work_item",
+          resourceId: input.workItemId,
+          payload: {
+            dependsOnId: input.dependsOnId,
+            kind: input.kind,
+          },
+        });
+        return row;
+      });
+    }),
+
+  removeDependency: orgScopedProcedure
+    .input(workItemDependencyRemoveInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        const existing = await tx
+          .select()
+          .from(workItemDependencies)
+          .where(
+            and(
+              eq(workItemDependencies.workItemId, input.workItemId),
+              eq(workItemDependencies.dependsOnId, input.dependsOnId),
+              eq(workItemDependencies.orgId, ctx.orgId),
+            ),
+          )
+          .limit(1);
+        if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+        await tx
+          .delete(workItemDependencies)
+          .where(eq(workItemDependencies.id, existing[0].id));
+
+        await tx.insert(auditLog).values({
+          orgId: ctx.orgId,
+          actor: ctx.actor,
+          action: "work_item.dependency.removed",
+          resourceType: "work_item",
+          resourceId: input.workItemId,
+          payload: { dependsOnId: input.dependsOnId },
+        });
+        return { ok: true as const };
+      });
+    }),
+
+  // ───────────────────────────────────────────── remove ────────
 
   remove: orgScopedProcedure
     .input(workItemIdInputSchema)
