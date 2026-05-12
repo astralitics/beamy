@@ -8,10 +8,10 @@ import { clientsRouter } from "./routers/clients";
 import { documentsRouter } from "./routers/documents";
 import { invoicesRouter } from "./routers/invoices";
 import { materialsRouter } from "./routers/materials";
+import { bidsRouter } from "./routers/bids";
 import { membersRouter } from "./routers/members";
 import { orgsRouter } from "./routers/orgs";
 import { projectsRouter } from "./routers/projects";
-import { proposalsRouter } from "./routers/proposals";
 import { servicesRouter } from "./routers/services";
 import { specsRouter } from "./routers/specs";
 import { vendorsRouter } from "./routers/vendors";
@@ -21,6 +21,7 @@ export const appRouter = router({
   me: meRouter,
   activity: activityRouter,
   assets: assetsRouter,
+  bids: bidsRouter,
   bills: billsRouter,
   chat: chatRouter,
   clients: clientsRouter,
@@ -32,7 +33,6 @@ export const appRouter = router({
   members: membersRouter,
   orgs: orgsRouter,
   projects: projectsRouter,
-  proposals: proposalsRouter,
   specs: specsRouter,
   workItems: workItemsRouter,
 });

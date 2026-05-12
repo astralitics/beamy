@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export * from "./assets";
+export * from "./bids";
 export * from "./bills";
 export * from "./chat";
 export * from "./clients";

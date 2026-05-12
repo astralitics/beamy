@@ -237,8 +237,8 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             ) : (
               <>
                 No open work items. Click <strong>Add work item</strong> to
-                start sketching the plan — or import a vendor proposal once
-                proposal upload lands.
+                start sketching the plan — or upload a vendor bid once that
+                lands.
               </>
             )}
           </p>

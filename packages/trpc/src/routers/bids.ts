@@ -2,29 +2,29 @@ import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   auditLog,
+  bids,
   getDb,
   projects,
-  proposals,
   vendors,
   workItems,
 } from "@beamy/db";
 import {
-  proposalCreateInputSchema,
-  proposalIdInputSchema,
-  proposalListInputSchema,
-  proposalUpdateInputSchema,
+  bidCreateInputSchema,
+  bidIdInputSchema,
+  bidListInputSchema,
+  bidUpdateInputSchema,
 } from "@beamy/shared";
 import { orgScopedProcedure, router } from "../init";
 
 /**
- * proposals — vendor bid container. CRUD only in this PR; the
+ * bids — inbound subcontractor side. CRUD only in this PR; the
  * accept/reject UX that propagates to child work_items lives in a
  * follow-up. Same patterns as the other routers: orgScoped, audit
  * trail, parent ownership verified.
  */
-export const proposalsRouter = router({
+export const bidsRouter = router({
   list: orgScopedProcedure
-    .input(proposalListInputSchema)
+    .input(bidListInputSchema)
     .query(async ({ ctx, input }) => {
       const db = getDb();
       const ownsProject = await db
@@ -40,53 +40,49 @@ export const proposalsRouter = router({
       if (!ownsProject[0]) throw new TRPCError({ code: "NOT_FOUND" });
 
       const conditions = [
-        eq(proposals.projectId, input.projectId),
-        eq(proposals.orgId, ctx.orgId),
+        eq(bids.projectId, input.projectId),
+        eq(bids.orgId, ctx.orgId),
       ];
-      if (input.status) conditions.push(eq(proposals.status, input.status));
+      if (input.status) conditions.push(eq(bids.status, input.status));
       if (input.vendorId) {
-        conditions.push(eq(proposals.vendorId, input.vendorId));
+        conditions.push(eq(bids.vendorId, input.vendorId));
       }
       if (input.search) {
         const p = `%${input.search}%`;
         const clause = or(
-          ilike(proposals.quoteNumber, p),
-          ilike(proposals.trade, p),
-          ilike(proposals.notes, p),
+          ilike(bids.bidNumber, p),
+          ilike(bids.trade, p),
+          ilike(bids.notes, p),
         );
         if (clause) conditions.push(clause);
       }
 
       return await db
-        .select({ proposal: proposals, vendor: vendors })
-        .from(proposals)
-        .leftJoin(vendors, eq(proposals.vendorId, vendors.id))
+        .select({ bid: bids, vendor: vendors })
+        .from(bids)
+        .leftJoin(vendors, eq(bids.vendorId, vendors.id))
         .where(and(...conditions))
-        .orderBy(desc(proposals.updatedAt))
-        .then((rows) =>
-          rows.map((r) => ({ ...r.proposal, vendor: r.vendor })),
-        );
+        .orderBy(desc(bids.updatedAt))
+        .then((rows) => rows.map((r) => ({ ...r.bid, vendor: r.vendor })));
     }),
 
   get: orgScopedProcedure
-    .input(proposalIdInputSchema)
+    .input(bidIdInputSchema)
     .query(async ({ ctx, input }) => {
       const db = getDb();
       const rows = await db
-        .select({ proposal: proposals, vendor: vendors })
-        .from(proposals)
-        .leftJoin(vendors, eq(proposals.vendorId, vendors.id))
-        .where(
-          and(eq(proposals.id, input.id), eq(proposals.orgId, ctx.orgId)),
-        )
+        .select({ bid: bids, vendor: vendors })
+        .from(bids)
+        .leftJoin(vendors, eq(bids.vendorId, vendors.id))
+        .where(and(eq(bids.id, input.id), eq(bids.orgId, ctx.orgId)))
         .limit(1);
       const row = rows[0];
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
-      return { ...row.proposal, vendor: row.vendor };
+      return { ...row.bid, vendor: row.vendor };
     }),
 
   create: orgScopedProcedure
-    .input(proposalCreateInputSchema)
+    .input(bidCreateInputSchema)
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       return await db.transaction(async (tx) => {
@@ -96,19 +92,20 @@ export const proposalsRouter = router({
         });
 
         const [row] = await tx
-          .insert(proposals)
+          .insert(bids)
           .values({
             orgId: ctx.orgId,
             projectId: input.projectId,
             vendorId: input.vendorId ?? null,
             trade: input.trade ?? null,
-            quoteNumber: input.quoteNumber ?? null,
-            quoteDate: input.quoteDate ?? null,
+            bidNumber: input.bidNumber ?? null,
+            bidDate: input.bidDate ?? null,
             validUntil: input.validUntil ?? null,
             subtotalAmount: input.subtotalAmount ?? null,
             ivaAmount: input.ivaAmount ?? null,
             totalAmount: input.totalAmount ?? null,
             currency: input.currency ?? null,
+            ivaIncluded: input.ivaIncluded,
             status: input.status,
             decidedAt: input.decidedAt ?? null,
             flags: input.flags,
@@ -122,8 +119,8 @@ export const proposalsRouter = router({
         await tx.insert(auditLog).values({
           orgId: ctx.orgId,
           actor: ctx.actor,
-          action: "proposal.created",
-          resourceType: "proposal",
+          action: "bid.created",
+          resourceType: "bid",
           resourceId: row.id,
           payload: input,
         });
@@ -132,16 +129,14 @@ export const proposalsRouter = router({
     }),
 
   update: orgScopedProcedure
-    .input(proposalUpdateInputSchema)
+    .input(bidUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       return await db.transaction(async (tx) => {
         const existing = await tx
           .select()
-          .from(proposals)
-          .where(
-            and(eq(proposals.id, input.id), eq(proposals.orgId, ctx.orgId)),
-          )
+          .from(bids)
+          .where(and(eq(bids.id, input.id), eq(bids.orgId, ctx.orgId)))
           .limit(1);
         if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -149,15 +144,15 @@ export const proposalsRouter = router({
           vendorId: input.patch.vendorId ?? undefined,
         });
 
-        const setClause: Partial<typeof proposals.$inferInsert> = {
+        const setClause: Partial<typeof bids.$inferInsert> = {
           updatedAt: new Date(),
           updatedBy: ctx.actor,
         };
         const p = input.patch;
         if (p.vendorId !== undefined) setClause.vendorId = p.vendorId;
         if (p.trade !== undefined) setClause.trade = p.trade;
-        if (p.quoteNumber !== undefined) setClause.quoteNumber = p.quoteNumber;
-        if (p.quoteDate !== undefined) setClause.quoteDate = p.quoteDate;
+        if (p.bidNumber !== undefined) setClause.bidNumber = p.bidNumber;
+        if (p.bidDate !== undefined) setClause.bidDate = p.bidDate;
         if (p.validUntil !== undefined) setClause.validUntil = p.validUntil;
         if (p.subtotalAmount !== undefined) {
           setClause.subtotalAmount = p.subtotalAmount;
@@ -165,23 +160,24 @@ export const proposalsRouter = router({
         if (p.ivaAmount !== undefined) setClause.ivaAmount = p.ivaAmount;
         if (p.totalAmount !== undefined) setClause.totalAmount = p.totalAmount;
         if (p.currency !== undefined) setClause.currency = p.currency;
+        if (p.ivaIncluded !== undefined) setClause.ivaIncluded = p.ivaIncluded;
         if (p.status !== undefined) setClause.status = p.status;
         if (p.decidedAt !== undefined) setClause.decidedAt = p.decidedAt;
         if (p.flags !== undefined) setClause.flags = p.flags;
         if (p.notes !== undefined) setClause.notes = p.notes;
 
         const [updated] = await tx
-          .update(proposals)
+          .update(bids)
           .set(setClause)
-          .where(eq(proposals.id, input.id))
+          .where(eq(bids.id, input.id))
           .returning();
         if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
         await tx.insert(auditLog).values({
           orgId: ctx.orgId,
           actor: ctx.actor,
-          action: "proposal.updated",
-          resourceType: "proposal",
+          action: "bid.updated",
+          resourceType: "bid",
           resourceId: input.id,
           payload: input.patch,
         });
@@ -190,44 +186,42 @@ export const proposalsRouter = router({
     }),
 
   remove: orgScopedProcedure
-    .input(proposalIdInputSchema)
+    .input(bidIdInputSchema)
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       return await db.transaction(async (tx) => {
         const existing = await tx
           .select()
-          .from(proposals)
-          .where(
-            and(eq(proposals.id, input.id), eq(proposals.orgId, ctx.orgId)),
-          )
+          .from(bids)
+          .where(and(eq(bids.id, input.id), eq(bids.orgId, ctx.orgId)))
           .limit(1);
         if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND" });
 
-        // Detach child work_items (set proposal_id = null) before
-        // deleting the proposal. The FK is ON DELETE SET NULL so the
-        // DB would do this for us; doing it explicitly here keeps
-        // the audit trail accurate.
+        // Detach child work_items (set bid_id = null) before deleting
+        // the bid. The FK is ON DELETE SET NULL so the DB would do
+        // this for us; doing it explicitly here keeps the audit trail
+        // accurate.
         await tx
           .update(workItems)
           .set({
-            proposalId: null,
+            bidId: null,
             updatedAt: new Date(),
             updatedBy: ctx.actor,
           })
           .where(
             and(
-              eq(workItems.proposalId, input.id),
+              eq(workItems.bidId, input.id),
               eq(workItems.orgId, ctx.orgId),
             ),
           );
 
-        await tx.delete(proposals).where(eq(proposals.id, input.id));
+        await tx.delete(bids).where(eq(bids.id, input.id));
 
         await tx.insert(auditLog).values({
           orgId: ctx.orgId,
           actor: ctx.actor,
-          action: "proposal.deleted",
-          resourceType: "proposal",
+          action: "bid.deleted",
+          resourceType: "bid",
           resourceId: input.id,
           payload: existing[0],
         });

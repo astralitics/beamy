@@ -3,9 +3,9 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
   auditLog,
+  bids,
   getDb,
   projects,
-  proposals,
   rooms,
   vendors,
   workItemRooms,
@@ -27,7 +27,7 @@ import { orgScopedProcedure, router } from "../init";
  * into in_progress / done.
  *
  * The list endpoint returns each item joined with its rooms[],
- * proposal (shallow), and vendor (shallow). The Work Plan tab table
+ * bid (shallow), and vendor (shallow). The Work Plan tab table
  * renders directly from this shape.
  */
 export const workItemsRouter = router({
@@ -56,8 +56,8 @@ export const workItemsRouter = router({
       if (input.vendorId) {
         conditions.push(eq(workItems.vendorId, input.vendorId));
       }
-      if (input.proposalId) {
-        conditions.push(eq(workItems.proposalId, input.proposalId));
+      if (input.bidId) {
+        conditions.push(eq(workItems.bidId, input.bidId));
       }
       if (input.overdue) {
         const today = new Date().toISOString().slice(0, 10);
@@ -86,10 +86,10 @@ export const workItemsRouter = router({
       }
 
       const items = await db
-        .select({ item: workItems, vendor: vendors, proposal: proposals })
+        .select({ item: workItems, vendor: vendors, bid: bids })
         .from(workItems)
         .leftJoin(vendors, eq(workItems.vendorId, vendors.id))
-        .leftJoin(proposals, eq(workItems.proposalId, proposals.id))
+        .leftJoin(bids, eq(workItems.bidId, bids.id))
         .where(and(...conditions))
         .orderBy(
           asc(workItems.status),
@@ -119,7 +119,7 @@ export const workItemsRouter = router({
       return items.map((r) => ({
         ...r.item,
         vendor: r.vendor,
-        proposal: r.proposal,
+        bid: r.bid,
         rooms: roomsByItem.get(r.item.id) ?? [],
       }));
     }),
@@ -129,10 +129,10 @@ export const workItemsRouter = router({
     .query(async ({ ctx, input }) => {
       const db = getDb();
       const rows = await db
-        .select({ item: workItems, vendor: vendors, proposal: proposals })
+        .select({ item: workItems, vendor: vendors, bid: bids })
         .from(workItems)
         .leftJoin(vendors, eq(workItems.vendorId, vendors.id))
-        .leftJoin(proposals, eq(workItems.proposalId, proposals.id))
+        .leftJoin(bids, eq(workItems.bidId, bids.id))
         .where(
           and(eq(workItems.id, input.id), eq(workItems.orgId, ctx.orgId)),
         )
@@ -149,7 +149,7 @@ export const workItemsRouter = router({
       return {
         ...row.item,
         vendor: row.vendor,
-        proposal: row.proposal,
+        bid: row.bid,
         rooms: roomLinks.map((r) => r.room),
       };
     }),
@@ -184,7 +184,7 @@ export const workItemsRouter = router({
       return await db.transaction(async (tx) => {
         await verifyOwnership(tx, ctx.orgId, {
           projectId: input.projectId,
-          proposalId: input.proposalId,
+          bidId: input.bidId,
           vendorId: input.vendorId,
           roomIds: input.roomIds,
         });
@@ -194,7 +194,7 @@ export const workItemsRouter = router({
           .values({
             orgId: ctx.orgId,
             projectId: input.projectId,
-            proposalId: input.proposalId ?? null,
+            bidId: input.bidId ?? null,
             vendorId: input.vendorId ?? null,
             trade: input.trade ?? null,
             ref: input.ref ?? null,
@@ -253,7 +253,7 @@ export const workItemsRouter = router({
         if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND" });
 
         await verifyOwnership(tx, ctx.orgId, {
-          proposalId: input.patch.proposalId ?? undefined,
+          bidId: input.patch.bidId ?? undefined,
           vendorId: input.patch.vendorId ?? undefined,
           roomIds: input.patch.roomIds,
         });
@@ -263,7 +263,7 @@ export const workItemsRouter = router({
           updatedBy: ctx.actor,
         };
         const p = input.patch;
-        if (p.proposalId !== undefined) setClause.proposalId = p.proposalId;
+        if (p.bidId !== undefined) setClause.bidId = p.bidId;
         if (p.vendorId !== undefined) setClause.vendorId = p.vendorId;
         if (p.trade !== undefined) setClause.trade = p.trade;
         if (p.ref !== undefined) setClause.ref = p.ref;
@@ -422,7 +422,7 @@ async function verifyOwnership(
   orgId: string,
   refs: {
     projectId?: string;
-    proposalId?: string | null;
+    bidId?: string | null;
     vendorId?: string | null;
     roomIds?: string[];
   },
@@ -440,18 +440,18 @@ async function verifyOwnership(
       });
     }
   }
-  if (refs.proposalId) {
+  if (refs.bidId) {
     const ok = await tx
-      .select({ id: proposals.id })
-      .from(proposals)
+      .select({ id: bids.id })
+      .from(bids)
       .where(
-        and(eq(proposals.id, refs.proposalId), eq(proposals.orgId, orgId)),
+        and(eq(bids.id, refs.bidId), eq(bids.orgId, orgId)),
       )
       .limit(1);
     if (!ok[0]) {
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: "Proposal not found in this org",
+        message: "Bid not found in this org",
       });
     }
   }

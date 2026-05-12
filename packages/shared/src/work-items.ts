@@ -1,16 +1,13 @@
 import { z } from "zod";
 
 /**
- * Proposals + work_items — the execution spine. A proposal is a
- * vendor bid; a work_item is the unit of work that gets quoted,
- * approved, scheduled, executed, and billed against.
+ * work_items — execution unit. Quoted, approved, scheduled,
+ * executed, accepted. Multi-room ready (M2M via work_item_rooms).
  *
- * Designed around the Propuesta data shape: line items with
- * multi-room scope, vendor flags ("iva-not-included"), and
- * heterogeneous units (ea / m² / ml / lote).
+ * Designed around the Propuesta line-item shape: heterogeneous
+ * units (ea / m² / ml / lote), nullable bid_id (drafts before
+ * quoting), nullable vendor_id (kept open until a bid is accepted).
  */
-
-// ─────────────────────────────────────── primitives ───────────
 
 const moneyAmount = z
   .string()
@@ -37,121 +34,6 @@ function moneyPairCheck(
     });
   }
 }
-
-// ─────────────────────────────────────── proposals ────────────
-
-export const proposalStatusSchema = z.enum([
-  "received",
-  "comparing",
-  "accepted",
-  "rejected",
-  "expired",
-]);
-export type ProposalStatus = z.infer<typeof proposalStatusSchema>;
-
-export const PROPOSAL_STATUS_LABELS: Record<ProposalStatus, string> = {
-  received: "Received",
-  comparing: "Comparing",
-  accepted: "Accepted",
-  rejected: "Rejected",
-  expired: "Expired",
-};
-
-/**
- * Open-ended slugs for proposal flags. Codified here as a soft
- * enum — Zod accepts any kebab-case string so importers can land
- * unfamiliar flags; UI maps the known ones to friendly labels.
- */
-export const PROPOSAL_FLAG_LABELS: Record<string, string> = {
-  "iva-not-included": "IVA not included",
-  "iva-included": "IVA included",
-  "validity-likely-expired": "Validity likely expired",
-  "freight-not-included": "Freight not included",
-  "deposit-required": "Deposit required",
-};
-
-const flagSlug = z.string().regex(/^[a-z0-9-]+$/, "kebab-case slug");
-
-export const proposalCreateInputSchema = z
-  .object({
-    projectId: z.string().uuid(),
-    vendorId: z.string().uuid().optional(),
-    trade: z.string().trim().max(80).optional(),
-    quoteNumber: z.string().trim().max(120).optional(),
-    quoteDate: isoDate.optional(),
-    validUntil: isoDate.optional(),
-    subtotalAmount: moneyAmount.optional(),
-    ivaAmount: moneyAmount.optional(),
-    totalAmount: moneyAmount.optional(),
-    currency: currencyCode.optional(),
-    status: proposalStatusSchema.default("received"),
-    decidedAt: isoDate.optional(),
-    flags: z.array(flagSlug).max(20).default([]),
-    notes: z.string().trim().max(10000).optional(),
-  })
-  .superRefine((val, ctx) => {
-    // If any money figure is set, currency must be too.
-    const anyMoney =
-      val.subtotalAmount !== undefined ||
-      val.ivaAmount !== undefined ||
-      val.totalAmount !== undefined;
-    if (anyMoney && !val.currency) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "currency required when any monetary amount is set",
-        path: ["currency"],
-      });
-    }
-  });
-export type ProposalCreateInput = z.infer<typeof proposalCreateInputSchema>;
-
-export const proposalUpdateInputSchema = z.object({
-  id: z.string().uuid(),
-  patch: z
-    .object({
-      vendorId: z.string().uuid().nullable().optional(),
-      trade: z.string().trim().max(80).nullable().optional(),
-      quoteNumber: z.string().trim().max(120).nullable().optional(),
-      quoteDate: isoDate.nullable().optional(),
-      validUntil: isoDate.nullable().optional(),
-      subtotalAmount: moneyAmount.nullable().optional(),
-      ivaAmount: moneyAmount.nullable().optional(),
-      totalAmount: moneyAmount.nullable().optional(),
-      currency: currencyCode.nullable().optional(),
-      status: proposalStatusSchema.optional(),
-      decidedAt: isoDate.nullable().optional(),
-      flags: z.array(flagSlug).max(20).optional(),
-      notes: z.string().trim().max(10000).nullable().optional(),
-    })
-    .superRefine((val, ctx) => {
-      const anyMoney =
-        val.subtotalAmount !== undefined ||
-        val.ivaAmount !== undefined ||
-        val.totalAmount !== undefined;
-      const currencyTouched = val.currency !== undefined;
-      if (anyMoney && currencyTouched && val.currency === null) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "currency required when any monetary amount is set",
-          path: ["currency"],
-        });
-      }
-    }),
-});
-export type ProposalUpdateInput = z.infer<typeof proposalUpdateInputSchema>;
-
-export const proposalListInputSchema = z.object({
-  projectId: z.string().uuid(),
-  status: proposalStatusSchema.optional(),
-  vendorId: z.string().uuid().optional(),
-  search: z.string().trim().max(200).optional(),
-});
-export type ProposalListInput = z.infer<typeof proposalListInputSchema>;
-
-export const proposalIdInputSchema = z.object({ id: z.string().uuid() });
-export type ProposalIdInput = z.infer<typeof proposalIdInputSchema>;
-
-// ─────────────────────────────────────── work items ───────────
 
 export const workItemStatusSchema = z.enum([
   "specified",
@@ -187,7 +69,7 @@ export const WORK_ITEM_STATUS_FLOW: WorkItemStatus[] = [
 export const workItemCreateInputSchema = z
   .object({
     projectId: z.string().uuid(),
-    proposalId: z.string().uuid().optional(),
+    bidId: z.string().uuid().optional(),
     vendorId: z.string().uuid().optional(),
     roomIds: z.array(z.string().uuid()).max(50).default([]),
     trade: z.string().trim().max(80).optional(),
@@ -221,7 +103,7 @@ export const workItemUpdateInputSchema = z.object({
   id: z.string().uuid(),
   patch: z
     .object({
-      proposalId: z.string().uuid().nullable().optional(),
+      bidId: z.string().uuid().nullable().optional(),
       vendorId: z.string().uuid().nullable().optional(),
       /** When set, replaces the room set entirely. */
       roomIds: z.array(z.string().uuid()).max(50).optional(),
@@ -259,7 +141,7 @@ export const workItemListInputSchema = z.object({
   trade: z.string().trim().max(80).optional(),
   roomId: z.string().uuid().optional(),
   vendorId: z.string().uuid().optional(),
-  proposalId: z.string().uuid().optional(),
+  bidId: z.string().uuid().optional(),
   /** When true, returns only items whose planned_end is in the past. */
   overdue: z.boolean().optional(),
   search: z.string().trim().max(200).optional(),
