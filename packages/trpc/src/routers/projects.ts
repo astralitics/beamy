@@ -1,16 +1,21 @@
 import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
+  assets,
   auditLog,
   bids,
   bills,
   changeOrders,
+  clientContacts,
   clients,
+  documents,
   getDb,
   invoices,
+  materials,
   projects,
   proposals,
   rooms,
+  specItems,
   workItemDependencies,
   workItems,
 } from "@beamy/db";
@@ -19,11 +24,13 @@ import {
   projectIdInputSchema,
   projectListInputSchema,
   projectOverviewStatsInputSchema,
+  projectPhaseAndCompletenessInputSchema,
   projectUpdateInputSchema,
   roomCreateInputSchema,
   roomIdInputSchema,
   roomListInputSchema,
   roomUpdateInputSchema,
+  type ProjectPhase,
 } from "@beamy/shared";
 import { orgScopedProcedure, router } from "../init";
 
@@ -366,6 +373,409 @@ export const projectsRouter = router({
           approvedDeltaByCurrency: coApprovedDeltaByCurrency
             .filter((r) => r.currency != null)
             .map((r) => ({ currency: r.currency!, amount: r.total })),
+        },
+        asOf: new Date().toISOString(),
+      };
+    }),
+
+  /**
+   * Project phase + per-section completeness checklist. Phase is
+   * derived from data state (picks the most-advanced state reached);
+   * each section's checklist drives the Overview completeness cards
+   * and the deep-link "what's missing" tooltips.
+   *
+   * Single round-trip — all the small existence/count queries fire
+   * via Promise.all. Cheap relative to dashboard latency.
+   */
+  phaseAndCompleteness: orgScopedProcedure
+    .input(projectPhaseAndCompletenessInputSchema)
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const projRows = await db
+        .select({ project: projects, client: clients })
+        .from(projects)
+        .leftJoin(clients, eq(projects.clientId, clients.id))
+        .where(
+          and(
+            eq(projects.id, input.projectId),
+            eq(projects.orgId, ctx.orgId),
+          ),
+        )
+        .limit(1);
+      const proj = projRows[0]?.project;
+      const client = projRows[0]?.client ?? null;
+      if (!proj) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const projectScope = and(
+        eq(projects.id, input.projectId),
+        eq(projects.orgId, ctx.orgId),
+      );
+      const wiScope = and(
+        eq(workItems.projectId, input.projectId),
+        eq(workItems.orgId, ctx.orgId),
+      );
+      const bidScope = and(
+        eq(bids.projectId, input.projectId),
+        eq(bids.orgId, ctx.orgId),
+      );
+      const proposalScope = and(
+        eq(proposals.projectId, input.projectId),
+        eq(proposals.orgId, ctx.orgId),
+      );
+      const coScope = and(
+        eq(changeOrders.projectId, input.projectId),
+        eq(changeOrders.orgId, ctx.orgId),
+      );
+      const today = new Date().toISOString().slice(0, 10);
+
+      const [
+        roomCount,
+        documentCount,
+        assetCount,
+        materialCount,
+        clientContactCount,
+        bidCount,
+        bidsWithoutVendor,
+        workItemRows,
+        specCount,
+        workItemsBidLinkedCount,
+        proposalRows,
+        latestSentProposal,
+        coOpenSent,
+        billsOverdue,
+        invoicesOverdue,
+      ] = await Promise.all([
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(rooms)
+          .where(
+            and(
+              eq(rooms.projectId, input.projectId),
+              eq(rooms.orgId, ctx.orgId),
+            ),
+          ),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(documents)
+          .where(
+            and(
+              eq(documents.projectId, input.projectId),
+              eq(documents.orgId, ctx.orgId),
+            ),
+          ),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(assets)
+          .where(
+            and(
+              eq(assets.projectId, input.projectId),
+              eq(assets.orgId, ctx.orgId),
+            ),
+          ),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(materials)
+          .where(
+            and(
+              eq(materials.projectId, input.projectId),
+              eq(materials.orgId, ctx.orgId),
+            ),
+          ),
+        // Client contacts count — only meaningful if a client is linked.
+        proj.clientId
+          ? db
+              .select({ count: sql<number>`count(*)::int` })
+              .from(clientContacts)
+              .where(eq(clientContacts.clientId, proj.clientId))
+          : Promise.resolve([{ count: 0 }]),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(bids)
+          .where(bidScope),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(bids)
+          .where(and(bidScope, sql`${bids.vendorId} IS NULL`)),
+        db
+          .select({
+            id: workItems.id,
+            status: workItems.status,
+            vendorId: workItems.vendorId,
+            plannedStart: workItems.plannedStart,
+            plannedEnd: workItems.plannedEnd,
+            bidId: workItems.bidId,
+          })
+          .from(workItems)
+          .where(wiScope),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(specItems)
+          .where(
+            and(
+              eq(specItems.projectId, input.projectId),
+              eq(specItems.orgId, ctx.orgId),
+            ),
+          ),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(workItems)
+          .where(and(wiScope, sql`${workItems.bidId} IS NOT NULL`)),
+        db
+          .select({
+            id: proposals.id,
+            number: proposals.number,
+            version: proposals.version,
+            status: proposals.status,
+          })
+          .from(proposals)
+          .where(proposalScope),
+        db
+          .select({
+            number: proposals.number,
+            version: proposals.version,
+            status: proposals.status,
+            sentAt: proposals.sentAt,
+          })
+          .from(proposals)
+          .where(and(proposalScope, eq(proposals.status, "sent")))
+          .orderBy(desc(proposals.version), desc(proposals.sentAt))
+          .limit(1),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(changeOrders)
+          .where(and(coScope, eq(changeOrders.status, "sent"))),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(bills)
+          .where(
+            and(
+              eq(bills.projectId, input.projectId),
+              eq(bills.orgId, ctx.orgId),
+              eq(bills.status, "open"),
+              lt(bills.dueAt, today),
+            ),
+          ),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(invoices)
+          .where(
+            and(
+              eq(invoices.projectId, input.projectId),
+              eq(invoices.orgId, ctx.orgId),
+              eq(invoices.status, "sent"),
+              lt(invoices.dueAt, today),
+            ),
+          ),
+      ]);
+
+      // ── derive phase ────────────────────────────────────────
+      const liveWi = workItemRows.filter((w) => w.status !== "cancelled");
+      const anyInProgress = liveWi.some((w) => w.status === "in_progress");
+      const allDoneOrAccepted =
+        liveWi.length > 0 &&
+        liveWi.every((w) => w.status === "done" || w.status === "accepted");
+      const anyAcceptedProposal = proposalRows.some(
+        (p) => p.status === "accepted",
+      );
+      const anySentProposal = proposalRows.some((p) => p.status === "sent");
+      const anyActivity =
+        bidCount[0]!.count > 0 ||
+        workItemRows.length > 0 ||
+        specCount[0]!.count > 0;
+
+      let phase: ProjectPhase = "onboarding";
+      if (proj.closedOutAt) phase = "completed";
+      else if (allDoneOrAccepted && anyAcceptedProposal) phase = "work_in_review";
+      else if (anyInProgress) phase = "work_ongoing";
+      else if (anyAcceptedProposal) phase = "proposal_approved";
+      else if (anySentProposal) phase = "proposal_sent";
+      else if (anyActivity) phase = "preparing_proposal";
+
+      const phaseLabel =
+        phase === "proposal_sent" && latestSentProposal[0]
+          ? `Proposal sent — v${latestSentProposal[0].version}`
+          : undefined;
+
+      // ── per-section completeness ────────────────────────────
+      type Check = { id: string; label: string; passed: boolean; deepLink?: string };
+      const url = `/projects/${input.projectId}`;
+
+      const propertyChecks: Check[] = [
+        {
+          id: "address",
+          label: "Project address set",
+          passed: !!proj.address && proj.address.trim().length > 0,
+          deepLink: url,
+        },
+        {
+          id: "client",
+          label: "Client linked",
+          passed: !!proj.clientId && !!client,
+          deepLink: url,
+        },
+        {
+          id: "client_contact",
+          label: "Client has at least one contact",
+          passed: !!proj.clientId && clientContactCount[0]!.count > 0,
+          deepLink: proj.clientId
+            ? `/clients/${proj.clientId}`
+            : "/clients",
+        },
+        {
+          id: "rooms",
+          label: "At least 1 room defined",
+          passed: roomCount[0]!.count > 0,
+          deepLink: `${url}/plan`,
+        },
+        {
+          id: "notes",
+          label: "Project notes filled (intent / constraints / HOA quirks)",
+          passed: !!proj.notes && proj.notes.trim().length > 0,
+          deepLink: url,
+        },
+        {
+          id: "documents",
+          label: "At least 1 document uploaded (plans, drawings)",
+          passed: documentCount[0]!.count > 0,
+          deepLink: `${url}/documents`,
+        },
+        {
+          id: "recall",
+          label: "At least 1 asset OR material logged",
+          passed: assetCount[0]!.count > 0 || materialCount[0]!.count > 0,
+          deepLink: `${url}/assets`,
+        },
+      ];
+
+      const workProposalChecks: Check[] = [
+        {
+          id: "bids",
+          label: "At least 1 bid received",
+          passed: bidCount[0]!.count > 0,
+          deepLink: `${url}/bids`,
+        },
+        {
+          id: "bids_vendor",
+          label: "All bids have a vendor assigned",
+          passed:
+            bidCount[0]!.count > 0 && bidsWithoutVendor[0]!.count === 0,
+          deepLink: `${url}/bids`,
+        },
+        {
+          id: "work_items",
+          label: "At least 1 work item drafted",
+          passed: workItemRows.length > 0,
+          deepLink: `${url}/plan?phase=proposal`,
+        },
+        {
+          id: "bid_linked",
+          label: "Bid scope broken down into work items (bid_id linked)",
+          passed: workItemsBidLinkedCount[0]!.count > 0,
+          deepLink: `${url}/plan?phase=proposal`,
+        },
+        {
+          id: "specs",
+          label: "Specs recorded for major finishes",
+          passed: specCount[0]!.count > 0,
+          deepLink: `${url}/specs`,
+        },
+        {
+          id: "proposal_generated",
+          label: "At least 1 proposal generated",
+          passed: proposalRows.length > 0,
+          deepLink: `${url}/proposals`,
+        },
+        {
+          id: "proposal_sent",
+          label: "Latest proposal sent to client",
+          passed: anySentProposal || anyAcceptedProposal,
+          deepLink: `${url}/proposals`,
+        },
+      ];
+
+      const executionChecks: Check[] = [
+        {
+          id: "proposal_accepted",
+          label: "A proposal is accepted (gates execution)",
+          passed: anyAcceptedProposal,
+          deepLink: `${url}/proposals`,
+        },
+        {
+          id: "scheduled",
+          label: "Every live work item has planned start + end",
+          passed:
+            liveWi.length > 0 &&
+            liveWi.every((w) => w.plannedStart && w.plannedEnd),
+          deepLink: `${url}/plan?view=timeline`,
+        },
+        {
+          id: "vendor_assigned",
+          label: "Every non-specified work item has a vendor",
+          passed:
+            liveWi.length > 0 &&
+            liveWi.every(
+              (w) => w.status === "specified" || w.vendorId !== null,
+            ),
+          deepLink: `${url}/plan?phase=execution`,
+        },
+        {
+          id: "co_decided",
+          label: "All change orders decided (no `sent` stragglers)",
+          passed: coOpenSent[0]!.count === 0,
+          deepLink: `${url}/change-orders`,
+        },
+        {
+          id: "no_overdue_bills",
+          label: "No overdue bills",
+          passed: billsOverdue[0]!.count === 0,
+          deepLink: `${url}/money`,
+        },
+        {
+          id: "no_overdue_invoices",
+          label: "No overdue invoices",
+          passed: invoicesOverdue[0]!.count === 0,
+          deepLink: `${url}/money`,
+        },
+        {
+          id: "execution_started",
+          label: "Any work item in progress",
+          passed: anyInProgress,
+          deepLink: `${url}/plan?phase=execution`,
+        },
+        {
+          id: "substantial_completion",
+          label: "Substantial completion certified",
+          passed: !!proj.substantialCompletionAt,
+          deepLink: url,
+        },
+        {
+          id: "closed_out",
+          label: "Project closed out",
+          passed: !!proj.closedOutAt,
+          deepLink: url,
+        },
+      ];
+
+      function summarize(checks: Check[]) {
+        const filled = checks.filter((c) => c.passed).length;
+        return {
+          total: checks.length,
+          filled,
+          ratio: checks.length === 0 ? 0 : filled / checks.length,
+          checks,
+        };
+      }
+
+      return {
+        phase,
+        phaseLabel,
+        // Orthogonal flags rendered next to the phase bar.
+        onHold: proj.status === "on_hold",
+        archived: proj.status === "archived",
+        sections: {
+          property: summarize(propertyChecks),
+          work_proposal: summarize(workProposalChecks),
+          execution: summarize(executionChecks),
         },
         asOf: new Date().toISOString(),
       };

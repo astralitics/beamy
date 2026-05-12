@@ -119,6 +119,64 @@ export type ProjectOverviewStatsInput = z.infer<
   typeof projectOverviewStatsInputSchema
 >;
 
+/**
+ * Project phase — derived from data state. Picks the most-advanced
+ * state the project has reached. `on_hold` and `archived` are
+ * orthogonal flags rendered alongside, not in the phase ladder.
+ */
+export const projectPhaseSchema = z.enum([
+  "onboarding",
+  "preparing_proposal",
+  "proposal_sent",
+  "proposal_approved",
+  "work_ongoing",
+  "work_in_review",
+  "completed",
+]);
+export type ProjectPhase = z.infer<typeof projectPhaseSchema>;
+
+export const PROJECT_PHASE_LABELS: Record<ProjectPhase, string> = {
+  onboarding: "Onboarding",
+  preparing_proposal: "Preparing proposal",
+  proposal_sent: "Proposal sent",
+  proposal_approved: "Proposal approved",
+  work_ongoing: "Work ongoing",
+  work_in_review: "Work in review",
+  completed: "Completed",
+};
+
+/** Ordered phase ladder; numerically larger = more advanced. */
+export const PROJECT_PHASE_ORDER: ProjectPhase[] = [
+  "onboarding",
+  "preparing_proposal",
+  "proposal_sent",
+  "proposal_approved",
+  "work_ongoing",
+  "work_in_review",
+  "completed",
+];
+
+/** Project sections used for completeness scoring. */
+export const projectSectionSchema = z.enum([
+  "property",
+  "work_proposal",
+  "execution",
+]);
+export type ProjectSection = z.infer<typeof projectSectionSchema>;
+
+export const PROJECT_SECTION_LABELS: Record<ProjectSection, string> = {
+  property: "Property documentation",
+  work_proposal: "Work Proposal",
+  execution: "Worksite execution",
+};
+
+export const projectPhaseAndCompletenessInputSchema = z.object({
+  projectId: z.string().uuid(),
+});
+export type ProjectPhaseAndCompletenessInput = z.infer<
+  typeof projectPhaseAndCompletenessInputSchema
+>;
+
 // ─────────────────── rooms ───────────────────
 
 export const roomTypeSchema = z.enum([
