@@ -4,9 +4,12 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
   ROOM_TYPE_LABELS,
+  WORK_ITEM_DEPENDENCY_KIND_LABELS,
+  WORK_ITEM_DEPENDENCY_KIND_SHORT,
   WORK_ITEM_STATUS_FLOW,
   WORK_ITEM_STATUS_LABELS,
   type RoomType,
+  type WorkItemDependencyKind,
   type WorkItemStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
@@ -16,6 +19,8 @@ type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type WorkItemRow = inferRouterOutputs<AppRouter>["workItems"]["list"][number];
 type RoomRow = inferRouterOutputs<AppRouter>["projects"]["listRooms"][number];
 type VendorRow = inferRouterOutputs<AppRouter>["vendors"]["list"][number];
+type DepRow =
+  inferRouterOutputs<AppRouter>["workItems"]["listDependencies"][number];
 
 /**
  * Plan — the project's spine. Each row is a work_item: the unit of
@@ -50,7 +55,7 @@ const STATUS_PILL_CLS: Record<WorkItemStatus, string> = {
   cancelled: "bg-rose-50 text-rose-700 ring-rose-200",
 };
 
-type PlanView = "table" | "rooms";
+type PlanView = "table" | "rooms" | "timeline";
 
 function WorkItemsSection({ projectId }: { projectId: string }) {
   const [adding, setAdding] = useState(false);
@@ -79,6 +84,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
   const trades = trpc.workItems.listTrades.useQuery({ projectId });
   const rooms = trpc.projects.listRooms.useQuery({ projectId });
   const vendors = trpc.vendors.list.useQuery({});
+  const deps = trpc.workItems.listDependencies.useQuery({ projectId });
 
   // "open" = not done/accepted/cancelled. Client-side because the API
   // takes a single status filter.
@@ -91,6 +97,43 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
         w.status !== "cancelled",
     );
   }, [list.data, statusFilter]);
+
+  // Dependency indexes derived from the deps query + full work_items
+  // list. We want:
+  //   dependsOnByItem: itemId → predecessor work_items (full rows)
+  //   blockedByItem:   itemId → unfinished predecessor work_items
+  // Computed against the *unfiltered* list so the "blocked" badge
+  // doesn't lie when filters hide the predecessor row.
+  const allItems = list.data ?? [];
+  const allItemsById = useMemo(() => {
+    const m = new Map<string, WorkItemRow>();
+    for (const w of allItems) m.set(w.id, w);
+    return m;
+  }, [allItems]);
+  const depsByItem = useMemo(() => {
+    const m = new Map<string, DepRow[]>();
+    for (const d of deps.data ?? []) {
+      const arr = m.get(d.workItemId) ?? [];
+      arr.push(d);
+      m.set(d.workItemId, arr);
+    }
+    return m;
+  }, [deps.data]);
+  const blockedByItem = useMemo(() => {
+    const m = new Map<string, WorkItemRow[]>();
+    for (const [itemId, edges] of depsByItem) {
+      const blockers: WorkItemRow[] = [];
+      for (const edge of edges) {
+        const pred = allItemsById.get(edge.dependsOnId);
+        if (!pred) continue;
+        if (pred.status !== "done" && pred.status !== "accepted") {
+          blockers.push(pred);
+        }
+      }
+      if (blockers.length > 0) m.set(itemId, blockers);
+    }
+    return m;
+  }, [depsByItem, allItemsById]);
 
   const totalsByCurrency = useMemo(() => {
     const acc = new Map<string, number>();
@@ -213,6 +256,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
           onClose={() => setAdding(false)}
           rooms={rooms.data ?? []}
           vendors={vendors.data ?? []}
+          allItems={allItems}
         />
       )}
       {editing && (
@@ -220,9 +264,11 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
           projectId={projectId}
           mode="edit"
           existing={editing}
+          existingDeps={depsByItem.get(editing.id) ?? []}
           onClose={() => setEditing(null)}
           rooms={rooms.data ?? []}
           vendors={vendors.data ?? []}
+          allItems={allItems}
         />
       )}
 
@@ -252,10 +298,23 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
           <ScopeByRoom
             items={filtered}
             rooms={rooms.data ?? []}
+            blockedByItem={blockedByItem}
+            onEdit={setEditing}
+          />
+        ) : view === "timeline" ? (
+          <TimelineView
+            items={filtered}
+            depsByItem={depsByItem}
+            blockedByItem={blockedByItem}
             onEdit={setEditing}
           />
         ) : (
-          <WorkItemsTable items={filtered} onEdit={setEditing} />
+          <WorkItemsTable
+            items={filtered}
+            blockedByItem={blockedByItem}
+            depsByItem={depsByItem}
+            onEdit={setEditing}
+          />
         )}
 
         {filtered.length > 0 && totalsByCurrency.size > 0 && (
@@ -291,30 +350,27 @@ function ViewToggle({
   view: PlanView;
   onChange: (v: PlanView) => void;
 }) {
+  const opts: { value: PlanView; label: string }[] = [
+    { value: "table", label: "Table" },
+    { value: "rooms", label: "By room" },
+    { value: "timeline", label: "Timeline" },
+  ];
   return (
     <div className="inline-flex rounded-md border border-paper-200 bg-white p-0.5 text-xs">
-      <button
-        type="button"
-        onClick={() => onChange("table")}
-        className={`rounded px-2.5 py-1 transition-colors ${
-          view === "table"
-            ? "bg-paper-100 font-medium text-blueprint-900"
-            : "text-slate-500 hover:text-slate-900"
-        }`}
-      >
-        Table
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange("rooms")}
-        className={`rounded px-2.5 py-1 transition-colors ${
-          view === "rooms"
-            ? "bg-paper-100 font-medium text-blueprint-900"
-            : "text-slate-500 hover:text-slate-900"
-        }`}
-      >
-        By room
-      </button>
+      {opts.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className={`rounded px-2.5 py-1 transition-colors ${
+            view === o.value
+              ? "bg-paper-100 font-medium text-blueprint-900"
+              : "text-slate-500 hover:text-slate-900"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -332,10 +388,12 @@ function ViewToggle({
 function ScopeByRoom({
   items,
   rooms,
+  blockedByItem,
   onEdit,
 }: {
   items: WorkItemRow[];
   rooms: RoomRow[];
+  blockedByItem: Map<string, WorkItemRow[]>;
   onEdit: (w: WorkItemRow) => void;
 }) {
   const groups = useMemo(() => {
@@ -418,6 +476,7 @@ function ScopeByRoom({
                   key={`${g.room?.id ?? "u"}:${w.id}`}
                   item={w}
                   currentRoomId={g.room?.id ?? null}
+                  blockedBy={blockedByItem.get(w.id) ?? null}
                   onEdit={() => onEdit(w)}
                 />
               ))}
@@ -432,10 +491,12 @@ function ScopeByRoom({
 function ScopeByRoomRow({
   item,
   currentRoomId,
+  blockedBy,
   onEdit,
 }: {
   item: WorkItemRow;
   currentRoomId: string | null;
+  blockedBy: WorkItemRow[] | null;
   onEdit: () => void;
 }) {
   const fmt = useFormatters();
@@ -465,6 +526,7 @@ function ScopeByRoomRow({
               also in {otherRooms.length} more
             </span>
           )}
+          {blockedBy && blockedBy.length > 0 && <BlockedPill blockers={blockedBy} />}
           {item.vendor && (
             <span className="font-mono text-[9px] uppercase tracking-wide text-slate-400">
               · {item.vendor.name}
@@ -505,9 +567,13 @@ function ScopeByRoomRow({
 
 function WorkItemsTable({
   items,
+  blockedByItem,
+  depsByItem,
   onEdit,
 }: {
   items: WorkItemRow[];
+  blockedByItem: Map<string, WorkItemRow[]>;
+  depsByItem: Map<string, DepRow[]>;
   onEdit: (w: WorkItemRow) => void;
 }) {
   return (
@@ -527,7 +593,13 @@ function WorkItemsTable({
         </thead>
         <tbody className="divide-y divide-paper-200">
           {items.map((w) => (
-            <WorkItemRowItem key={w.id} item={w} onEdit={() => onEdit(w)} />
+            <WorkItemRowItem
+              key={w.id}
+              item={w}
+              blockedBy={blockedByItem.get(w.id) ?? null}
+              depCount={depsByItem.get(w.id)?.length ?? 0}
+              onEdit={() => onEdit(w)}
+            />
           ))}
         </tbody>
       </table>
@@ -537,9 +609,13 @@ function WorkItemsTable({
 
 function WorkItemRowItem({
   item,
+  blockedBy,
+  depCount,
   onEdit,
 }: {
   item: WorkItemRow;
+  blockedBy: WorkItemRow[] | null;
+  depCount: number;
   onEdit: () => void;
 }) {
   const fmt = useFormatters();
@@ -582,6 +658,15 @@ function WorkItemRowItem({
               {r.name}
             </span>
           ))}
+          {blockedBy && blockedBy.length > 0 && <BlockedPill blockers={blockedBy} />}
+          {depCount > 0 && !blockedBy?.length && (
+            <span
+              className="rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-slate-200"
+              title={`Has ${depCount} dependency${depCount === 1 ? "" : "ies"}`}
+            >
+              {depCount} dep{depCount === 1 ? "" : "s"}
+            </span>
+          )}
           {item.vendor && (
             <span className="font-mono text-[9px] uppercase tracking-wide text-slate-400">
               · {item.vendor.name}
@@ -678,21 +763,287 @@ function trimQty(qty: string): string {
   return String(parseFloat(n.toFixed(4)));
 }
 
+function BlockedPill({ blockers }: { blockers: WorkItemRow[] }) {
+  const title = blockers
+    .map((b) => `${b.ref ? `${b.ref} — ` : ""}${b.description}`)
+    .join("\n");
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-200"
+      title={`Blocked by ${blockers.length} unfinished predecessor${blockers.length === 1 ? "" : "s"}:\n${title}`}
+    >
+      <span className="h-1 w-1 rounded-full bg-current" />
+      blocked
+      {blockers.length > 1 && <span>· {blockers.length}</span>}
+    </span>
+  );
+}
+
+// ───────────────────────────────────── timeline view ─────────
+
+/**
+ * Timeline — items with both plannedStart and plannedEnd render as
+ * horizontal bars on a shared date axis. Sorted by plannedStart.
+ * Dependencies drawn as thin SVG arrows between bars. Items missing
+ * dates fall into an "Undated" list below.
+ *
+ * Intentionally light on visual chrome — this is a "see the chain"
+ * view, not a full CPM Gantt. If the firm needs lag calculations or
+ * critical-path highlighting that's a follow-up PR.
+ */
+function TimelineView({
+  items,
+  depsByItem,
+  blockedByItem,
+  onEdit,
+}: {
+  items: WorkItemRow[];
+  depsByItem: Map<string, DepRow[]>;
+  blockedByItem: Map<string, WorkItemRow[]>;
+  onEdit: (w: WorkItemRow) => void;
+}) {
+  const fmt = useFormatters();
+  const dated = items.filter((w) => w.plannedStart && w.plannedEnd);
+  const undated = items.filter((w) => !w.plannedStart || !w.plannedEnd);
+
+  const sorted = useMemo(
+    () =>
+      [...dated].sort((a, b) =>
+        (a.plannedStart ?? "").localeCompare(b.plannedStart ?? ""),
+      ),
+    [dated],
+  );
+  const rowIndexById = useMemo(() => {
+    const m = new Map<string, number>();
+    sorted.forEach((w, i) => m.set(w.id, i));
+    return m;
+  }, [sorted]);
+
+  // Date axis: span min(plannedStart) → max(plannedEnd). Pad both
+  // ends by a day so labels aren't flush against edges.
+  const bounds = useMemo(() => {
+    if (sorted.length === 0) return null;
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const w of sorted) {
+      const s = Date.parse(w.plannedStart!);
+      const e = Date.parse(w.plannedEnd!);
+      if (s < min) min = s;
+      if (e > max) max = e;
+    }
+    const pad = 86400_000;
+    return { min: min - pad, max: max + pad };
+  }, [sorted]);
+
+  const ROW_H = 36;
+  const BAR_H = 18;
+  const W = 760; // svg width in viewBox units
+
+  function xFor(dateStr: string): number {
+    if (!bounds) return 0;
+    const t = Date.parse(dateStr);
+    return ((t - bounds.min) / (bounds.max - bounds.min)) * W;
+  }
+
+  // Date axis tick marks — one per week.
+  const ticks = useMemo(() => {
+    if (!bounds) return [];
+    const result: { x: number; label: string }[] = [];
+    const start = new Date(bounds.min);
+    start.setHours(0, 0, 0, 0);
+    const step = 7 * 86400_000;
+    for (let t = start.getTime(); t <= bounds.max; t += step) {
+      const x = ((t - bounds.min) / (bounds.max - bounds.min)) * W;
+      const d = new Date(t);
+      const label = `${d.getMonth() + 1}/${d.getDate()}`;
+      result.push({ x, label });
+    }
+    return result;
+  }, [bounds]);
+
+  if (sorted.length === 0 && undated.length === 0) {
+    return (
+      <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
+        No work items to plot.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {sorted.length > 0 && (
+        <div className="overflow-x-auto rounded-md border border-paper-200 bg-white">
+          <svg
+            viewBox={`0 0 ${W} ${sorted.length * ROW_H + 32}`}
+            className="block w-full"
+            style={{ minWidth: 600 }}
+          >
+            {/* axis */}
+            {ticks.map((t, i) => (
+              <g key={i}>
+                <line
+                  x1={t.x}
+                  x2={t.x}
+                  y1={20}
+                  y2={sorted.length * ROW_H + 24}
+                  stroke="#e6e9ef"
+                  strokeWidth={1}
+                />
+                <text
+                  x={t.x}
+                  y={14}
+                  fontSize={9}
+                  textAnchor="middle"
+                  fill="#94a3b8"
+                  fontFamily="ui-monospace, monospace"
+                >
+                  {t.label}
+                </text>
+              </g>
+            ))}
+
+            {/* bars */}
+            {sorted.map((w, i) => {
+              const x1 = xFor(w.plannedStart!);
+              const x2 = xFor(w.plannedEnd!);
+              const y = 24 + i * ROW_H;
+              const blocked = blockedByItem.has(w.id);
+              const fill = STATUS_BAR_FILL[w.status];
+              const stroke = blocked ? "#b45309" : STATUS_BAR_STROKE[w.status];
+              return (
+                <g
+                  key={w.id}
+                  className="cursor-pointer"
+                  onClick={() => onEdit(w)}
+                >
+                  <rect
+                    x={x1}
+                    y={y}
+                    width={Math.max(2, x2 - x1)}
+                    height={BAR_H}
+                    rx={3}
+                    fill={fill}
+                    stroke={stroke}
+                    strokeWidth={blocked ? 1.5 : 1}
+                  />
+                  <text
+                    x={x1 + 4}
+                    y={y + BAR_H / 2 + 3}
+                    fontSize={10}
+                    fill="#1e293b"
+                  >
+                    {w.ref ? `${w.ref} · ` : ""}
+                    {w.description.length > 40
+                      ? w.description.slice(0, 40) + "…"
+                      : w.description}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* dep arrows */}
+            {sorted.flatMap((w) => {
+              const edges = depsByItem.get(w.id) ?? [];
+              return edges
+                .map((e, ei) => {
+                  const pred = sorted.find((s) => s.id === e.dependsOnId);
+                  if (!pred) return null;
+                  const fromX = xFor(pred.plannedEnd!);
+                  const fromY = 24 + rowIndexById.get(pred.id)! * ROW_H + BAR_H / 2;
+                  const toX = xFor(w.plannedStart!);
+                  const toY = 24 + rowIndexById.get(w.id)! * ROW_H + BAR_H / 2;
+                  return (
+                    <g key={`${w.id}-${ei}`}>
+                      <path
+                        d={`M ${fromX} ${fromY} L ${(fromX + toX) / 2} ${fromY} L ${(fromX + toX) / 2} ${toY} L ${toX} ${toY}`}
+                        fill="none"
+                        stroke="#94a3b8"
+                        strokeWidth={1}
+                        strokeDasharray="3 2"
+                      />
+                      <polygon
+                        points={`${toX},${toY} ${toX - 4},${toY - 3} ${toX - 4},${toY + 3}`}
+                        fill="#94a3b8"
+                      />
+                    </g>
+                  );
+                })
+                .filter(Boolean);
+            })}
+          </svg>
+        </div>
+      )}
+
+      {undated.length > 0 && (
+        <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
+          <div className="border-b border-paper-200 bg-paper-50 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+            Undated · {undated.length} item{undated.length === 1 ? "" : "s"}
+          </div>
+          <ul className="divide-y divide-paper-200 text-sm">
+            {undated.map((w) => (
+              <li key={w.id} className="px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => onEdit(w)}
+                  className="text-left text-blueprint-900 hover:underline"
+                >
+                  {w.ref && (
+                    <span className="mr-2 font-mono text-[11px] text-slate-500">
+                      {w.ref}
+                    </span>
+                  )}
+                  {w.description}
+                </button>
+                <span className="ml-2 text-[10px] text-slate-500">
+                  {WORK_ITEM_STATUS_LABELS[w.status]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const STATUS_BAR_FILL: Record<WorkItemStatus, string> = {
+  specified: "#f1f5f9",
+  approved: "#e0f2fe",
+  scheduled: "#e0e7ff",
+  in_progress: "#fef3c7",
+  done: "#d1fae5",
+  accepted: "#ede9fe",
+  cancelled: "#fee2e2",
+};
+const STATUS_BAR_STROKE: Record<WorkItemStatus, string> = {
+  specified: "#cbd5e1",
+  approved: "#bae6fd",
+  scheduled: "#c7d2fe",
+  in_progress: "#fde68a",
+  done: "#a7f3d0",
+  accepted: "#ddd6fe",
+  cancelled: "#fecaca",
+};
+
 // ───────────────────────────────────── work item form ────────
 
 function WorkItemForm({
   projectId,
   mode,
   existing,
+  existingDeps,
   rooms,
   vendors,
+  allItems,
   onClose,
 }: {
   projectId: string;
   mode: "create" | "edit";
   existing?: WorkItemRow;
+  existingDeps?: DepRow[];
   rooms: RoomRow[];
   vendors: VendorRow[];
+  allItems: WorkItemRow[];
   onClose: () => void;
 }) {
   const [description, setDescription] = useState(existing?.description ?? "");
@@ -973,6 +1324,21 @@ function WorkItemForm({
           />
         </Field>
       </div>
+
+      {mode === "edit" && existing && (
+        <DependenciesEditor
+          projectId={projectId}
+          workItem={existing}
+          existingDeps={existingDeps ?? []}
+          allItems={allItems}
+        />
+      )}
+      {mode === "create" && (
+        <p className="mt-3 rounded-md border border-paper-200 bg-paper-50 px-3 py-2 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+          Save first, then add dependencies from the edit view.
+        </p>
+      )}
+
       {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
       <div className="mt-3 flex justify-end gap-2">
         <button
@@ -991,6 +1357,190 @@ function WorkItemForm({
         </button>
       </div>
     </form>
+  );
+}
+
+// ───────────────────────────────────── dep editor ────────────
+
+function DependenciesEditor({
+  projectId,
+  workItem,
+  existingDeps,
+  allItems,
+}: {
+  projectId: string;
+  workItem: WorkItemRow;
+  existingDeps: DepRow[];
+  allItems: WorkItemRow[];
+}) {
+  const utils = trpc.useUtils();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickedId, setPickedId] = useState("");
+  const [pickedKind, setPickedKind] =
+    useState<WorkItemDependencyKind>("finish_to_start");
+  const [error, setError] = useState<string | null>(null);
+
+  const add = trpc.workItems.addDependency.useMutation({
+    onSuccess: () => {
+      utils.workItems.listDependencies.invalidate({ projectId });
+      utils.projects.overviewStats.invalidate({ projectId });
+      setPickerOpen(false);
+      setPickedId("");
+      setError(null);
+    },
+    onError: (err) => setError(err.message),
+  });
+  const remove = trpc.workItems.removeDependency.useMutation({
+    onSuccess: () => {
+      utils.workItems.listDependencies.invalidate({ projectId });
+      utils.projects.overviewStats.invalidate({ projectId });
+    },
+  });
+
+  const allItemsById = useMemo(() => {
+    const m = new Map<string, WorkItemRow>();
+    for (const w of allItems) m.set(w.id, w);
+    return m;
+  }, [allItems]);
+
+  // Items eligible to pick: not self, not already a predecessor.
+  const existingPredIds = new Set(existingDeps.map((d) => d.dependsOnId));
+  const eligible = allItems.filter(
+    (w) => w.id !== workItem.id && !existingPredIds.has(w.id),
+  );
+
+  return (
+    <div className="mt-4 rounded-md border border-paper-200 bg-paper-50 p-3">
+      <div className="flex items-center justify-between">
+        <p className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+          Depends on
+        </p>
+        {!pickerOpen && (
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="text-xs text-slate-500 hover:text-slate-900"
+          >
+            + Add dependency
+          </button>
+        )}
+      </div>
+
+      {existingDeps.length === 0 && !pickerOpen ? (
+        <p className="mt-1 text-xs text-slate-500">
+          None. Add a predecessor to block this item until that one's done.
+        </p>
+      ) : (
+        <ul className="mt-2 divide-y divide-paper-200 rounded-md border border-paper-200 bg-white">
+          {existingDeps.map((d) => {
+            const pred = allItemsById.get(d.dependsOnId);
+            return (
+              <li
+                key={d.id}
+                className="flex items-baseline gap-2 px-3 py-2 text-sm"
+              >
+                <span
+                  className="rounded-sm bg-paper-100 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200"
+                  title={WORK_ITEM_DEPENDENCY_KIND_LABELS[d.kind]}
+                >
+                  {WORK_ITEM_DEPENDENCY_KIND_SHORT[d.kind]}
+                </span>
+                <span className="text-blueprint-900">
+                  {pred?.ref && (
+                    <span className="font-mono text-[11px] text-slate-500">
+                      {pred.ref} · {" "}
+                    </span>
+                  )}
+                  {pred?.description ?? "(unknown item)"}
+                </span>
+                {pred && (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide ring-1 ring-inset ${STATUS_PILL_CLS[pred.status]}`}
+                  >
+                    {WORK_ITEM_STATUS_LABELS[pred.status].toLowerCase()}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    remove.mutate({
+                      workItemId: workItem.id,
+                      dependsOnId: d.dependsOnId,
+                    })
+                  }
+                  disabled={remove.isPending}
+                  className="ml-auto text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {pickerOpen && (
+        <div className="mt-2 rounded-md border border-paper-200 bg-white p-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={pickedId}
+              onChange={(e) => setPickedId(e.target.value)}
+              className={`${selectCls} flex-1 min-w-[14rem]`}
+            >
+              <option value="">— pick a predecessor work item</option>
+              {eligible.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.ref ? `${w.ref} — ` : ""}
+                  {w.description.slice(0, 80)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={pickedKind}
+              onChange={(e) =>
+                setPickedKind(e.target.value as WorkItemDependencyKind)
+              }
+              className={selectCls}
+            >
+              {(
+                Object.keys(
+                  WORK_ITEM_DEPENDENCY_KIND_LABELS,
+                ) as WorkItemDependencyKind[]
+              ).map((k) => (
+                <option key={k} value={k}>
+                  {WORK_ITEM_DEPENDENCY_KIND_LABELS[k]}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() =>
+                add.mutate({
+                  workItemId: workItem.id,
+                  dependsOnId: pickedId,
+                  kind: pickedKind,
+                })
+              }
+              disabled={!pickedId || add.isPending}
+              className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {add.isPending ? "…" : "Add"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPickerOpen(false);
+                setError(null);
+              }}
+              className="text-xs text-slate-500 hover:text-slate-900"
+            >
+              Cancel
+            </button>
+          </div>
+          {error && <p className="mt-1 text-xs text-rose-700">{error}</p>}
+        </div>
+      )}
+    </div>
   );
 }
 

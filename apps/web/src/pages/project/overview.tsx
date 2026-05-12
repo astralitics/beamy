@@ -88,6 +88,13 @@ function PulseGrid({ projectId, s }: { projectId: string; s: Stats }) {
       hint: "scheduled + in progress",
     },
     {
+      label: "Blocked",
+      value: s.workItems.blockedCount,
+      tone: s.workItems.blockedCount > 0 ? "warn" : "quiet",
+      to: `${baseUrl}/work-plan`,
+      hint: "waiting on a predecessor",
+    },
+    {
       label: "Expired bids",
       value: s.bids.expiringCount,
       tone: s.bids.expiringCount > 0 ? "warn" : "quiet",
