@@ -17,11 +17,17 @@ const DEFAULT_DEV_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, REPO_ROOT, "");
+  // Allowlist of repo-root .env keys to hoist into process.env for the
+  // tRPC middleware (Vite's loadEnv reads the file but doesn't mutate
+  // process.env by default). Any new server-side env var that the tRPC
+  // routers read must be added here.
   for (const key of [
     "DATABASE_URL",
     "BEAMY_DEV_USER_ID",
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_MODEL",
   ]) {
     if (env[key] && !process.env[key]) process.env[key] = env[key];
   }
