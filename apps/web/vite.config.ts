@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv, type ViteDevServer } from "vite";
 import react from "@vitejs/plugin-react";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,11 +17,18 @@ const REPO_ROOT = path.resolve(__dirname, "../..");
 const DEFAULT_DEV_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, REPO_ROOT, "");
-  // Allowlist of repo-root .env keys to hoist into process.env for the
-  // tRPC middleware (Vite's loadEnv reads the file but doesn't mutate
-  // process.env by default). Any new server-side env var that the tRPC
-  // routers read must be added here.
+  // Hoist allowlisted .env keys into process.env for the tRPC middleware.
+  //
+  // Why not just `loadEnv(mode, REPO_ROOT, "")`: Vite's loadEnv merges
+  // process.env into its result. If a key is set to *empty string* in
+  // the shell (e.g. Claude Code intentionally clears ANTHROPIC_API_KEY
+  // in spawned shells so apps can't pick up the CLI's auth), that empty
+  // value shadows the .env file's value. We read .env directly with a
+  // tiny parser so the file unambiguously wins.
+  //
+  // Any new server-side env var that the tRPC routers read must be
+  // added to the allowlist below.
+  const fileEnv = readDotEnvFile(`${REPO_ROOT}/.env`);
   for (const key of [
     "DATABASE_URL",
     "BEAMY_DEV_USER_ID",
@@ -29,8 +37,11 @@ export default defineConfig(({ mode }) => {
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_MODEL",
   ]) {
-    if (env[key] && !process.env[key]) process.env[key] = env[key];
+    if (fileEnv[key]) process.env[key] = fileEnv[key];
   }
+  // Keep loadEnv around for the rest of vite's machinery (mode resolution,
+  // VITE_-prefixed client-exposed vars, etc.).
+  loadEnv(mode, REPO_ROOT, "");
   const devUserId = process.env.BEAMY_DEV_USER_ID || DEFAULT_DEV_USER_ID;
   const supabaseUrl = process.env.SUPABASE_URL ?? "";
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
@@ -152,6 +163,43 @@ async function resolveUserId(
     console.warn("[trpc] token verification threw:", err);
     return devUserId;
   }
+}
+
+/**
+ * Minimal .env parser — covers the cases this project uses (KEY=value,
+ * blank lines, # comments, optional single or double quotes around the
+ * value). Doesn't do `${...}` expansion. Returns {} if the file is
+ * missing so dev-from-zero doesn't crash.
+ *
+ * Deliberately not using dotenv/vite's loadEnv here because both merge
+ * process.env into their results — which lets empty shell variables
+ * shadow the file. See the call site for the gory details.
+ */
+function readDotEnvFile(filePath: string): Record<string, string> {
+  let text: string;
+  try {
+    text = readFileSync(filePath, "utf8");
+  } catch {
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq < 1) continue;
+    const key = line.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    let val = line.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    out[key] = val;
+  }
+  return out;
 }
 
 async function nodeReqToFetch(req: IncomingMessage): Promise<Request> {
