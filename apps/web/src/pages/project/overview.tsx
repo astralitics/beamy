@@ -115,6 +115,13 @@ function PulseGrid({ projectId, s }: { projectId: string; s: Stats }) {
       to: `${baseUrl}/money`,
       hint: "client invoices past due",
     },
+    {
+      label: "COs awaiting decision",
+      value: s.changeOrders.awaitingDecisionCount,
+      tone: s.changeOrders.awaitingDecisionCount > 0 ? "warn" : "quiet",
+      to: `${baseUrl}/change-orders`,
+      hint: "sent, no answer yet",
+    },
   ];
 
   return (
@@ -210,6 +217,11 @@ function MoneySection({ projectId, s }: { projectId: string; s: Stats }) {
       label: "Paid",
       values: s.money.paidByCurrency,
       hint: "client payments received",
+    },
+    {
+      label: "Scope changes",
+      values: s.changeOrders.approvedDeltaByCurrency,
+      hint: "approved CO net delta",
     },
   ];
 
