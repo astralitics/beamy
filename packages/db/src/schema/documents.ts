@@ -7,10 +7,10 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { assets } from "./assets";
+import { bids } from "./bids";
 import { materials } from "./materials";
 import { orgs } from "./orgs";
 import { projects, rooms } from "./projects";
-import { proposals } from "./work-items";
 
 /**
  * documents — project-scoped file library. Contracts, warranties,
@@ -52,7 +52,7 @@ export const documents = pgTable(
     materialId: uuid("material_id").references(() => materials.id, {
       onDelete: "set null",
     }),
-    proposalId: uuid("proposal_id").references(() => proposals.id, {
+    bidId: uuid("bid_id").references(() => bids.id, {
       onDelete: "set null",
     }),
     /** User-facing display name (with extension). Defaults to upload filename. */
@@ -79,7 +79,7 @@ export const documents = pgTable(
     byRoom: index("documents_by_room").on(table.roomId),
     byAsset: index("documents_by_asset").on(table.assetId),
     byMaterial: index("documents_by_material").on(table.materialId),
-    byProposal: index("documents_by_proposal").on(table.proposalId),
+    byBid: index("documents_by_bid").on(table.bidId),
   }),
 );
 

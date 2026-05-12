@@ -1,6 +1,7 @@
 export * from "./orgs";
 export * from "./audit";
 export * from "./assets";
+export * from "./bids";
 export * from "./bills";
 export * from "./chat";
 export * from "./clients";
