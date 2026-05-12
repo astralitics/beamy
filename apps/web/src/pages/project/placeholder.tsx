@@ -29,12 +29,6 @@ const PLACEHOLDERS: Record<string, PlaceholderInfo> = {
       "Daily reports + site visits. Mobile capture (photo + voice memo) → Claude transcribes and extracts structured todos.",
     milestone: "v1 · workflow #6",
   },
-  documents: {
-    title: "Documents",
-    blurb:
-      "Project-scoped file library: contracts, warranties, manufacturer spec sheets, photos. Supabase Storage backend with project + room + asset tagging.",
-    milestone: "M2 · this milestone",
-  },
 };
 
 export default function ProjectPlaceholder({ tab }: { tab: string }) {

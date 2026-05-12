@@ -17,6 +17,7 @@
     "@anthropic-ai/sdk": "^0.95.2",
     "@beamy/db": "workspace:*",
     "@beamy/shared": "workspace:*",
+    "@supabase/supabase-js": "^2.105.4",
     "@trpc/server": "^11.0.0-rc.660",
     "drizzle-orm": "^0.36.4",
     "zod": "^3.23.8"

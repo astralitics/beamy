@@ -5,6 +5,7 @@ import { assetsRouter } from "./routers/assets";
 import { billsRouter } from "./routers/bills";
 import { chatRouter } from "./routers/chat";
 import { clientsRouter } from "./routers/clients";
+import { documentsRouter } from "./routers/documents";
 import { invoicesRouter } from "./routers/invoices";
 import { materialsRouter } from "./routers/materials";
 import { membersRouter } from "./routers/members";
@@ -21,6 +22,7 @@ export const appRouter = router({
   bills: billsRouter,
   chat: chatRouter,
   clients: clientsRouter,
+  documents: documentsRouter,
   invoices: invoicesRouter,
   materials: materialsRouter,
   vendors: vendorsRouter,

@@ -116,6 +116,9 @@ importers:
       '@beamy/shared':
         specifier: workspace:*
         version: link:../shared
+      '@supabase/supabase-js':
+        specifier: ^2.105.4
+        version: 2.105.4
       '@trpc/server':
         specifier: ^11.0.0-rc.660
         version: 11.17.0(typescript@5.9.3)
