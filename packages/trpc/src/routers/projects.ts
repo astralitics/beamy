@@ -11,6 +11,7 @@ import {
   projects,
   proposals,
   rooms,
+  workItemDependencies,
   workItems,
 } from "@beamy/db";
 import {
@@ -161,6 +162,7 @@ export const projectsRouter = router({
         invoicesOverdue,
         coAwaitingDecision,
         coApprovedDeltaByCurrency,
+        blockedWorkItems,
       ] = await Promise.all([
         // Overdue work items: planned_end < today AND not done/accepted/cancelled.
         db
@@ -289,6 +291,31 @@ export const projectsRouter = router({
           .from(changeOrders)
           .where(and(changeOrderScope, eq(changeOrders.status, "approved")))
           .groupBy(changeOrders.totalDeltaCurrency),
+        // Blocked work items: live items (not done/accepted/cancelled)
+        // that have at least one predecessor still in flight
+        // (not done or accepted). Whatever the dep `kind` is, an
+        // unfinished predecessor counts as a block — the UI
+        // distinguishes kind at render time.
+        db
+          .select({
+            count: sql<number>`count(distinct ${workItems.id})::int`,
+          })
+          .from(workItems)
+          .innerJoin(
+            workItemDependencies,
+            eq(workItemDependencies.workItemId, workItems.id),
+          )
+          .innerJoin(
+            sql`${workItems} AS predecessors`,
+            sql`predecessors.id = ${workItemDependencies.dependsOnId}`,
+          )
+          .where(
+            and(
+              projectScope,
+              sql`${workItems.status} NOT IN ('done', 'accepted', 'cancelled')`,
+              sql`predecessors.status NOT IN ('done', 'accepted')`,
+            ),
+          ),
       ]);
 
       const wiByStatus: Record<string, number> = {};
@@ -305,6 +332,7 @@ export const projectsRouter = router({
           overdueCount: workItemOverdue[0]?.count ?? 0,
           scheduledSoonCount: workItemScheduledSoon[0]?.count ?? 0,
           inFlightCount,
+          blockedCount: blockedWorkItems[0]?.count ?? 0,
           totalCount: workItemsTotal,
           byStatus: wiByStatus,
         },
