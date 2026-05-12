@@ -99,6 +99,13 @@
       "when": 1778595234018,
       "tag": "0013_ordinary_vindicator",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1778601260496,
+      "tag": "0014_famous_husk",
+      "breakpoints": true
     }
   ]
 }
