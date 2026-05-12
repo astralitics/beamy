@@ -106,6 +106,19 @@ export const projectIdInputSchema = z.object({
 });
 export type ProjectIdInput = z.infer<typeof projectIdInputSchema>;
 
+/**
+ * Overview-tab dashboard input. Single query that returns all the
+ * cross-entity pulses (work item overdues, bid expirations, money
+ * roll-up, etc.) in one round-trip. The Overview page renders cards
+ * directly from this response.
+ */
+export const projectOverviewStatsInputSchema = z.object({
+  projectId: z.string().uuid(),
+});
+export type ProjectOverviewStatsInput = z.infer<
+  typeof projectOverviewStatsInputSchema
+>;
+
 // ─────────────────── rooms ───────────────────
 
 export const roomTypeSchema = z.enum([

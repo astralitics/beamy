@@ -1,16 +1,22 @@
-import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   auditLog,
+  bids,
+  bills,
   clients,
   getDb,
+  invoices,
   projects,
+  proposals,
   rooms,
+  workItems,
 } from "@beamy/db";
 import {
   projectCreateInputSchema,
   projectIdInputSchema,
   projectListInputSchema,
+  projectOverviewStatsInputSchema,
   projectUpdateInputSchema,
   roomCreateInputSchema,
   roomIdInputSchema,
@@ -78,6 +84,234 @@ export const projectsRouter = router({
       return {
         ...row.project,
         client: row.client,
+      };
+    }),
+
+  /**
+   * Overview-tab dashboard. Returns all the cross-entity pulses the
+   * landing page surfaces, in one round-trip.
+   *
+   * Multi-currency: rolled up per-currency rather than collapsing to
+   * a single number — the firm sometimes books vendors in USD and
+   * the client in MXN. UI renders one chip per currency. FX
+   * conversion is a Tier 2 design discipline item (roadmap §6).
+   *
+   * "Overdue" / "this week" are computed against today's date at
+   * server time; UI doesn't need to know the cutoff.
+   */
+  overviewStats: orgScopedProcedure
+    .input(projectOverviewStatsInputSchema)
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const ownsProject = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(
+          and(
+            eq(projects.id, input.projectId),
+            eq(projects.orgId, ctx.orgId),
+          ),
+        )
+        .limit(1);
+      if (!ownsProject[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const today = new Date().toISOString().slice(0, 10);
+      const inSevenDays = new Date(Date.now() + 7 * 86400_000)
+        .toISOString()
+        .slice(0, 10);
+
+      const projectScope = and(
+        eq(workItems.projectId, input.projectId),
+        eq(workItems.orgId, ctx.orgId),
+      );
+      const bidScope = and(
+        eq(bids.projectId, input.projectId),
+        eq(bids.orgId, ctx.orgId),
+      );
+      const proposalScope = and(
+        eq(proposals.projectId, input.projectId),
+        eq(proposals.orgId, ctx.orgId),
+      );
+      const billScope = and(
+        eq(bills.projectId, input.projectId),
+        eq(bills.orgId, ctx.orgId),
+      );
+      const invoiceScope = and(
+        eq(invoices.projectId, input.projectId),
+        eq(invoices.orgId, ctx.orgId),
+      );
+
+      const [
+        workItemOverdue,
+        workItemScheduledSoon,
+        workItemTotals,
+        bidsExpiring,
+        bidsComparing,
+        bidsCommittedByCurrency,
+        proposalsRecent,
+        proposalsSoldByCurrency,
+        invoicesBilledByCurrency,
+        invoicesPaidByCurrency,
+        billsOverdue,
+        invoicesOverdue,
+      ] = await Promise.all([
+        // Overdue work items: planned_end < today AND not done/accepted/cancelled.
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(workItems)
+          .where(
+            and(
+              projectScope,
+              lt(workItems.plannedEnd, today),
+              sql`${workItems.status} NOT IN ('done', 'accepted', 'cancelled')`,
+            ),
+          ),
+        // Scheduled within the next 7 days.
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(workItems)
+          .where(
+            and(
+              projectScope,
+              sql`${workItems.plannedStart} >= ${today} AND ${workItems.plannedStart} < ${inSevenDays}`,
+            ),
+          ),
+        // Totals by status — used for the "in flight" tile.
+        db
+          .select({
+            status: workItems.status,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(workItems)
+          .where(projectScope)
+          .groupBy(workItems.status),
+        // Bids past valid_until that aren't already decided.
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(bids)
+          .where(
+            and(
+              bidScope,
+              lt(bids.validUntil, today),
+              sql`${bids.status} NOT IN ('accepted', 'rejected', 'expired')`,
+            ),
+          ),
+        // Bids in 'comparing' state — waiting on a decision.
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(bids)
+          .where(and(bidScope, eq(bids.status, "comparing"))),
+        // Committed = sum of accepted bid totals, per currency.
+        db
+          .select({
+            currency: bids.currency,
+            total: sql<string>`coalesce(sum(${bids.totalAmount}), 0)::text`,
+          })
+          .from(bids)
+          .where(and(bidScope, eq(bids.status, "accepted")))
+          .groupBy(bids.currency),
+        // Three most recent proposals.
+        db
+          .select()
+          .from(proposals)
+          .where(proposalScope)
+          .orderBy(desc(proposals.createdAt))
+          .limit(3),
+        // Sold = sum of accepted proposal totals.
+        db
+          .select({
+            currency: proposals.totalCurrency,
+            total: sql<string>`coalesce(sum(${proposals.totalAmount}), 0)::text`,
+          })
+          .from(proposals)
+          .where(and(proposalScope, eq(proposals.status, "accepted")))
+          .groupBy(proposals.totalCurrency),
+        // Billed = invoices in sent or paid status.
+        db
+          .select({
+            currency: invoices.currency,
+            total: sql<string>`coalesce(sum(${invoices.amount}), 0)::text`,
+          })
+          .from(invoices)
+          .where(
+            and(
+              invoiceScope,
+              inArray(invoices.status, ["sent", "paid"]),
+            ),
+          )
+          .groupBy(invoices.currency),
+        // Paid = invoices marked paid.
+        db
+          .select({
+            currency: invoices.currency,
+            total: sql<string>`coalesce(sum(${invoices.amount}), 0)::text`,
+          })
+          .from(invoices)
+          .where(and(invoiceScope, eq(invoices.status, "paid")))
+          .groupBy(invoices.currency),
+        // Overdue vendor bills: open + due_at < today.
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(bills)
+          .where(
+            and(billScope, eq(bills.status, "open"), lt(bills.dueAt, today)),
+          ),
+        // Overdue client invoices: sent + due_at < today.
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(invoices)
+          .where(
+            and(
+              invoiceScope,
+              eq(invoices.status, "sent"),
+              lt(invoices.dueAt, today),
+            ),
+          ),
+      ]);
+
+      const wiByStatus: Record<string, number> = {};
+      let workItemsTotal = 0;
+      for (const r of workItemTotals) {
+        wiByStatus[r.status] = r.count;
+        workItemsTotal += r.count;
+      }
+      const inFlightCount =
+        (wiByStatus["in_progress"] ?? 0) + (wiByStatus["scheduled"] ?? 0);
+
+      return {
+        workItems: {
+          overdueCount: workItemOverdue[0]?.count ?? 0,
+          scheduledSoonCount: workItemScheduledSoon[0]?.count ?? 0,
+          inFlightCount,
+          totalCount: workItemsTotal,
+          byStatus: wiByStatus,
+        },
+        bids: {
+          expiringCount: bidsExpiring[0]?.count ?? 0,
+          comparingCount: bidsComparing[0]?.count ?? 0,
+          committedByCurrency: bidsCommittedByCurrency
+            .filter((r) => r.currency != null)
+            .map((r) => ({ currency: r.currency!, amount: r.total })),
+        },
+        proposals: {
+          recent: proposalsRecent,
+          soldByCurrency: proposalsSoldByCurrency
+            .filter((r) => r.currency != null)
+            .map((r) => ({ currency: r.currency!, amount: r.total })),
+        },
+        money: {
+          billedByCurrency: invoicesBilledByCurrency
+            .filter((r) => r.currency != null)
+            .map((r) => ({ currency: r.currency!, amount: r.total })),
+          paidByCurrency: invoicesPaidByCurrency
+            .filter((r) => r.currency != null)
+            .map((r) => ({ currency: r.currency!, amount: r.total })),
+        },
+        billsInvoices: {
+          overdueBillsCount: billsOverdue[0]?.count ?? 0,
+          overdueInvoicesCount: invoicesOverdue[0]?.count ?? 0,
+        },
+        asOf: new Date().toISOString(),
       };
     }),
 
