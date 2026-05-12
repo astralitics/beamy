@@ -10,6 +10,7 @@ import { assets } from "./assets";
 import { materials } from "./materials";
 import { orgs } from "./orgs";
 import { projects, rooms } from "./projects";
+import { proposals } from "./work-items";
 
 /**
  * documents — project-scoped file library. Contracts, warranties,
@@ -51,6 +52,9 @@ export const documents = pgTable(
     materialId: uuid("material_id").references(() => materials.id, {
       onDelete: "set null",
     }),
+    proposalId: uuid("proposal_id").references(() => proposals.id, {
+      onDelete: "set null",
+    }),
     /** User-facing display name (with extension). Defaults to upload filename. */
     name: text("name").notNull(),
     description: text("description"),
@@ -75,6 +79,7 @@ export const documents = pgTable(
     byRoom: index("documents_by_room").on(table.roomId),
     byAsset: index("documents_by_asset").on(table.assetId),
     byMaterial: index("documents_by_material").on(table.materialId),
+    byProposal: index("documents_by_proposal").on(table.proposalId),
   }),
 );
 
