@@ -9,20 +9,39 @@
     height: 100%;
   }
   body {
-    @apply bg-paper-50 text-slate-900 antialiased;
-    /* Subtle warm-paper grain: faint dot noise. Reads as "drafting paper"
-       on close inspection, neutral from afar. */
-    background-image: radial-gradient(
-      rgba(15, 23, 42, 0.018) 1px,
-      transparent 1px
-    );
-    background-size: 4px 4px;
+    background-color: #FAFAF7;
+    color: #09090B;
+    font-family: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "ss01", "cv11";
+    font-size: 0.9375rem;
+    line-height: 1.5rem;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  /* Tighter tracking on display text — feels a little more architectural. */
   h1,
   h2,
-  h3 {
-    @apply tracking-tight;
-    font-feature-settings: "ss01", "cv11";
+  h3,
+  h4 {
+    color: #09090B;
+    font-family: "Fraunces", ui-serif, Georgia, serif;
+    font-feature-settings: "ss01";
+    letter-spacing: -0.015em;
+  }
+  input,
+  select,
+  textarea,
+  button {
+    font-family: inherit;
+  }
+  table,
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  .num {
+    font-family: "Fraunces", ui-serif, Georgia, serif;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "ss01";
+    letter-spacing: -0.02em;
   }
 }

@@ -1,4 +1,11 @@
-import { createContext, useCallback, useContext, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { trpc } from "../trpc";
 import {
   messagesEn,
@@ -16,29 +23,78 @@ import {
 } from "./formatters";
 
 /**
- * LocaleContext — read once from the current org's `locale` column via
- * `me.whoami`. Falls back to "en" + "USD" while loading or when no org
- * is yet resolved. Per design D-51, org-driven locale (not a per-user
- * picker) — the whole agency sees one locale at a time.
+ * LocaleContext — locale resolution with a client-side override.
+ *
+ * Resolution order:
+ *   1. localStorage["beamy.locale"] if set (user explicitly toggled it)
+ *   2. The org's `locale` column via `me.whoami`
+ *   3. Fallback "en"
+ *
+ * The toggle in the sidebar writes to localStorage. We expose `setLocale`
+ * for that. The org-driven default still applies for new visitors.
  */
+
+const STORAGE_KEY = "beamy.locale";
 
 type LocaleValue = {
   locale: Locale;
   defaultCurrency: string;
+  setLocale: (next: Locale) => void;
 };
 
-const FALLBACK: LocaleValue = { locale: "en", defaultCurrency: "USD" };
+const FALLBACK: LocaleValue = {
+  locale: "en",
+  defaultCurrency: "USD",
+  setLocale: () => {},
+};
 
 const LocaleContext = createContext<LocaleValue>(FALLBACK);
 
+function readStoredLocale(): Locale | null {
+  if (typeof window === "undefined") return null;
+  const v = window.localStorage.getItem(STORAGE_KEY);
+  if (v === "en" || v === "es-MX") return v;
+  return null;
+}
+
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const me = trpc.me.whoami.useQuery(undefined, { retry: false });
-  // The whoami response doesn't currently include `locale`; we read it
-  // separately if available, else fall back to en.
   const orgLocale = (me.data?.org as { locale?: string } | undefined)?.locale;
+
+  const [override, setOverride] = useState<Locale | null>(() =>
+    readStoredLocale(),
+  );
+
+  // Keep state in sync if another tab toggles via storage event.
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key !== STORAGE_KEY) return;
+      if (e.newValue === "en" || e.newValue === "es-MX") {
+        setOverride(e.newValue);
+      } else if (e.newValue === null) {
+        setOverride(null);
+      }
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const resolved: Locale =
+    override ?? (orgLocale === "es-MX" || orgLocale === "en"
+      ? (orgLocale as Locale)
+      : FALLBACK.locale);
+
+  const setLocale = useCallback((next: Locale) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(STORAGE_KEY, next);
+    }
+    setOverride(next);
+  }, []);
+
   const value: LocaleValue = {
-    locale: orgLocale ?? FALLBACK.locale,
+    locale: resolved,
     defaultCurrency: me.data?.org.defaultCurrency ?? FALLBACK.defaultCurrency,
+    setLocale,
   };
   return (
     <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
@@ -49,14 +105,6 @@ export function useLocale(): LocaleValue {
   return useContext(LocaleContext);
 }
 
-/**
- * Translation hook. Resolves a message key against the current locale's
- * catalog, falling back to English on missing keys.
- *
- *   const t = useT();
- *   <h1>{t("home.title")}</h1>
- *   <p>{t("welcome.name", { name: "Sarah" })}</p>  // "{name}" interpolation
- */
 export function useT() {
   const { locale } = useLocale();
   return useCallback(
@@ -74,13 +122,6 @@ export function useT() {
   );
 }
 
-/**
- * Formatter hook bound to the current locale + org's default currency.
- *
- *   const fmt = useFormatters();
- *   <span>{fmt.date(invoice.issuedAt)}</span>
- *   <span>{fmt.currency(bill.totalAmount, bill.totalCurrency)}</span>
- */
 export function useFormatters() {
   const { locale, defaultCurrency } = useLocale();
   return {

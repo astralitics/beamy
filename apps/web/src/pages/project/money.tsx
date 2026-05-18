@@ -1,5 +1,5 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useMemo, useState, type FormEvent } from "react";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
@@ -12,21 +12,53 @@ import {
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useFormatters } from "../../lib/i18n";
+import {
+  Button,
+  Field,
+  Icon,
+  Input,
+  Modal,
+  MoneyInput,
+  Pill,
+  Select,
+  Textarea,
+} from "../../components/ui";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type BillRow = inferRouterOutputs<AppRouter>["bills"]["list"][number];
 type InvoiceRow = inferRouterOutputs<AppRouter>["invoices"]["list"][number];
 
+type Tab = "bills" | "invoices";
+
+const BILL_TONE: Record<BillStatus, "warn" | "success" | "muted"> = {
+  open: "warn",
+  paid: "success",
+  void: "muted",
+};
+
+const INVOICE_TONE: Record<
+  InvoiceStatus,
+  "neutral" | "info" | "success" | "muted"
+> = {
+  draft: "neutral",
+  sent: "info",
+  paid: "success",
+  void: "muted",
+};
+
 /**
- * Money — project-scoped financial layer. Two stacked sections:
- *   • Bills (we owe vendors)
- *   • Invoices (clients owe us)
- *
- * Top band summarizes open / overdue / paid totals so the project's
- * financial pulse is one glance away.
+ * Money — project-scoped financial layer.
+ *   - Top summary tiles (Outstanding, Overdue, Paid, Collected).
+ *   - Tab switcher: Bills (we owe) | Invoices (clients owe).
+ *   - Each tab is a real table with filters, search, click-through detail.
  */
 export default function ProjectMoney() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = (searchParams.get("tab") ?? "bills") as Tab;
+  const [tab, setTab] = useState<Tab>(
+    tabFromUrl === "invoices" ? "invoices" : "bills",
+  );
   const fmt = useFormatters();
 
   const bills = trpc.bills.list.useQuery({ projectId: project.id });
@@ -37,121 +69,161 @@ export default function ProjectMoney() {
     [bills.data, invoices.data],
   );
 
+  function selectTab(next: Tab) {
+    setTab(next);
+    searchParams.set("tab", next);
+    setSearchParams(searchParams, { replace: true });
+  }
+
   return (
-    <div className="space-y-10">
-      {/* Pulse band */}
-      <section>
-        <h2 className="font-mono text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
-          At a glance
-        </h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <PulseCard
-            label="Outstanding (we owe)"
-            value={
-              summary.billsOutstandingByCcy.length === 0
-                ? "—"
-                : summary.billsOutstandingByCcy
-                    .map(([ccy, amt]) => fmt.currency(amt.toFixed(2), ccy))
-                    .join(" · ")
-            }
-            hint={`${summary.billsOverdueCount} overdue`}
-            tone={summary.billsOverdueCount > 0 ? "warn" : "neutral"}
-          />
-          <PulseCard
-            label="Outstanding (clients owe)"
-            value={
-              summary.invoicesOutstandingByCcy.length === 0
-                ? "—"
-                : summary.invoicesOutstandingByCcy
-                    .map(([ccy, amt]) => fmt.currency(amt.toFixed(2), ccy))
-                    .join(" · ")
-            }
-            hint={`${summary.invoicesOverdueCount} overdue`}
-            tone={summary.invoicesOverdueCount > 0 ? "warn" : "neutral"}
-          />
-          <PulseCard
-            label="Paid to vendors"
-            value={
-              summary.billsPaidByCcy.length === 0
-                ? "—"
-                : summary.billsPaidByCcy
-                    .map(([ccy, amt]) => fmt.currency(amt.toFixed(2), ccy))
-                    .join(" · ")
-            }
-            hint="total"
-          />
-          <PulseCard
-            label="Collected from clients"
-            value={
-              summary.invoicesPaidByCcy.length === 0
-                ? "—"
-                : summary.invoicesPaidByCcy
-                    .map(([ccy, amt]) => fmt.currency(amt.toFixed(2), ccy))
-                    .join(" · ")
-            }
-            hint="total"
-            tone="good"
-          />
-        </div>
-      </section>
+    <div className="space-y-10 animate-fade">
+      <SummaryStrip summary={summary} fmt={fmt} />
 
-      {/* Bills */}
-      <BillsSection projectId={project.id} bills={bills.data ?? []} loading={bills.isLoading} error={bills.error?.message} />
+      <div className="border-b border-ink-100">
+        <nav className="-mb-px flex items-center gap-6">
+          <TabButton
+            active={tab === "bills"}
+            onClick={() => selectTab("bills")}
+            label="Bills"
+            count={bills.data?.length ?? 0}
+          />
+          <TabButton
+            active={tab === "invoices"}
+            onClick={() => selectTab("invoices")}
+            label="Invoices"
+            count={invoices.data?.length ?? 0}
+          />
+        </nav>
+      </div>
 
-      {/* Invoices */}
-      <InvoicesSection
-        projectId={project.id}
-        clientId={project.clientId}
-        invoices={invoices.data ?? []}
-        loading={invoices.isLoading}
-        error={invoices.error?.message}
+      {tab === "bills" ? (
+        <BillsTab
+          projectId={project.id}
+          bills={bills.data ?? []}
+          loading={bills.isLoading}
+          error={bills.error?.message}
+        />
+      ) : (
+        <InvoicesTab
+          projectId={project.id}
+          clientId={project.clientId}
+          invoices={invoices.data ?? []}
+          loading={invoices.isLoading}
+          error={invoices.error?.message}
+        />
+      )}
+    </div>
+  );
+}
+
+// ────────────────────── summary strip ──────────────────────
+
+function SummaryStrip({
+  summary,
+  fmt,
+}: {
+  summary: Summary;
+  fmt: ReturnType<typeof useFormatters>;
+}) {
+  function fmtCcyList(entries: Array<[string, number]>) {
+    if (entries.length === 0) return "—";
+    return entries.map(([c, a]) => fmt.currency(a.toFixed(2), c)).join(" · ");
+  }
+  return (
+    <div className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
+      <SummaryTile
+        label="Outstanding · we owe"
+        value={fmtCcyList(summary.billsOutstandingByCcy)}
+        meta={`${summary.billsOverdueCount} overdue`}
+        tone={summary.billsOverdueCount > 0 ? "alert" : undefined}
+      />
+      <SummaryTile
+        label="Outstanding · clients owe"
+        value={fmtCcyList(summary.invoicesOutstandingByCcy)}
+        meta={`${summary.invoicesOverdueCount} overdue`}
+        tone={summary.invoicesOverdueCount > 0 ? "alert" : undefined}
+      />
+      <SummaryTile
+        label="Paid to vendors"
+        value={fmtCcyList(summary.billsPaidByCcy)}
+        meta="total"
+      />
+      <SummaryTile
+        label="Collected from clients"
+        value={fmtCcyList(summary.invoicesPaidByCcy)}
+        meta="total"
       />
     </div>
   );
 }
 
-// ────────────────────── pulse cards ──────────────────────
-
-type Tone = "neutral" | "good" | "warn";
-const TONE_CLS: Record<Tone, string> = {
-  neutral: "border-paper-200",
-  good: "border-emerald-200 bg-emerald-50/30",
-  warn: "border-amber-200 bg-amber-50/40",
-};
-
-function PulseCard({
+function SummaryTile({
   label,
   value,
-  hint,
-  tone = "neutral",
+  meta,
+  tone,
 }: {
   label: string;
   value: string;
-  hint: string;
-  tone?: Tone;
+  meta: string;
+  tone?: "alert";
 }) {
   return (
-    <div className={`rounded-lg border ${TONE_CLS[tone]} bg-white p-4`}>
-      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+    <div className="bg-white px-5 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
         {label}
       </p>
-      <p className="mt-1 truncate text-lg font-semibold text-blueprint-900">
+      <p
+        className={`mt-2 truncate text-[20px] font-medium tnum ${tone === "alert" ? "text-rose-700" : "text-ink-900"}`}
+        title={value}
+      >
         {value}
       </p>
-      <p className="mt-1 text-[10px] text-slate-500">{hint}</p>
+      <p
+        className={`mt-1 text-[12px] ${tone === "alert" ? "text-rose-600" : "text-ink-400"}`}
+      >
+        {meta}
+      </p>
     </div>
   );
 }
 
-// ────────────────────── bills ──────────────────────
+// ────────────────────── tabs ──────────────────────
 
-const BILL_STATUS_PILL: Record<BillStatus, string> = {
-  open: "bg-amber-50 text-amber-800 ring-amber-200",
-  paid: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-  void: "bg-slate-50 text-slate-600 ring-slate-200",
-};
+function TabButton({
+  active,
+  onClick,
+  label,
+  count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  count: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative -mb-px flex items-baseline gap-2 border-b-2 px-1 pb-3 pt-1 text-[14px] font-medium transition-colors ${
+        active
+          ? "border-ink-900 text-ink-900"
+          : "border-transparent text-ink-500 hover:text-ink-800"
+      }`}
+    >
+      {label}
+      <span
+        className={`tnum text-[12px] ${active ? "text-ink-400" : "text-ink-400"}`}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
 
-function BillsSection({
+// ────────────────────── Bills tab ──────────────────────
+
+function BillsTab({
   projectId,
   bills,
   loading,
@@ -163,371 +235,176 @@ function BillsSection({
   error: string | undefined;
 }) {
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<BillRow | null>(null);
+  const [statusFilter, setStatusFilter] = useState<BillStatus | "">("");
+  const [search, setSearch] = useState("");
+  const fmt = useFormatters();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const filtered = useMemo(() => {
+    return bills.filter((b) => {
+      if (statusFilter && b.status !== statusFilter) return false;
+      if (search.trim()) {
+        const s = search.trim().toLowerCase();
+        const blob = [b.billNumber, b.description, b.vendor?.name, b.notes]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!blob.includes(s)) return false;
+      }
+      return true;
+    });
+  }, [bills, statusFilter, search]);
 
   return (
     <section>
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-blueprint-900">
+          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             Bills
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Vendor invoices we receive. Each row = one bill to pay.
-          </p>
+          <p className="mt-1 text-sm text-ink-500">What we owe vendors.</p>
         </div>
-        {!adding && !editing && (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
-          >
-            Add bill
-          </button>
-        )}
+        <Button variant="primary" onClick={() => setAdding(true)}>
+          <Icon name="plus" className="h-4 w-4" />
+          New bill
+        </Button>
       </div>
 
-      {adding && (
-        <BillForm
-          projectId={projectId}
-          mode="create"
-          onClose={() => setAdding(false)}
-        />
-      )}
-      {editing && (
-        <BillForm
-          projectId={projectId}
-          mode="edit"
-          existing={editing}
-          onClose={() => setEditing(null)}
-        />
-      )}
-
-      <div className="mt-3">
-        {loading ? (
-          <p className="text-xs text-slate-500">Loading…</p>
-        ) : error ? (
-          <p className="text-xs text-rose-700">{error}</p>
-        ) : bills.length === 0 ? (
-          <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
-            No bills yet. Click <strong>Add bill</strong> when a vendor invoice
-            comes in.
-          </p>
-        ) : (
-          <div className="grid gap-2">
-            {bills.map((b) => (
-              <BillRowItem
-                key={b.id}
-                bill={b}
-                onEdit={() => setEditing(b)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function BillRowItem({ bill, onEdit }: { bill: BillRow; onEdit: () => void }) {
-  const fmt = useFormatters();
-  const utils = trpc.useUtils();
-  const remove = trpc.bills.remove.useMutation({
-    onSuccess: () =>
-      utils.bills.list.invalidate({ projectId: bill.projectId }),
-  });
-  const markPaid = trpc.bills.markPaid.useMutation({
-    onSuccess: () =>
-      utils.bills.list.invalidate({ projectId: bill.projectId }),
-  });
-
-  const overdue = isBillOverdue(bill.status, bill.dueAt);
-
-  return (
-    <div
-      className={`rounded-md border bg-white p-3 ${overdue ? "border-amber-300" : "border-paper-200"}`}
-    >
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <span className="font-medium text-blueprint-900">
-              {bill.description || bill.billNumber || "Untitled bill"}
-            </span>
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${BILL_STATUS_PILL[bill.status]}`}
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-              {BILL_STATUS_LABELS[bill.status]}
-            </span>
-            {overdue && (
-              <span className="inline-flex items-center gap-1.5 rounded-sm bg-rose-50 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-rose-700 ring-1 ring-inset ring-rose-200">
-                Overdue
-              </span>
-            )}
-            {bill.vendor && (
-              <span className="font-mono text-[10px] uppercase tracking-wide text-slate-400">
-                · {bill.vendor.name}
-              </span>
-            )}
-            {bill.billNumber && bill.description && (
-              <span className="font-mono text-[10px] uppercase tracking-wide text-slate-400">
-                · #{bill.billNumber}
-              </span>
-            )}
-          </div>
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-slate-400">
-            <span className="text-blueprint-900">
-              {fmt.currency(bill.amount, bill.currency)}
-            </span>
-            {bill.issuedAt && <span>issued {fmt.date(bill.issuedAt)}</span>}
-            {bill.dueAt && <span>due {fmt.date(bill.dueAt)}</span>}
-            {bill.paidAt && <span>paid {fmt.date(bill.paidAt)}</span>}
-          </div>
-          {bill.notes && (
-            <p className="mt-1.5 whitespace-pre-wrap text-xs text-slate-600">
-              {bill.notes}
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          {bill.status === "open" && (
-            <button
-              type="button"
-              onClick={() => markPaid.mutate({ id: bill.id })}
-              disabled={markPaid.isPending}
-              className="rounded-md border border-paper-200 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-            >
-              Mark paid
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onEdit}
-            className="text-xs text-slate-500 hover:text-slate-900"
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <div className="w-44">
+          <Select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as BillStatus | "")}
           >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (confirm("Delete this bill?")) remove.mutate({ id: bill.id });
-            }}
-            disabled={remove.isPending}
-            className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
-          >
-            {remove.isPending ? "…" : "Delete"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function BillForm({
-  projectId,
-  mode,
-  existing,
-  onClose,
-}: {
-  projectId: string;
-  mode: "create" | "edit";
-  existing?: BillRow;
-  onClose: () => void;
-}) {
-  const vendorsQ = trpc.vendors.list.useQuery({ status: "active" });
-  const [vendorId, setVendorId] = useState(existing?.vendorId ?? "");
-  const [billNumber, setBillNumber] = useState(existing?.billNumber ?? "");
-  const [description, setDescription] = useState(existing?.description ?? "");
-  const [amount, setAmount] = useState(existing?.amount ?? "");
-  const [currency, setCurrency] = useState(existing?.currency ?? "USD");
-  const [issuedAt, setIssuedAt] = useState(existing?.issuedAt ?? "");
-  const [dueAt, setDueAt] = useState(existing?.dueAt ?? "");
-  const [paidAt, setPaidAt] = useState(existing?.paidAt ?? "");
-  const [status, setStatus] = useState<BillStatus>(existing?.status ?? "open");
-  const [notes, setNotes] = useState(existing?.notes ?? "");
-  const [error, setError] = useState<string | null>(null);
-
-  const utils = trpc.useUtils();
-  const create = trpc.bills.create.useMutation({
-    onSuccess: () => {
-      utils.bills.list.invalidate({ projectId });
-      onClose();
-    },
-    onError: (err) => setError(err.message),
-  });
-  const update = trpc.bills.update.useMutation({
-    onSuccess: () => {
-      utils.bills.list.invalidate({ projectId });
-      onClose();
-    },
-    onError: (err) => setError(err.message),
-  });
-  const submitting = create.isPending || update.isPending;
-
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    const amt = amount.trim();
-    const cur = currency.trim();
-    if (!amt || !cur) {
-      setError("Amount and currency are required.");
-      return;
-    }
-    const base = {
-      vendorId: vendorId || undefined,
-      billNumber: billNumber.trim() || undefined,
-      description: description.trim() || undefined,
-      amount: amt,
-      currency: cur,
-      issuedAt: issuedAt || undefined,
-      dueAt: dueAt || undefined,
-      paidAt: paidAt || undefined,
-      status,
-      notes: notes.trim() || undefined,
-    };
-    if (mode === "edit" && existing) {
-      update.mutate({ id: existing.id, patch: base });
-    } else {
-      create.mutate({ projectId, ...base });
-    }
-  }
-
-  return (
-    <form
-      onSubmit={onSubmit}
-      className="mt-4 rounded-md border border-paper-200 bg-white p-4"
-    >
-      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-safety-700">
-        {mode === "edit" ? "Edit · bill" : "New · bill"}
-      </p>
-      <div className="mt-2 grid gap-3 sm:grid-cols-2">
-        <Field label="Description" wide>
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className={inputCls}
-            autoFocus
-            placeholder="e.g. Tile installation — kitchen + primary bath"
-          />
-        </Field>
-        <Field label="Vendor">
-          <select
-            value={vendorId}
-            onChange={(e) => setVendorId(e.target.value)}
-            className={selectCls}
-          >
-            <option value="">— (none)</option>
-            {vendorsQ.data?.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Bill #">
-          <input
-            value={billNumber}
-            onChange={(e) => setBillNumber(e.target.value)}
-            className={inputCls}
-            placeholder="vendor's invoice number"
-          />
-        </Field>
-        <Field label="Amount *">
-          <div className="flex gap-2">
-            <input
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className={`${inputCls} flex-1`}
-              placeholder="3500.00"
-              inputMode="decimal"
-            />
-            <input
-              required
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-              className={`${inputCls} w-16 uppercase`}
-              maxLength={3}
-            />
-          </div>
-        </Field>
-        <Field label="Status">
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as BillStatus)}
-            className={selectCls}
-          >
+            <option value="">All statuses</option>
             {(Object.keys(BILL_STATUS_LABELS) as BillStatus[]).map((s) => (
               <option key={s} value={s}>
                 {BILL_STATUS_LABELS[s]}
               </option>
             ))}
-          </select>
-        </Field>
-        <Field label="Issued">
-          <input
-            type="date"
-            value={issuedAt}
-            onChange={(e) => setIssuedAt(e.target.value)}
-            className={inputCls}
+          </Select>
+        </div>
+        <div className="relative min-w-[240px] flex-1">
+          <Icon
+            name="search"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
           />
-        </Field>
-        <Field label="Due">
-          <input
-            type="date"
-            value={dueAt}
-            onChange={(e) => setDueAt(e.target.value)}
-            className={inputCls}
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search description, vendor, bill #"
+            className="pl-10"
           />
-        </Field>
-        <Field label="Paid">
-          <input
-            type="date"
-            value={paidAt}
-            onChange={(e) => setPaidAt(e.target.value)}
-            className={inputCls}
-          />
-        </Field>
-        <Field label="Notes" wide>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            className={inputCls}
-          />
-        </Field>
+        </div>
       </div>
-      {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
-      <div className="mt-3 flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-        >
-          {submitting ? "Saving…" : mode === "edit" ? "Save" : "Add"}
-        </button>
+
+      <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
+        {loading ? (
+          <p className="px-6 py-8 text-sm text-ink-500">Loading…</p>
+        ) : error ? (
+          <p className="px-6 py-8 text-sm text-rose-700">{error}</p>
+        ) : filtered.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <p className="font-display text-xl text-ink-900">
+              {search.trim() || statusFilter
+                ? "No bills match these filters."
+                : "No bills yet."}
+            </p>
+            {!search.trim() && !statusFilter && (
+              <Button
+                variant="primary"
+                onClick={() => setAdding(true)}
+                className="mt-5"
+              >
+                <Icon name="plus" className="h-4 w-4" />
+                Add the first bill
+              </Button>
+            )}
+          </div>
+        ) : (
+          <table className="w-full text-[14px]">
+            <thead className="border-b border-ink-100 bg-paper-50">
+              <tr className="text-left">
+                <Th>Description</Th>
+                <Th>Vendor</Th>
+                <Th align="right">Amount</Th>
+                <Th>Status</Th>
+                <Th>Due</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((b) => {
+                const overdue = isBillOverdue(b.status, b.dueAt) && b.dueAt && b.dueAt < today;
+                return (
+                  <tr
+                    key={b.id}
+                    className="group border-b border-ink-100 transition-colors last:border-b-0 hover:bg-paper-50"
+                  >
+                    <Td>
+                      <Link
+                        to={`/projects/${projectId}/bills/${b.id}`}
+                        className="block"
+                      >
+                        <span className="font-medium text-ink-900">
+                          {b.description || b.billNumber || "Untitled bill"}
+                        </span>
+                        {b.billNumber && b.description && (
+                          <span className="block font-mono text-xs text-ink-500">
+                            #{b.billNumber}
+                          </span>
+                        )}
+                      </Link>
+                    </Td>
+                    <Td className="text-ink-600">
+                      {b.vendor?.name ?? (
+                        <span className="text-ink-400">Self-purchase</span>
+                      )}
+                    </Td>
+                    <Td align="right" className="tnum text-ink-900 font-medium">
+                      {fmt.currency(b.amount, b.currency)}
+                    </Td>
+                    <Td>
+                      <div className="flex items-center gap-1.5">
+                        <Pill tone={BILL_TONE[b.status]} dot>
+                          {BILL_STATUS_LABELS[b.status]}
+                        </Pill>
+                        {overdue && <Pill tone="alert">Overdue</Pill>}
+                      </div>
+                    </Td>
+                    <Td className="tnum text-ink-600">
+                      {b.dueAt ? fmt.date(b.dueAt) : "—"}
+                    </Td>
+                    <Td align="right">
+                      <Link
+                        to={`/projects/${projectId}/bills/${b.id}`}
+                        aria-label="Open bill"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
+                      >
+                        <Icon name="chevron-right" className="h-4 w-4" />
+                      </Link>
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
-    </form>
+
+      {adding && (
+        <BillCreateModal
+          projectId={projectId}
+          onClose={() => setAdding(false)}
+        />
+      )}
+    </section>
   );
 }
 
-// ────────────────────── invoices ──────────────────────
+// ────────────────────── Invoices tab ──────────────────────
 
-const INVOICE_STATUS_PILL: Record<InvoiceStatus, string> = {
-  draft: "bg-slate-50 text-slate-700 ring-slate-200",
-  sent: "bg-sky-50 text-sky-800 ring-sky-200",
-  paid: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-  void: "bg-slate-50 text-slate-600 ring-slate-200",
-};
-
-function InvoicesSection({
+function InvoicesTab({
   projectId,
   clientId,
   invoices,
@@ -541,226 +418,402 @@ function InvoicesSection({
   error: string | undefined;
 }) {
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<InvoiceRow | null>(null);
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "">("");
+  const [search, setSearch] = useState("");
+  const fmt = useFormatters();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const filtered = useMemo(() => {
+    return invoices.filter((i) => {
+      if (statusFilter && i.status !== statusFilter) return false;
+      if (search.trim()) {
+        const s = search.trim().toLowerCase();
+        const blob = [i.invoiceNumber, i.description, i.client?.name, i.notes]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!blob.includes(s)) return false;
+      }
+      return true;
+    });
+  }, [invoices, statusFilter, search]);
 
   return (
     <section>
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-blueprint-900">
+          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             Invoices
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            What we bill clients. Lifecycle: <em className="not-italic">draft → sent → paid</em>.
-          </p>
+          <p className="mt-1 text-sm text-ink-500">What we bill clients.</p>
         </div>
-        {!adding && !editing && (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+        <Button variant="primary" onClick={() => setAdding(true)}>
+          <Icon name="plus" className="h-4 w-4" />
+          New invoice
+        </Button>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <div className="w-44">
+          <Select
+            value={statusFilter}
+            onChange={(e) =>
+              setStatusFilter(e.target.value as InvoiceStatus | "")
+            }
           >
-            Add invoice
-          </button>
+            <option value="">All statuses</option>
+            {(Object.keys(INVOICE_STATUS_LABELS) as InvoiceStatus[]).map(
+              (s) => (
+                <option key={s} value={s}>
+                  {INVOICE_STATUS_LABELS[s]}
+                </option>
+              ),
+            )}
+          </Select>
+        </div>
+        <div className="relative min-w-[240px] flex-1">
+          <Icon
+            name="search"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
+          />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search description, client, invoice #"
+            className="pl-10"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
+        {loading ? (
+          <p className="px-6 py-8 text-sm text-ink-500">Loading…</p>
+        ) : error ? (
+          <p className="px-6 py-8 text-sm text-rose-700">{error}</p>
+        ) : filtered.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <p className="font-display text-xl text-ink-900">
+              {search.trim() || statusFilter
+                ? "No invoices match these filters."
+                : "No invoices yet."}
+            </p>
+            {!search.trim() && !statusFilter && (
+              <Button
+                variant="primary"
+                onClick={() => setAdding(true)}
+                className="mt-5"
+              >
+                <Icon name="plus" className="h-4 w-4" />
+                Draft the first invoice
+              </Button>
+            )}
+          </div>
+        ) : (
+          <table className="w-full text-[14px]">
+            <thead className="border-b border-ink-100 bg-paper-50">
+              <tr className="text-left">
+                <Th>Description</Th>
+                <Th>Client</Th>
+                <Th align="right">Amount</Th>
+                <Th>Status</Th>
+                <Th>Due</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((i) => {
+                const overdue =
+                  isInvoiceOverdue(i.status, i.dueAt) && i.dueAt && i.dueAt < today;
+                return (
+                  <tr
+                    key={i.id}
+                    className="group border-b border-ink-100 transition-colors last:border-b-0 hover:bg-paper-50"
+                  >
+                    <Td>
+                      <Link
+                        to={`/projects/${projectId}/invoices/${i.id}`}
+                        className="block"
+                      >
+                        <span className="font-medium text-ink-900">
+                          {i.description || i.invoiceNumber || "Untitled invoice"}
+                        </span>
+                        {i.invoiceNumber && i.description && (
+                          <span className="block font-mono text-xs text-ink-500">
+                            #{i.invoiceNumber}
+                          </span>
+                        )}
+                      </Link>
+                    </Td>
+                    <Td className="text-ink-600">
+                      {i.client?.name ?? <span className="text-ink-400">—</span>}
+                    </Td>
+                    <Td align="right" className="tnum text-ink-900 font-medium">
+                      {fmt.currency(i.amount, i.currency)}
+                    </Td>
+                    <Td>
+                      <div className="flex items-center gap-1.5">
+                        <Pill tone={INVOICE_TONE[i.status]} dot>
+                          {INVOICE_STATUS_LABELS[i.status]}
+                        </Pill>
+                        {overdue && <Pill tone="alert">Overdue</Pill>}
+                      </div>
+                    </Td>
+                    <Td className="tnum text-ink-600">
+                      {i.dueAt ? fmt.date(i.dueAt) : "—"}
+                    </Td>
+                    <Td align="right">
+                      <Link
+                        to={`/projects/${projectId}/invoices/${i.id}`}
+                        aria-label="Open invoice"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
+                      >
+                        <Icon name="chevron-right" className="h-4 w-4" />
+                      </Link>
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 
       {adding && (
-        <InvoiceForm
+        <InvoiceCreateModal
           projectId={projectId}
           defaultClientId={clientId ?? ""}
-          mode="create"
           onClose={() => setAdding(false)}
         />
       )}
-      {editing && (
-        <InvoiceForm
-          projectId={projectId}
-          defaultClientId={clientId ?? ""}
-          mode="edit"
-          existing={editing}
-          onClose={() => setEditing(null)}
-        />
-      )}
-
-      <div className="mt-3">
-        {loading ? (
-          <p className="text-xs text-slate-500">Loading…</p>
-        ) : error ? (
-          <p className="text-xs text-rose-700">{error}</p>
-        ) : invoices.length === 0 ? (
-          <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
-            No invoices yet. Click <strong>Add invoice</strong> to draft the
-            first one.
-          </p>
-        ) : (
-          <div className="grid gap-2">
-            {invoices.map((i) => (
-              <InvoiceRowItem
-                key={i.id}
-                invoice={i}
-                onEdit={() => setEditing(i)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
     </section>
   );
 }
 
-function InvoiceRowItem({
-  invoice,
-  onEdit,
+// ────────────────────── table primitives ──────────────────────
+
+function Th({
+  children,
+  align = "left",
 }: {
-  invoice: InvoiceRow;
-  onEdit: () => void;
+  children?: React.ReactNode;
+  align?: "left" | "right";
 }) {
-  const fmt = useFormatters();
-  const utils = trpc.useUtils();
-  const remove = trpc.invoices.remove.useMutation({
-    onSuccess: () =>
-      utils.invoices.list.invalidate({ projectId: invoice.projectId }),
-  });
-  const markSent = trpc.invoices.markSent.useMutation({
-    onSuccess: () =>
-      utils.invoices.list.invalidate({ projectId: invoice.projectId }),
-  });
-  const markPaid = trpc.invoices.markPaid.useMutation({
-    onSuccess: () =>
-      utils.invoices.list.invalidate({ projectId: invoice.projectId }),
-  });
-
-  const overdue = isInvoiceOverdue(invoice.status, invoice.dueAt);
-
   return (
-    <div
-      className={`rounded-md border bg-white p-3 ${overdue ? "border-amber-300" : "border-paper-200"}`}
+    <th
+      className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 ${
+        align === "right" ? "text-right" : "text-left"
+      }`}
     >
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <span className="font-medium text-blueprint-900">
-              {invoice.description ||
-                invoice.invoiceNumber ||
-                "Untitled invoice"}
-            </span>
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${INVOICE_STATUS_PILL[invoice.status]}`}
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-              {INVOICE_STATUS_LABELS[invoice.status]}
-            </span>
-            {overdue && (
-              <span className="inline-flex items-center gap-1.5 rounded-sm bg-rose-50 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-rose-700 ring-1 ring-inset ring-rose-200">
-                Overdue
-              </span>
-            )}
-            {invoice.client && (
-              <span className="font-mono text-[10px] uppercase tracking-wide text-slate-400">
-                · {invoice.client.name}
-              </span>
-            )}
-            {invoice.invoiceNumber && invoice.description && (
-              <span className="font-mono text-[10px] uppercase tracking-wide text-slate-400">
-                · #{invoice.invoiceNumber}
-              </span>
-            )}
-          </div>
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-slate-400">
-            <span className="text-blueprint-900">
-              {fmt.currency(invoice.amount, invoice.currency)}
-            </span>
-            {invoice.issuedAt && (
-              <span>issued {fmt.date(invoice.issuedAt)}</span>
-            )}
-            {invoice.sentAt && <span>sent {fmt.date(invoice.sentAt)}</span>}
-            {invoice.dueAt && <span>due {fmt.date(invoice.dueAt)}</span>}
-            {invoice.paidAt && <span>paid {fmt.date(invoice.paidAt)}</span>}
-          </div>
-          {invoice.notes && (
-            <p className="mt-1.5 whitespace-pre-wrap text-xs text-slate-600">
-              {invoice.notes}
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          {invoice.status === "draft" && (
-            <button
-              type="button"
-              onClick={() => markSent.mutate({ id: invoice.id })}
-              disabled={markSent.isPending}
-              className="rounded-md border border-paper-200 px-2 py-0.5 text-[11px] font-medium text-sky-700 hover:bg-sky-50 disabled:opacity-50"
-            >
-              Mark sent
-            </button>
-          )}
-          {invoice.status === "sent" && (
-            <button
-              type="button"
-              onClick={() => markPaid.mutate({ id: invoice.id })}
-              disabled={markPaid.isPending}
-              className="rounded-md border border-paper-200 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-            >
-              Mark paid
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onEdit}
-            className="text-xs text-slate-500 hover:text-slate-900"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (confirm("Delete this invoice?")) {
-                remove.mutate({ id: invoice.id });
-              }
-            }}
-            disabled={remove.isPending}
-            className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
-          >
-            {remove.isPending ? "…" : "Delete"}
-          </button>
-        </div>
-      </div>
-    </div>
+      {children}
+    </th>
   );
 }
 
-function InvoiceForm({
+function Td({
+  children,
+  align = "left",
+  className = "",
+}: {
+  children?: React.ReactNode;
+  align?: "left" | "right";
+  className?: string;
+}) {
+  return (
+    <td
+      className={`px-5 py-3 ${align === "right" ? "text-right" : "text-left"} ${className}`}
+    >
+      {children}
+    </td>
+  );
+}
+
+// ────────────────────── create modals ──────────────────────
+
+function BillCreateModal({
+  projectId,
+  onClose,
+}: {
+  projectId: string;
+  onClose: () => void;
+}) {
+  const vendorsQ = trpc.vendors.list.useQuery({ status: "active" });
+  const [vendorId, setVendorId] = useState("");
+  const [billNumber, setBillNumber] = useState("");
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [issuedAt, setIssuedAt] = useState("");
+  const [dueAt, setDueAt] = useState("");
+  const [paidAt, setPaidAt] = useState("");
+  const [status, setStatus] = useState<BillStatus>("open");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const utils = trpc.useUtils();
+  const create = trpc.bills.create.useMutation({
+    onSuccess: () => {
+      utils.bills.list.invalidate({ projectId });
+      onClose();
+    },
+    onError: (err) => setError(err.message),
+  });
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!amount.trim() || !currency.trim()) {
+      setError("Amount and currency are required.");
+      return;
+    }
+    create.mutate({
+      projectId,
+      vendorId: vendorId || undefined,
+      billNumber: billNumber.trim() || undefined,
+      description: description.trim() || undefined,
+      amount: amount.trim(),
+      currency: currency.trim(),
+      issuedAt: issuedAt || undefined,
+      dueAt: dueAt || undefined,
+      paidAt: paidAt || undefined,
+      status,
+      notes: notes.trim() || undefined,
+    });
+  }
+
+  return (
+    <Modal
+      title="New bill"
+      subtitle="A vendor invoice you've received."
+      onClose={onClose}
+      size="lg"
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-rose-600">{error}</p>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="bill-create-form"
+              variant="primary"
+              disabled={create.isPending}
+            >
+              {create.isPending ? "Saving…" : "Add bill"}
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <form
+        id="bill-create-form"
+        onSubmit={onSubmit}
+        className="grid gap-5 sm:grid-cols-2"
+      >
+        <Field label="Description" wide>
+          <Input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            autoFocus
+            placeholder="Tile installation — kitchen + primary bath"
+          />
+        </Field>
+        <Field label="Vendor" hint="Optional">
+          <Select
+            value={vendorId}
+            onChange={(e) => setVendorId(e.target.value)}
+          >
+            <option value="">— None (self-purchase)</option>
+            {vendorsQ.data?.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Bill number" hint="Vendor's invoice #">
+          <Input
+            value={billNumber}
+            onChange={(e) => setBillNumber(e.target.value)}
+            placeholder="INV-12345"
+          />
+        </Field>
+        <Field label="Amount" required wide>
+          <MoneyInput
+            amount={amount}
+            currency={currency}
+            onAmountChange={setAmount}
+            onCurrencyChange={setCurrency}
+            placeholder="3,500.00"
+            required
+          />
+        </Field>
+        <Field label="Status">
+          <Select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as BillStatus)}
+          >
+            {(Object.keys(BILL_STATUS_LABELS) as BillStatus[]).map((s) => (
+              <option key={s} value={s}>
+                {BILL_STATUS_LABELS[s]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Issued">
+          <Input
+            type="date"
+            value={issuedAt}
+            onChange={(e) => setIssuedAt(e.target.value)}
+          />
+        </Field>
+        <Field label="Due">
+          <Input
+            type="date"
+            value={dueAt}
+            onChange={(e) => setDueAt(e.target.value)}
+          />
+        </Field>
+        <Field label="Paid">
+          <Input
+            type="date"
+            value={paidAt}
+            onChange={(e) => setPaidAt(e.target.value)}
+          />
+        </Field>
+        <Field label="Notes" wide>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+          />
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
+function InvoiceCreateModal({
   projectId,
   defaultClientId,
-  mode,
-  existing,
   onClose,
 }: {
   projectId: string;
   defaultClientId: string;
-  mode: "create" | "edit";
-  existing?: InvoiceRow;
   onClose: () => void;
 }) {
   const clientsQ = trpc.clients.list.useQuery({ status: "active" });
-  const [clientId, setClientId] = useState(
-    existing?.clientId ?? defaultClientId,
-  );
-  const [invoiceNumber, setInvoiceNumber] = useState(
-    existing?.invoiceNumber ?? "",
-  );
-  const [description, setDescription] = useState(existing?.description ?? "");
-  const [amount, setAmount] = useState(existing?.amount ?? "");
-  const [currency, setCurrency] = useState(existing?.currency ?? "USD");
-  const [issuedAt, setIssuedAt] = useState(existing?.issuedAt ?? "");
-  const [sentAt, setSentAt] = useState(existing?.sentAt ?? "");
-  const [dueAt, setDueAt] = useState(existing?.dueAt ?? "");
-  const [paidAt, setPaidAt] = useState(existing?.paidAt ?? "");
-  const [status, setStatus] = useState<InvoiceStatus>(
-    existing?.status ?? "draft",
-  );
-  const [notes, setNotes] = useState(existing?.notes ?? "");
+  const [clientId, setClientId] = useState(defaultClientId);
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [issuedAt, setIssuedAt] = useState("");
+  const [sentAt, setSentAt] = useState("");
+  const [dueAt, setDueAt] = useState("");
+  const [paidAt, setPaidAt] = useState("");
+  const [status, setStatus] = useState<InvoiceStatus>("draft");
+  const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
@@ -771,108 +824,102 @@ function InvoiceForm({
     },
     onError: (err) => setError(err.message),
   });
-  const update = trpc.invoices.update.useMutation({
-    onSuccess: () => {
-      utils.invoices.list.invalidate({ projectId });
-      onClose();
-    },
-    onError: (err) => setError(err.message),
-  });
-  const submitting = create.isPending || update.isPending;
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const amt = amount.trim();
-    const cur = currency.trim();
-    if (!amt || !cur) {
+    if (!amount.trim() || !currency.trim()) {
       setError("Amount and currency are required.");
       return;
     }
-    const base = {
+    create.mutate({
+      projectId,
       clientId: clientId || undefined,
       invoiceNumber: invoiceNumber.trim() || undefined,
       description: description.trim() || undefined,
-      amount: amt,
-      currency: cur,
+      amount: amount.trim(),
+      currency: currency.trim(),
       issuedAt: issuedAt || undefined,
       sentAt: sentAt || undefined,
       dueAt: dueAt || undefined,
       paidAt: paidAt || undefined,
       status,
       notes: notes.trim() || undefined,
-    };
-    if (mode === "edit" && existing) {
-      update.mutate({ id: existing.id, patch: base });
-    } else {
-      create.mutate({ projectId, ...base });
-    }
+    });
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="mt-4 rounded-md border border-paper-200 bg-white p-4"
+    <Modal
+      title="New invoice"
+      subtitle="What you're billing the client."
+      onClose={onClose}
+      size="lg"
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-rose-600">{error}</p>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="invoice-create-form"
+              variant="primary"
+              disabled={create.isPending}
+            >
+              {create.isPending ? "Saving…" : "Add invoice"}
+            </Button>
+          </div>
+        </div>
+      }
     >
-      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-safety-700">
-        {mode === "edit" ? "Edit · invoice" : "New · invoice"}
-      </p>
-      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+      <form
+        id="invoice-create-form"
+        onSubmit={onSubmit}
+        className="grid gap-5 sm:grid-cols-2"
+      >
         <Field label="Description" wide>
-          <input
+          <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className={inputCls}
             autoFocus
-            placeholder="e.g. Progress invoice #3 — kitchen rough-in complete"
+            placeholder="Progress invoice #3 — kitchen rough-in complete"
           />
         </Field>
-        <Field label="Client">
-          <select
+        <Field label="Client" hint="Optional">
+          <Select
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
-            className={selectCls}
           >
-            <option value="">— (none)</option>
+            <option value="">— None</option>
             {clientsQ.data?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
-        <Field label="Invoice #">
-          <input
+        <Field label="Invoice number">
+          <Input
             value={invoiceNumber}
             onChange={(e) => setInvoiceNumber(e.target.value)}
-            className={inputCls}
             placeholder="INV-2026-0001"
           />
         </Field>
-        <Field label="Amount *">
-          <div className="flex gap-2">
-            <input
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className={`${inputCls} flex-1`}
-              placeholder="25000.00"
-              inputMode="decimal"
-            />
-            <input
-              required
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-              className={`${inputCls} w-16 uppercase`}
-              maxLength={3}
-            />
-          </div>
+        <Field label="Amount" required wide>
+          <MoneyInput
+            amount={amount}
+            currency={currency}
+            onAmountChange={setAmount}
+            onCurrencyChange={setCurrency}
+            placeholder="25,000.00"
+            required
+          />
         </Field>
         <Field label="Status">
-          <select
+          <Select
             value={status}
             onChange={(e) => setStatus(e.target.value as InvoiceStatus)}
-            className={selectCls}
           >
             {(Object.keys(INVOICE_STATUS_LABELS) as InvoiceStatus[]).map(
               (s) => (
@@ -881,67 +928,45 @@ function InvoiceForm({
                 </option>
               ),
             )}
-          </select>
+          </Select>
         </Field>
         <Field label="Issued">
-          <input
+          <Input
             type="date"
             value={issuedAt}
             onChange={(e) => setIssuedAt(e.target.value)}
-            className={inputCls}
           />
         </Field>
         <Field label="Sent">
-          <input
+          <Input
             type="date"
             value={sentAt}
             onChange={(e) => setSentAt(e.target.value)}
-            className={inputCls}
           />
         </Field>
         <Field label="Due">
-          <input
+          <Input
             type="date"
             value={dueAt}
             onChange={(e) => setDueAt(e.target.value)}
-            className={inputCls}
           />
         </Field>
         <Field label="Paid">
-          <input
+          <Input
             type="date"
             value={paidAt}
             onChange={(e) => setPaidAt(e.target.value)}
-            className={inputCls}
           />
         </Field>
         <Field label="Notes" wide>
-          <textarea
+          <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            className={inputCls}
+            rows={3}
           />
         </Field>
-      </div>
-      {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
-      <div className="mt-3 flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-        >
-          {submitting ? "Saving…" : mode === "edit" ? "Save" : "Add"}
-        </button>
-      </div>
-    </form>
+      </form>
+    </Modal>
   );
 }
 
@@ -991,29 +1016,4 @@ function buildSummary(bills: BillRow[], invoices: InvoiceRow[]): Summary {
     invoicesPaidByCcy: [...invPaid.entries()],
     invoicesOverdueCount: invOverdueCount,
   };
-}
-
-// ────────────────────── shared styles ──────────────────────
-
-const inputCls =
-  "block w-full rounded-md border border-paper-200 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
-
-const selectCls =
-  "block w-full rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
-
-function Field({
-  label,
-  children,
-  wide,
-}: {
-  label: string;
-  children: ReactNode;
-  wide?: boolean;
-}) {
-  return (
-    <label className={`block text-sm ${wide ? "sm:col-span-2" : ""}`}>
-      <span className="text-slate-700">{label}</span>
-      <div className="mt-1">{children}</div>
-    </label>
-  );
 }

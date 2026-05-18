@@ -84,6 +84,7 @@ export const workItemCreateInputSchema = z
     unitPriceCurrency: currencyCode.optional(),
     totalAmount: moneyAmount.optional(),
     totalCurrency: currencyCode.optional(),
+    clientMarkupPct: markupPct.optional(),
     status: workItemStatusSchema.default("specified"),
     plannedStart: isoDate.optional(),
     plannedEnd: isoDate.optional(),

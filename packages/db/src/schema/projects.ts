@@ -88,8 +88,15 @@ export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 
 /**
- * rooms — spatial container inside a project. Anchors asset.room_id and
- * material_applications.room_id (M2 follow-ups).
+ * rooms — spatial container inside a project. Anchors asset.room_id,
+ * furniture.room_id, material_applications.room_id.
+ *
+ * Beyond just name + type, a room captures:
+ *   - `description`: what the room is, what's special about it
+ *   - `floor`: building level (free-form, e.g. "P6", "Roof", "Ground")
+ *   - `floor_area_sqm` + `ceiling_height_m`: metric, since most current
+ *     projects are MX-based
+ *   - `photo_url`: hero photo for the room detail page
  */
 export const rooms = pgTable(
   "rooms",
@@ -127,6 +134,11 @@ export const rooms = pgTable(
         "other",
       ],
     }),
+    description: text("description"),
+    floor: text("floor"),
+    floorAreaSqM: numeric("floor_area_sqm", { precision: 10, scale: 2 }),
+    ceilingHeightM: numeric("ceiling_height_m", { precision: 5, scale: 2 }),
+    photoUrl: text("photo_url"),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

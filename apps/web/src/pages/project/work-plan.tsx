@@ -6,7 +6,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { useOutletContext, useSearchParams } from "react-router-dom";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
@@ -154,12 +154,13 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Multi-status filters (open / scope_active / execution_active) are
-  // client-side because the API takes a single status. Single-status
-  // values pass straight through to the server.
+  // Multi-status filters. "specified" items are intentionally hidden
+  // from the default views — they're un-approved bid lines that haven't
+  // been promoted to the live Plan yet (awarding a bid flips them to
+  // "approved"). To see them, pick status=Specified explicitly.
   const multiStatusFilters: Record<string, WorkItemStatus[]> = {
-    open: ["specified", "approved", "scheduled", "in_progress"],
-    scope_active: ["specified", "approved"],
+    open: ["approved", "scheduled", "in_progress"],
+    scope_active: ["approved"],
     execution_active: ["scheduled", "in_progress", "done"],
   };
   const isMulti = statusFilter in multiStatusFilters;
@@ -242,13 +243,11 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
     <div>
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-blueprint-900">
+          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             Work items
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            The spine of the project. Each row is a unit of work — quoted,
-            approved, scheduled, executed, billed. Filter to find what needs
-            attention now.
+          <p className="mt-1 text-sm text-ink-500">
+            Quoted → approved → scheduled → executed → billed.
           </p>
         </div>
         {!adding && !editing && (
@@ -257,7 +256,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             <button
               type="button"
               onClick={() => setAdding(true)}
-              className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+              className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
             >
               Add work item
             </button>
@@ -341,7 +340,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search description, ref, notes…"
-            className="flex-1 rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            className="flex-1 rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
           />
         </div>
       )}
@@ -415,7 +414,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
         )}
 
         {filtered.length > 0 && totalsByCurrency.size > 0 && (
-          <div className="mt-3 flex flex-wrap items-center justify-end gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[10px] uppercase tracking-wider text-slate-500">
             <span>filtered total ·</span>
             {Array.from(totalsByCurrency.entries()).map(([cur, amt]) => (
               <SubtotalChip key={cur} amount={amt.toFixed(2)} currency={cur} />
@@ -552,13 +551,13 @@ function ScopeByRoom({
                 </span>
               )}
             </div>
-            <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400">
+            <span className="text-[10px] uppercase tracking-wider text-slate-400">
               {g.items.length} item{g.items.length === 1 ? "" : "s"}
             </span>
           </div>
           <table className="w-full text-sm">
             <thead className="text-left">
-              <tr className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+              <tr className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
                 <th className="px-3 py-1.5">Ref</th>
                 <th className="px-3 py-1.5">Description</th>
                 <th className="px-3 py-1.5 text-right">Qty</th>
@@ -624,7 +623,20 @@ function ScopeByRoomRow({
             </span>
           )}
           {blockedBy && blockedBy.length > 0 && <BlockedPill blockers={blockedBy} />}
-          {item.vendor && (
+          {item.bid && (
+            <Link
+              to={`/projects/${item.projectId}/bids/${item.bid.id}`}
+              title={
+                item.bid.bidNumber
+                  ? `Bid #${item.bid.bidNumber}`
+                  : "Source bid"
+              }
+              className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200 hover:bg-violet-100"
+            >
+              ↗ {item.vendor?.name ?? "Bid"}
+            </Link>
+          )}
+          {!item.bid && item.vendor && (
             <span className="font-mono text-[9px] uppercase tracking-wide text-slate-400">
               · {item.vendor.name}
             </span>
@@ -640,10 +652,22 @@ function ScopeByRoomRow({
         {item.totalAmount && item.totalCurrency
           ? fmt.currency(item.totalAmount, item.totalCurrency)
           : "—"}
+        {item.clientMarkupPct && parseFloat(item.clientMarkupPct) > 0 && (
+          <span
+            className="ml-2 inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"
+            title={
+              item.totalAmount && item.totalCurrency
+                ? `Client price: ${fmt.currency((parseFloat(item.totalAmount) * (1 + parseFloat(item.clientMarkupPct) / 100)).toFixed(2), item.totalCurrency)}`
+                : undefined
+            }
+          >
+            +{trimQty(item.clientMarkupPct)}%
+          </span>
+        )}
       </td>
       <td className="px-3 py-2">
         <span
-          className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[item.status]}`}
+          className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[item.status]}`}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
           {WORK_ITEM_STATUS_LABELS[item.status].toLowerCase()}
@@ -677,7 +701,7 @@ function WorkItemsTable({
     <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
       <table className="w-full text-sm">
         <thead className="bg-paper-50 text-left">
-          <tr className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+          <tr className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
             <th className="px-3 py-2">Ref</th>
             <th className="px-3 py-2">Description</th>
             <th className="px-3 py-2 text-right">Qty</th>
@@ -764,7 +788,20 @@ function WorkItemRowItem({
               {depCount} dep{depCount === 1 ? "" : "s"}
             </span>
           )}
-          {item.vendor && (
+          {item.bid && (
+            <Link
+              to={`/projects/${item.projectId}/bids/${item.bid.id}`}
+              title={
+                item.bid.bidNumber
+                  ? `Bid #${item.bid.bidNumber}`
+                  : "Source bid"
+              }
+              className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200 hover:bg-violet-100"
+            >
+              ↗ {item.vendor?.name ?? "Bid"}
+            </Link>
+          )}
+          {!item.bid && item.vendor && (
             <span className="font-mono text-[9px] uppercase tracking-wide text-slate-400">
               · {item.vendor.name}
             </span>
@@ -783,10 +820,22 @@ function WorkItemRowItem({
         {item.totalAmount && item.totalCurrency
           ? fmt.currency(item.totalAmount, item.totalCurrency)
           : "—"}
+        {item.clientMarkupPct && parseFloat(item.clientMarkupPct) > 0 && (
+          <span
+            className="ml-2 inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"
+            title={
+              item.totalAmount && item.totalCurrency
+                ? `Client price: ${fmt.currency((parseFloat(item.totalAmount) * (1 + parseFloat(item.clientMarkupPct) / 100)).toFixed(2), item.totalCurrency)}`
+                : undefined
+            }
+          >
+            +{trimQty(item.clientMarkupPct)}%
+          </span>
+        )}
       </td>
       <td className="px-3 py-2">
         <span
-          className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[item.status]}`}
+          className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[item.status]}`}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
           {WORK_ITEM_STATUS_LABELS[item.status].toLowerCase()}
@@ -1073,7 +1122,7 @@ function TimelineView({
 
       {undated.length > 0 && (
         <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
-          <div className="border-b border-paper-200 bg-paper-50 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+          <div className="border-b border-paper-200 bg-paper-50 px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
             Undated · {undated.length} item{undated.length === 1 ? "" : "s"}
           </div>
           <ul className="divide-y divide-paper-200 text-sm">
@@ -1162,6 +1211,9 @@ function WorkItemForm({
   const [totalCurrency, setTotalCurrency] = useState(
     existing?.totalCurrency ?? existing?.unitPriceCurrency ?? "MXN",
   );
+  const [clientMarkupPct, setClientMarkupPct] = useState(
+    existing?.clientMarkupPct ?? "",
+  );
   const [status, setStatus] = useState<WorkItemStatus>(
     existing?.status ?? "specified",
   );
@@ -1236,6 +1288,7 @@ function WorkItemForm({
       unitPriceCurrency: up ? upc : undefined,
       totalAmount: tot || undefined,
       totalCurrency: tot ? totc : undefined,
+      clientMarkupPct: clientMarkupPct.trim() || undefined,
       status,
       plannedStart: plannedStart || undefined,
       plannedEnd: plannedEnd || undefined,
@@ -1253,7 +1306,7 @@ function WorkItemForm({
       onSubmit={onSubmit}
       className="mt-4 rounded-md border border-paper-200 bg-white p-4"
     >
-      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-safety-700">
+      <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
         {mode === "edit" ? "Edit · work item" : "New · work item"}
       </p>
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -1327,7 +1380,7 @@ function WorkItemForm({
                     key={r.id}
                     type="button"
                     onClick={() => toggleRoom(r.id)}
-                    className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wide ring-1 ring-inset transition-colors ${
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] uppercase tracking-wide ring-1 ring-inset transition-colors ${
                       on
                         ? "bg-blueprint-100 text-blueprint-900 ring-blueprint-300"
                         : "bg-paper-50 text-slate-500 ring-paper-200 hover:bg-paper-100"
@@ -1347,7 +1400,7 @@ function WorkItemForm({
               value={qty}
               onChange={(e) => setQty(e.target.value)}
               onBlur={autoTotal}
-              className={`${inputCls} flex-1`}
+              className={`${inputCls} !w-auto flex-1`}
               placeholder="1, 24, 12.5"
               inputMode="decimal"
             />
@@ -1365,7 +1418,7 @@ function WorkItemForm({
               value={unitPriceAmount}
               onChange={(e) => setUnitPriceAmount(e.target.value)}
               onBlur={autoTotal}
-              className={`${inputCls} flex-1`}
+              className={`${inputCls} !w-auto flex-1`}
               placeholder="1250.00"
               inputMode="decimal"
             />
@@ -1374,7 +1427,7 @@ function WorkItemForm({
               onChange={(e) =>
                 setUnitPriceCurrency(e.target.value.toUpperCase())
               }
-              className={`${inputCls} w-16 uppercase`}
+              className={`${inputCls} !w-24 uppercase text-center tracking-wider`}
               maxLength={3}
             />
           </div>
@@ -1384,17 +1437,26 @@ function WorkItemForm({
             <input
               value={totalAmount}
               onChange={(e) => setTotalAmount(e.target.value)}
-              className={`${inputCls} flex-1`}
+              className={`${inputCls} !w-auto flex-1`}
               placeholder="auto from qty × unit price"
               inputMode="decimal"
             />
             <input
               value={totalCurrency}
               onChange={(e) => setTotalCurrency(e.target.value.toUpperCase())}
-              className={`${inputCls} w-16 uppercase`}
+              className={`${inputCls} !w-24 uppercase text-center tracking-wider`}
               maxLength={3}
             />
           </div>
+        </Field>
+        <Field label="Client markup %">
+          <input
+            value={clientMarkupPct}
+            onChange={(e) => setClientMarkupPct(e.target.value)}
+            className={inputCls}
+            placeholder="20"
+            inputMode="decimal"
+          />
         </Field>
         <Field label="Planned start">
           <input
@@ -1431,7 +1493,7 @@ function WorkItemForm({
         />
       )}
       {mode === "create" && (
-        <p className="mt-3 rounded-md border border-paper-200 bg-paper-50 px-3 py-2 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+        <p className="mt-3 rounded-md border border-paper-200 bg-paper-50 px-3 py-2 text-[10px] uppercase tracking-wider text-slate-500">
           Save first, then add dependencies from the edit view.
         </p>
       )}
@@ -1509,7 +1571,7 @@ function DependenciesEditor({
   return (
     <div className="mt-4 rounded-md border border-paper-200 bg-paper-50 p-3">
       <div className="flex items-center justify-between">
-        <p className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+        <p className="text-[10px] uppercase tracking-wider text-slate-500">
           Depends on
         </p>
         {!pickerOpen && (
@@ -1658,7 +1720,7 @@ function RoomsSection({ projectId }: { projectId: string }) {
             onClick={() => setCollapsed((c) => !c)}
             className="flex items-center gap-1.5 text-left"
           >
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-400">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-slate-400">
               {collapsed ? "▸" : "▾"}
             </span>
             <h2 className="text-base font-semibold tracking-tight text-blueprint-900">
@@ -1887,7 +1949,7 @@ function RoomForm({
 // ───────────────────────────────────── primitives ─────────────
 
 const inputCls =
-  "block w-full rounded-md border border-paper-200 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
 
 const selectCls =
   "block rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";

@@ -228,11 +228,21 @@ export const ROOM_TYPE_LABELS: Record<RoomType, string> = {
   other: "Other",
 };
 
+const positiveDecimal = z
+  .string()
+  .regex(/^\d+(\.\d{1,2})?$/, "non-negative decimal with up to 2 decimals");
+const httpUrl = z.string().trim().url("must be a URL").max(2000);
+
 export const roomCreateInputSchema = z.object({
   projectId: z.string().uuid(),
   name: z.string().trim().min(1, "Name is required").max(200),
   roomType: roomTypeSchema.optional(),
-  notes: z.string().trim().max(2000).optional(),
+  description: z.string().trim().max(2000).optional(),
+  floor: z.string().trim().max(40).optional(),
+  floorAreaSqM: positiveDecimal.optional(),
+  ceilingHeightM: positiveDecimal.optional(),
+  photoUrl: httpUrl.optional(),
+  notes: z.string().trim().max(10000).optional(),
 });
 export type RoomCreateInput = z.infer<typeof roomCreateInputSchema>;
 
@@ -241,7 +251,12 @@ export const roomUpdateInputSchema = z.object({
   patch: z.object({
     name: z.string().trim().min(1).max(200).optional(),
     roomType: roomTypeSchema.optional(),
-    notes: z.string().trim().max(2000).optional(),
+    description: z.string().trim().max(2000).nullable().optional(),
+    floor: z.string().trim().max(40).nullable().optional(),
+    floorAreaSqM: positiveDecimal.nullable().optional(),
+    ceilingHeightM: positiveDecimal.nullable().optional(),
+    photoUrl: httpUrl.nullable().optional(),
+    notes: z.string().trim().max(10000).nullable().optional(),
   }),
 });
 export type RoomUpdateInput = z.infer<typeof roomUpdateInputSchema>;

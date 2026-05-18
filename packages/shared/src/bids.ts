@@ -51,6 +51,7 @@ export const bidCreateInputSchema = z
   .object({
     projectId: z.string().uuid(),
     vendorId: z.string().uuid().optional(),
+    packageId: z.string().uuid().optional(),
     trade: z.string().trim().max(80).optional(),
     bidNumber: z.string().trim().max(120).optional(),
     bidDate: isoDate.optional(),
@@ -85,6 +86,7 @@ export const bidUpdateInputSchema = z.object({
   patch: z
     .object({
       vendorId: z.string().uuid().nullable().optional(),
+      packageId: z.string().uuid().nullable().optional(),
       trade: z.string().trim().max(80).nullable().optional(),
       bidNumber: z.string().trim().max(120).nullable().optional(),
       bidDate: isoDate.nullable().optional(),
@@ -120,9 +122,60 @@ export const bidListInputSchema = z.object({
   projectId: z.string().uuid(),
   status: bidStatusSchema.optional(),
   vendorId: z.string().uuid().optional(),
+  packageId: z.string().uuid().optional(),
   search: z.string().trim().max(200).optional(),
 });
 export type BidListInput = z.infer<typeof bidListInputSchema>;
 
 export const bidIdInputSchema = z.object({ id: z.string().uuid() });
 export type BidIdInput = z.infer<typeof bidIdInputSchema>;
+
+export const bidAwardInputSchema = z.object({ id: z.string().uuid() });
+export type BidAwardInput = z.infer<typeof bidAwardInputSchema>;
+
+// ────────────────────── bid packages ──────────────────────
+
+/**
+ * A bid_package groups competing bids for one piece of work. Status is
+ * the package's own — distinct from each bid's status.
+ */
+export const bidPackageStatusSchema = z.enum([
+  "open",
+  "awarded",
+  "cancelled",
+]);
+export type BidPackageStatus = z.infer<typeof bidPackageStatusSchema>;
+
+export const BID_PACKAGE_STATUS_LABELS: Record<BidPackageStatus, string> = {
+  open: "Open",
+  awarded: "Awarded",
+  cancelled: "Cancelled",
+};
+
+export const bidPackageCreateInputSchema = z.object({
+  projectId: z.string().uuid(),
+  name: z.string().trim().min(1, "Name is required").max(200),
+  scope: z.string().trim().max(2000).optional(),
+  notes: z.string().trim().max(10000).optional(),
+});
+export type BidPackageCreateInput = z.infer<typeof bidPackageCreateInputSchema>;
+
+export const bidPackageUpdateInputSchema = z.object({
+  id: z.string().uuid(),
+  patch: z.object({
+    name: z.string().trim().min(1).max(200).optional(),
+    scope: z.string().trim().max(2000).nullable().optional(),
+    status: bidPackageStatusSchema.optional(),
+    notes: z.string().trim().max(10000).nullable().optional(),
+  }),
+});
+export type BidPackageUpdateInput = z.infer<typeof bidPackageUpdateInputSchema>;
+
+export const bidPackageListInputSchema = z.object({
+  projectId: z.string().uuid(),
+  status: bidPackageStatusSchema.optional(),
+});
+export type BidPackageListInput = z.infer<typeof bidPackageListInputSchema>;
+
+export const bidPackageIdInputSchema = z.object({ id: z.string().uuid() });
+export type BidPackageIdInput = z.infer<typeof bidPackageIdInputSchema>;

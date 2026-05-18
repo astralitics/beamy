@@ -27,12 +27,11 @@ export default function ProjectActivity() {
   return (
     <div>
       <div>
-        <h2 className="text-lg font-semibold tracking-tight text-blueprint-900">
+        <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
           Activity
         </h2>
-        <p className="mt-0.5 text-xs text-slate-500">
-          Every state change, every record edit, every workflow run — with
-          the actor that did it. Reads from the project's slice of <code className="font-mono text-[11px]">audit_log</code>.
+        <p className="mt-1 text-sm text-ink-500">
+          Every state change, in order.
         </p>
       </div>
 
@@ -73,11 +72,11 @@ function ActivityItem({ entry }: { entry: ActivityRow }) {
               {entry.resourceType.replace(/_/g, " ")}
             </span>
             <span
-              className={`inline-flex rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset ${TONE_CLS[tone]}`}
+              className={`inline-flex rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset ${TONE_CLS[tone]}`}
             >
               {verb}
             </span>
-            <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400">
+            <span className="text-[10px] uppercase tracking-wider text-slate-400">
               · {KIND_LABEL[kind]} {name}
             </span>
           </div>
@@ -86,7 +85,7 @@ function ActivityItem({ entry }: { entry: ActivityRow }) {
           ) : null}
         </div>
         <span
-          className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-slate-400"
+          className="shrink-0 text-[10px] uppercase tracking-wider text-slate-400"
           title={new Date(entry.ts).toISOString()}
         >
           {fmt.date(entry.ts)} · {fmt.time(entry.ts)}

@@ -45,31 +45,31 @@ export function ProjectPicker() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-2 rounded-md border border-paper-200 bg-white px-3 py-1.5 text-left text-sm hover:border-paper-200 hover:bg-paper-50"
+        className="group flex w-full items-center justify-between gap-2 rounded-lg border border-ink-700 bg-ink-800 px-3.5 py-2.5 text-left transition-colors hover:border-ink-600"
       >
         <div className="min-w-0">
-          <p className="font-mono text-[9px] uppercase tracking-wider text-slate-400">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-500">
             {t("picker.label")}
           </p>
-          <p className="truncate text-sm font-medium text-blueprint-900">
-            {current ? current.name : "All projects"}
+          <p className="mt-0.5 truncate text-[14px] font-medium text-white">
+            {current ? current.name : t("picker.all_projects")}
           </p>
         </div>
         <Chevron open={open} />
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 z-40 mt-1 max-h-80 overflow-y-auto rounded-md border border-paper-200 bg-white py-1 shadow-lg">
+        <div className="absolute left-0 right-0 z-40 mt-1.5 max-h-80 animate-rise overflow-y-auto rounded-xl border border-ink-200/70 bg-white py-1.5 shadow-lift">
           {projects.isLoading ? (
-            <p className="px-3 py-2 text-xs text-slate-500">
+            <p className="px-3 py-2 text-xs text-ink-500">
               {t("picker.label")}…
             </p>
           ) : !projects.data || projects.data.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-slate-500">
+            <p className="px-3 py-2 text-xs text-ink-500">
               {t("picker.empty")}
             </p>
           ) : (
-            <ul className="space-y-0.5">
+            <ul>
               {projects.data.map((p) => {
                 const active = p.id === params.id;
                 return (
@@ -80,18 +80,16 @@ export function ProjectPicker() {
                         navigate(`/projects/${p.id}`);
                         setOpen(false);
                       }}
-                      className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm hover:bg-paper-100 ${
-                        active ? "bg-safety-50 text-blueprint-900" : ""
+                      className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-paper-50 ${
+                        active ? "text-ink-900" : "text-ink-700"
                       }`}
                     >
                       <span className="truncate">{p.name}</span>
                       {active && (
                         <span
                           aria-hidden
-                          className="font-mono text-[10px] text-safety-700"
-                        >
-                          ●
-                        </span>
+                          className="h-1.5 w-1.5 rounded-full bg-accent-500"
+                        />
                       )}
                     </button>
                   </li>
@@ -99,18 +97,18 @@ export function ProjectPicker() {
               })}
             </ul>
           )}
-          <div className="my-1 border-t border-paper-200" />
+          <div className="my-1 border-t border-ink-100" />
           <Link
             to="/projects"
             onClick={() => setOpen(false)}
-            className="block px-3 py-1.5 text-xs text-slate-600 hover:bg-paper-100 hover:text-blueprint-900"
+            className="block px-3 py-1.5 text-[13px] text-ink-600 hover:bg-paper-50 hover:text-ink-900"
           >
             {t("picker.view_all")}
           </Link>
           <Link
             to="/projects?new=1"
             onClick={() => setOpen(false)}
-            className="block px-3 py-1.5 text-xs font-medium text-safety-700 hover:bg-paper-100"
+            className="block px-3 py-1.5 text-[13px] font-medium text-accent-600 hover:bg-paper-50"
           >
             {t("picker.new")}
           </Link>
@@ -126,7 +124,7 @@ function Chevron({ open }: { open: boolean }) {
       aria-hidden
       viewBox="0 0 16 16"
       fill="currentColor"
-      className={`h-3 w-3 shrink-0 text-slate-400 transition-transform ${
+      className={`h-3 w-3 shrink-0 text-ink-500 transition-transform ${
         open ? "rotate-180" : ""
       }`}
     >

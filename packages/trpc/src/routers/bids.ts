@@ -1,7 +1,8 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, ne, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   auditLog,
+  bidPackages,
   bids,
   getDb,
   projects,
@@ -9,6 +10,7 @@ import {
   workItems,
 } from "@beamy/db";
 import {
+  bidAwardInputSchema,
   bidCreateInputSchema,
   bidIdInputSchema,
   bidListInputSchema,
@@ -47,6 +49,9 @@ export const bidsRouter = router({
       if (input.vendorId) {
         conditions.push(eq(bids.vendorId, input.vendorId));
       }
+      if (input.packageId) {
+        conditions.push(eq(bids.packageId, input.packageId));
+      }
       if (input.search) {
         const p = `%${input.search}%`;
         const clause = or(
@@ -58,12 +63,15 @@ export const bidsRouter = router({
       }
 
       return await db
-        .select({ bid: bids, vendor: vendors })
+        .select({ bid: bids, vendor: vendors, package: bidPackages })
         .from(bids)
         .leftJoin(vendors, eq(bids.vendorId, vendors.id))
+        .leftJoin(bidPackages, eq(bids.packageId, bidPackages.id))
         .where(and(...conditions))
         .orderBy(desc(bids.updatedAt))
-        .then((rows) => rows.map((r) => ({ ...r.bid, vendor: r.vendor })));
+        .then((rows) =>
+          rows.map((r) => ({ ...r.bid, vendor: r.vendor, package: r.package })),
+        );
     }),
 
   get: orgScopedProcedure
@@ -71,14 +79,15 @@ export const bidsRouter = router({
     .query(async ({ ctx, input }) => {
       const db = getDb();
       const rows = await db
-        .select({ bid: bids, vendor: vendors })
+        .select({ bid: bids, vendor: vendors, package: bidPackages })
         .from(bids)
         .leftJoin(vendors, eq(bids.vendorId, vendors.id))
+        .leftJoin(bidPackages, eq(bids.packageId, bidPackages.id))
         .where(and(eq(bids.id, input.id), eq(bids.orgId, ctx.orgId)))
         .limit(1);
       const row = rows[0];
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
-      return { ...row.bid, vendor: row.vendor };
+      return { ...row.bid, vendor: row.vendor, package: row.package };
     }),
 
   create: orgScopedProcedure
@@ -89,6 +98,7 @@ export const bidsRouter = router({
         await verifyOwnership(tx, ctx.orgId, {
           projectId: input.projectId,
           vendorId: input.vendorId,
+          packageId: input.packageId,
         });
 
         const [row] = await tx
@@ -97,6 +107,7 @@ export const bidsRouter = router({
             orgId: ctx.orgId,
             projectId: input.projectId,
             vendorId: input.vendorId ?? null,
+            packageId: input.packageId ?? null,
             trade: input.trade ?? null,
             bidNumber: input.bidNumber ?? null,
             bidDate: input.bidDate ?? null,
@@ -142,6 +153,7 @@ export const bidsRouter = router({
 
         await verifyOwnership(tx, ctx.orgId, {
           vendorId: input.patch.vendorId ?? undefined,
+          packageId: input.patch.packageId ?? undefined,
         });
 
         const setClause: Partial<typeof bids.$inferInsert> = {
@@ -150,6 +162,7 @@ export const bidsRouter = router({
         };
         const p = input.patch;
         if (p.vendorId !== undefined) setClause.vendorId = p.vendorId;
+        if (p.packageId !== undefined) setClause.packageId = p.packageId;
         if (p.trade !== undefined) setClause.trade = p.trade;
         if (p.bidNumber !== undefined) setClause.bidNumber = p.bidNumber;
         if (p.bidDate !== undefined) setClause.bidDate = p.bidDate;
@@ -182,6 +195,103 @@ export const bidsRouter = router({
           payload: input.patch,
         });
         return updated;
+      });
+    }),
+
+  /**
+   * Award a bid. Three side effects:
+   *
+   *   1. Winner: bid.status → accepted, decidedAt = today.
+   *   2. Linked work_items: all rows where bidId = winner.id flip from
+   *      "specified" → "approved" (or stay where they are if already
+   *      past approved — scheduled/in_progress/done/accepted/cancelled).
+   *      This is what promotes the bid's lines into the live Plan.
+   *   3. Package (if any): siblings → rejected, package → awarded.
+   */
+  award: orgScopedProcedure
+    .input(bidAwardInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        const existing = await tx
+          .select()
+          .from(bids)
+          .where(and(eq(bids.id, input.id), eq(bids.orgId, ctx.orgId)))
+          .limit(1);
+        if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND" });
+        const winner = existing[0];
+
+        const today = new Date().toISOString().slice(0, 10);
+
+        await tx
+          .update(bids)
+          .set({
+            status: "accepted",
+            decidedAt: today,
+            updatedAt: new Date(),
+            updatedBy: ctx.actor,
+          })
+          .where(eq(bids.id, winner.id));
+
+        // Promote this bid's still-"specified" work items into the
+        // approved Plan. Don't touch items past approved — those have
+        // moved on through the lifecycle.
+        await tx
+          .update(workItems)
+          .set({
+            status: "approved",
+            updatedAt: new Date(),
+            updatedBy: ctx.actor,
+          })
+          .where(
+            and(
+              eq(workItems.bidId, winner.id),
+              eq(workItems.orgId, ctx.orgId),
+              eq(workItems.status, "specified"),
+            ),
+          );
+
+        if (winner.packageId) {
+          // Reject siblings inside the same package (skip those already
+          // accepted/rejected/expired manually — they get overwritten).
+          await tx
+            .update(bids)
+            .set({
+              status: "rejected",
+              decidedAt: today,
+              updatedAt: new Date(),
+              updatedBy: ctx.actor,
+            })
+            .where(
+              and(
+                eq(bids.packageId, winner.packageId),
+                ne(bids.id, winner.id),
+                eq(bids.orgId, ctx.orgId),
+              ),
+            );
+
+          await tx
+            .update(bidPackages)
+            .set({
+              status: "awarded",
+              awardedBidId: winner.id,
+              awardedAt: today,
+              updatedAt: new Date(),
+              updatedBy: ctx.actor,
+            })
+            .where(eq(bidPackages.id, winner.packageId));
+        }
+
+        await tx.insert(auditLog).values({
+          orgId: ctx.orgId,
+          actor: ctx.actor,
+          action: "bid.awarded",
+          resourceType: "bid",
+          resourceId: winner.id,
+          payload: { packageId: winner.packageId ?? null },
+        });
+
+        return { ok: true as const };
       });
     }),
 
@@ -233,7 +343,11 @@ export const bidsRouter = router({
 async function verifyOwnership(
   tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0],
   orgId: string,
-  refs: { projectId?: string; vendorId?: string | null },
+  refs: {
+    projectId?: string;
+    vendorId?: string | null;
+    packageId?: string | null;
+  },
 ) {
   if (refs.projectId) {
     const ok = await tx
@@ -258,6 +372,24 @@ async function verifyOwnership(
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: "Vendor not found in this org",
+      });
+    }
+  }
+  if (refs.packageId) {
+    const ok = await tx
+      .select({ id: bidPackages.id })
+      .from(bidPackages)
+      .where(
+        and(
+          eq(bidPackages.id, refs.packageId),
+          eq(bidPackages.orgId, orgId),
+        ),
+      )
+      .limit(1);
+    if (!ok[0]) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Bid package not found in this org",
       });
     }
   }

@@ -60,19 +60,18 @@ export default function ProjectSpecs() {
     <div>
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-blueprint-900">
+          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             Specs &amp; finishes
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Planning + procurement. Each item moves <em className="not-italic">specified → approved → ordered → received → installed</em>.
-            Once installed, the asset or material row picks up the recall job.
+          <p className="mt-1 text-sm text-ink-500">
+            Specified → approved → ordered → received → installed.
           </p>
         </div>
         {!adding && !editing && (
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+            className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
           >
             Add spec
           </button>
@@ -125,7 +124,7 @@ export default function ProjectSpecs() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, description, category…"
-            className="flex-1 rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            className="flex-1 rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
           />
         </div>
       )}
@@ -230,21 +229,21 @@ function SpecRowItem({
           <div className="flex flex-wrap items-baseline gap-2">
             <span className="font-medium text-blueprint-900">{spec.name}</span>
             <span
-              className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATE_PILL_CLS[spec.state]}`}
+              className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATE_PILL_CLS[spec.state]}`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
               {SPEC_STATE_LABELS[spec.state]}
             </span>
-            <span className="rounded-full bg-paper-100 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
+            <span className="rounded-full bg-paper-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
               → {SPEC_TYPE_LABELS[spec.specType]}
             </span>
             {spec.room && (
-              <span className="font-mono text-[10px] uppercase tracking-wide text-slate-400">
+              <span className="text-[10px] uppercase tracking-wide text-slate-400">
                 · {spec.room.name}
               </span>
             )}
             {spec.category && (
-              <span className="font-mono text-[10px] uppercase tracking-wide text-slate-400">
+              <span className="text-[10px] uppercase tracking-wide text-slate-400">
                 · {spec.category}
               </span>
             )}
@@ -254,7 +253,7 @@ function SpecRowItem({
               {spec.description}
             </div>
           )}
-          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-slate-400">
+          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[10px] uppercase tracking-wider text-slate-400">
             {spec.catalogPriceAmount && spec.catalogPriceCurrency && (
               <span>
                 catalog{" "}
@@ -343,7 +342,7 @@ function LifecycleTimeline({ spec }: { spec: SpecRow }) {
   const stamped = steps.filter((s) => s.date);
   if (stamped.length === 0) return null;
   return (
-    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-slate-400">
+    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] uppercase tracking-wider text-slate-400">
       {stamped.map((s) => (
         <span key={s.label}>
           {s.label} · <span className="text-slate-600">{fmt.date(s.date!)}</span>
@@ -467,7 +466,7 @@ function SpecForm({
       onSubmit={onSubmit}
       className="mt-4 rounded-md border border-paper-200 bg-white p-4"
     >
-      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-safety-700">
+      <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
         {mode === "edit" ? "Edit · spec" : "New · spec"}
       </p>
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -546,7 +545,7 @@ function SpecForm({
             <input
               value={catalogPriceAmount}
               onChange={(e) => setCatalogPriceAmount(e.target.value)}
-              className={`${inputCls} flex-1`}
+              className={`${inputCls} !w-auto flex-1`}
               placeholder="9500.00"
               inputMode="decimal"
             />
@@ -555,7 +554,7 @@ function SpecForm({
               onChange={(e) =>
                 setCatalogPriceCurrency(e.target.value.toUpperCase())
               }
-              className={`${inputCls} w-16 uppercase`}
+              className={`${inputCls} !w-24 uppercase text-center tracking-wider`}
               maxLength={3}
             />
           </div>
@@ -565,7 +564,7 @@ function SpecForm({
             <input
               value={clientPriceAmount}
               onChange={(e) => setClientPriceAmount(e.target.value)}
-              className={`${inputCls} flex-1`}
+              className={`${inputCls} !w-auto flex-1`}
               placeholder="11400.00"
               inputMode="decimal"
             />
@@ -574,7 +573,7 @@ function SpecForm({
               onChange={(e) =>
                 setClientPriceCurrency(e.target.value.toUpperCase())
               }
-              className={`${inputCls} w-16 uppercase`}
+              className={`${inputCls} !w-24 uppercase text-center tracking-wider`}
               maxLength={3}
             />
           </div>
@@ -623,7 +622,7 @@ function SpecForm({
 }
 
 const inputCls =
-  "block w-full rounded-md border border-paper-200 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
 
 const selectCls =
   "block w-full rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";

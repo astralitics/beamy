@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "generate": "drizzle-kit generate",
     "migrate": "tsx --env-file=../../.env src/migrate.ts",
-    "seed": "tsx --env-file=../../.env src/seed.ts"
+    "seed": "tsx --env-file=../../.env src/seed.ts",
+    "import-propuesta": "tsx --env-file=../../.env scripts/import-propuesta.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.36.4",

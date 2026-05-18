@@ -7,6 +7,7 @@ export * from "./change-orders";
 export * from "./chat";
 export * from "./clients";
 export * from "./documents";
+export * from "./furniture";
 export * from "./invoices";
 export * from "./materials";
 export * from "./members";

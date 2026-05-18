@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, Outlet, useParams } from "react-router-dom";
 import {
   PROJECT_PHASE_LABELS,
@@ -5,22 +6,20 @@ import {
   type ProjectStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useT } from "../../lib/i18n";
+import { Icon, Pill } from "../../components/ui";
 
-const STATUS_PILL_CLS: Record<ProjectStatus, string> = {
-  lead: "bg-sky-50 text-sky-800 ring-sky-200",
-  active: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-  on_hold: "bg-amber-50 text-amber-800 ring-amber-200",
-  completed: "bg-violet-50 text-violet-800 ring-violet-200",
-  archived: "bg-slate-50 text-slate-700 ring-slate-200",
+const STATUS_TONE: Record<
+  ProjectStatus,
+  "success" | "info" | "warn" | "neutral" | "accent"
+> = {
+  lead: "info",
+  active: "success",
+  on_hold: "warn",
+  completed: "accent",
+  archived: "neutral",
 };
 
-/**
- * Project number — a derived architectural label. Construction projects
- * traditionally carry a unique number; Beamy mints one as `BMY-<year>-<4>`
- * where `<4>` is the first 4 hex of the project UUID. Stable and unique
- * enough to read aloud over the phone.
- */
 function projectNumber(id: string, createdAt: string | Date): string {
   const d = new Date(createdAt);
   const year = d.getFullYear();
@@ -28,18 +27,10 @@ function projectNumber(id: string, createdAt: string | Date): string {
   return `BMY-${year}-${tag}`;
 }
 
-/**
- * ProjectShell — wraps every page under `/projects/:id/*`. Header is laid
- * out as a drafting title-block: project number stamp top-left, name as
- * the big banner, then a fact grid with hairline rules separating cells
- * (PROJECT NUMBER · CLIENT · ADDRESS · CONTRACT · STARTED · STATUS).
- *
- * The body renders the active sub-tab via <Outlet />. The tab nav itself
- * lives in the global Sidebar (mode-aware — sidebar.tsx).
- */
 export default function ProjectShell() {
   const { id } = useParams<{ id: string }>();
   const fmt = useFormatters();
+  const t = useT();
   const project = trpc.projects.get.useQuery(
     { id: id ?? "" },
     { enabled: !!id },
@@ -47,15 +38,15 @@ export default function ProjectShell() {
 
   if (!id) return null;
   if (project.isLoading) {
-    return <p className="p-10 text-sm text-slate-500">Loading…</p>;
+    return <p className="p-12 text-sm text-ink-500">Loading…</p>;
   }
   if (project.error) {
     return (
-      <div className="p-10">
+      <div className="p-12">
         <p className="text-sm text-rose-700">{project.error.message}</p>
         <Link
           to="/projects"
-          className="mt-4 inline-block text-sm text-safety-700 hover:text-safety-800"
+          className="mt-4 inline-block text-sm text-ink-700 hover:text-ink-900"
         >
           ← Back to projects
         </Link>
@@ -68,79 +59,149 @@ export default function ProjectShell() {
   const number = projectNumber(p.id, p.createdAt);
 
   return (
-    <div className="mx-auto max-w-5xl p-10">
-      <TitleBlock>
-        <div className="flex items-center justify-between gap-4 border-b border-paper-200 px-5 py-3">
-          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-slate-400">
-            <span className="text-slate-700">{number}</span>
-            <span className="mx-2 text-slate-300">|</span>
-            issued {fmt.date(p.createdAt)}
-          </p>
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[p.status]}`}
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-            {p.status.replace(/_/g, " ")}
-          </span>
-        </div>
+    <div className="mx-auto max-w-5xl px-10 py-14 animate-rise">
+      <Header
+        name={p.name}
+        status={p.status}
+        number={number}
+        createdAt={p.createdAt}
+        clientName={p.client?.name ?? null}
+        address={p.address ?? null}
+        contractAmount={p.contractAmount}
+        contractCurrency={p.contractCurrency}
+        startedAt={p.startedAt}
+        substantialCompletionAt={p.substantialCompletionAt}
+        fmt={fmt}
+        t={t}
+      />
 
-        <div className="px-5 py-5">
-          <h1 className="text-3xl font-semibold tracking-tight text-blueprint-900">
-            {p.name}
-          </h1>
-        </div>
+      <PhaseBar projectId={p.id} />
 
-        <FactRow>
-          <Fact label="Client" value={p.client?.name ?? "—"} />
-          <Fact label="Address" value={p.address ?? "—"} wide />
-        </FactRow>
-        <FactRow>
-          <Fact
-            label="Contract"
-            value={
-              p.contractAmount && p.contractCurrency
-                ? fmt.currency(p.contractAmount, p.contractCurrency)
-                : "—"
-            }
-          />
-          <Fact
-            label="Started"
-            value={p.startedAt ? fmt.date(p.startedAt) : "—"}
-          />
-          <Fact
-            label="Substantial completion"
-            value={
-              p.substantialCompletionAt
-                ? fmt.date(p.substantialCompletionAt)
-                : "—"
-            }
-          />
-        </FactRow>
-      </TitleBlock>
-
-      <div className="mt-6">
-        <PhaseBar projectId={p.id} />
-      </div>
-
-      <div className="mt-8">
+      <div className="mt-14">
         <Outlet context={{ project: p }} />
       </div>
     </div>
   );
 }
 
+function Header({
+  name,
+  status,
+  number,
+  createdAt,
+  clientName,
+  address,
+  contractAmount,
+  contractCurrency,
+  startedAt,
+  substantialCompletionAt,
+  fmt,
+  t,
+}: {
+  name: string;
+  status: ProjectStatus;
+  number: string;
+  createdAt: string | Date;
+  clientName: string | null;
+  address: string | null;
+  contractAmount: string | null;
+  contractCurrency: string | null;
+  startedAt: string | Date | null;
+  substantialCompletionAt: string | Date | null;
+  fmt: ReturnType<typeof useFormatters>;
+  t: ReturnType<typeof useT>;
+}) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  return (
+    <header>
+      <div className="flex items-start justify-between gap-6">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <Pill tone={STATUS_TONE[status]} dot>
+              {t(`status.project.${status}` as const)}
+            </Pill>
+            {clientName && (
+              <span className="text-[13px] text-ink-500">{clientName}</span>
+            )}
+          </div>
+          <h1 className="mt-3 font-display text-5xl font-normal leading-[1.05] tracking-tightest text-ink-900">
+            {name}
+          </h1>
+          {address && (
+            <p className="mt-3 text-[15px] text-ink-500">{address}</p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((v) => !v)}
+          aria-expanded={detailsOpen}
+          aria-label={t("project.details")}
+          title={t("project.details")}
+          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink-200 text-ink-500 transition-colors hover:border-ink-300 hover:text-ink-900 ${
+            detailsOpen ? "bg-ink-50 text-ink-900" : "bg-white"
+          }`}
+        >
+          <Icon name="info" className="h-4 w-4" />
+        </button>
+      </div>
+
+      {detailsOpen && (
+        <dl className="mt-6 grid animate-rise grid-cols-2 gap-x-8 gap-y-4 rounded-xl border border-ink-200/70 bg-white px-6 py-5 shadow-soft sm:grid-cols-5">
+          <Fact label={t("project.fact.project_number")} value={number} mono />
+          <Fact
+            label={t("project.fact.contract")}
+            value={
+              contractAmount && contractCurrency
+                ? fmt.currency(contractAmount, contractCurrency)
+                : "—"
+            }
+          />
+          <Fact
+            label={t("project.fact.started")}
+            value={startedAt ? fmt.date(startedAt) : "—"}
+          />
+          <Fact
+            label={t("project.fact.completion")}
+            value={
+              substantialCompletionAt
+                ? fmt.date(substantialCompletionAt)
+                : "—"
+            }
+          />
+          <Fact label={t("project.fact.issued")} value={fmt.date(createdAt)} />
+        </dl>
+      )}
+    </header>
+  );
+}
+
+function Fact({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+        {label}
+      </dt>
+      <dd
+        className={`mt-1 truncate text-[14px] text-ink-900 ${mono ? "font-mono" : "font-medium"}`}
+        title={typeof value === "string" ? value : undefined}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 // ────────────────────── phase bar ──────────────────────
 
-/**
- * Horizontal stepper showing where the project is in the workflow.
- * Phase is derived server-side from data state; this component is a
- * read-only renderer.
- *
- * Visual model: dots connected by a hairline, completed phases
- * filled, current phase ringed in the safety color, future phases
- * left muted. `on_hold` and `archived` show as orthogonal pills to
- * the right.
- */
 function PhaseBar({ projectId }: { projectId: string }) {
   const q = trpc.projects.phaseAndCompleteness.useQuery({ projectId });
   if (q.isLoading) return null;
@@ -149,51 +210,35 @@ function PhaseBar({ projectId }: { projectId: string }) {
   const currentIdx = PROJECT_PHASE_ORDER.indexOf(phase);
 
   return (
-    <div className="rounded-lg border border-paper-200 bg-white px-5 py-3">
-      <div className="flex items-center justify-between gap-4">
-        <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-slate-400">
-          Phase
-        </p>
-        <div className="flex items-center gap-1.5">
-          {onHold && (
-            <span className="inline-flex items-center gap-1 rounded-sm bg-amber-50 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-amber-800 ring-1 ring-inset ring-amber-200">
-              on hold
-            </span>
-          )}
-          {archived && (
-            <span className="inline-flex items-center gap-1 rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-slate-600 ring-1 ring-inset ring-slate-200">
-              archived
-            </span>
-          )}
-        </div>
-      </div>
-      <ol className="mt-2 flex items-center gap-0">
+    <div className="mt-10">
+      <ol className="flex items-center">
         {PROJECT_PHASE_ORDER.map((p, i) => {
           const done = i < currentIdx;
           const current = i === currentIdx;
           const label =
             current && phaseLabel ? phaseLabel : PROJECT_PHASE_LABELS[p];
+          const isLast = i === PROJECT_PHASE_ORDER.length - 1;
           return (
             <li key={p} className="flex flex-1 items-center">
-              <PhaseDot done={done} current={current} />
-              <div className="flex-1 px-1.5">
-                <p
-                  className={`truncate font-mono text-[10px] uppercase tracking-[0.1em] ${
+              <div className="flex items-center gap-2">
+                <PhaseDot done={done} current={current} />
+                <span
+                  className={`whitespace-nowrap text-[12px] ${
                     current
-                      ? "font-semibold text-blueprint-900"
+                      ? "font-medium text-ink-900"
                       : done
-                        ? "text-slate-600"
-                        : "text-slate-400"
+                        ? "text-ink-600"
+                        : "text-ink-400"
                   }`}
                   title={label}
                 >
                   {label}
-                </p>
+                </span>
               </div>
-              {i < PROJECT_PHASE_ORDER.length - 1 && (
+              {!isLast && (
                 <div
-                  className={`h-px flex-1 ${
-                    done ? "bg-safety-300" : "bg-paper-200"
+                  className={`mx-3 h-px flex-1 ${
+                    done ? "bg-accent-300" : "bg-ink-200"
                   }`}
                   aria-hidden
                 />
@@ -201,23 +246,23 @@ function PhaseBar({ projectId }: { projectId: string }) {
             </li>
           );
         })}
+        {(onHold || archived) && (
+          <li className="ml-3 flex items-center gap-1.5">
+            {onHold && <Pill tone="warn">on hold</Pill>}
+            {archived && <Pill tone="neutral">archived</Pill>}
+          </li>
+        )}
       </ol>
     </div>
   );
 }
 
-function PhaseDot({
-  done,
-  current,
-}: {
-  done: boolean;
-  current: boolean;
-}) {
+function PhaseDot({ done, current }: { done: boolean; current: boolean }) {
   if (done) {
     return (
       <span
         aria-hidden
-        className="inline-flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-safety-700 text-white"
+        className="inline-flex h-2 w-2 shrink-0 rounded-full bg-accent-500"
       />
     );
   }
@@ -225,55 +270,16 @@ function PhaseDot({
     return (
       <span
         aria-hidden
-        className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-safety-50 ring-2 ring-safety-700"
+        className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full ring-2 ring-accent-500 ring-offset-2 ring-offset-paper-50"
       >
-        <span className="h-1.5 w-1.5 rounded-full bg-safety-700" />
+        <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />
       </span>
     );
   }
   return (
     <span
       aria-hidden
-      className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-paper-200"
+      className="inline-flex h-2 w-2 shrink-0 rounded-full bg-ink-200"
     />
-  );
-}
-
-// ────────────────────── title-block primitives ──────────────────────
-
-function TitleBlock({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-paper-200 bg-white shadow-sm">
-      {children}
-    </div>
-  );
-}
-
-function FactRow({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-1 divide-y divide-paper-200 border-t border-paper-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-      {children}
-    </div>
-  );
-}
-
-function Fact({
-  label,
-  value,
-  wide,
-}: {
-  label: string;
-  value: React.ReactNode;
-  wide?: boolean;
-}) {
-  return (
-    <div className={`px-5 py-3 ${wide ? "sm:col-span-2" : ""}`}>
-      <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-slate-400">
-        {label}
-      </p>
-      <p className="mt-1 truncate text-sm font-medium text-blueprint-900">
-        {value}
-      </p>
-    </div>
   );
 }

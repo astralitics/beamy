@@ -73,13 +73,11 @@ export default function ProjectAssistant() {
     <div className="flex h-[calc(100vh-280px)] min-h-[480px] flex-col">
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-blueprint-900">
+          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             Project assistant
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Knows this project — rooms, specs, money, recent activity. Ask
-            it about <em className="not-italic">"what fridge did we spec for the kitchen?"</em>{" "}
-            or <em className="not-italic">"are we under contract on bills so far?"</em>.
+          <p className="mt-1 text-sm text-ink-500">
+            Ask anything about this project.
           </p>
         </div>
         {list.length > 0 && (
@@ -226,7 +224,7 @@ function EmptyHint({ projectName }: { projectName: string }) {
   ];
   return (
     <div className="mx-auto max-w-md py-6 text-center">
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
         Project assistant · v1
       </p>
       <p className="mt-2 text-sm text-slate-600">

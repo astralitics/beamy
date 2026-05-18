@@ -6,9 +6,11 @@ import { billsRouter } from "./routers/bills";
 import { chatRouter } from "./routers/chat";
 import { clientsRouter } from "./routers/clients";
 import { documentsRouter } from "./routers/documents";
+import { furnitureRouter } from "./routers/furniture";
 import { invoicesRouter } from "./routers/invoices";
 import { materialsRouter } from "./routers/materials";
 import { bidsRouter } from "./routers/bids";
+import { bidPackagesRouter } from "./routers/bid-packages";
 import { changeOrdersRouter } from "./routers/change-orders";
 import { membersRouter } from "./routers/members";
 import { orgsRouter } from "./routers/orgs";
@@ -24,11 +26,13 @@ export const appRouter = router({
   activity: activityRouter,
   assets: assetsRouter,
   bids: bidsRouter,
+  bidPackages: bidPackagesRouter,
   bills: billsRouter,
   changeOrders: changeOrdersRouter,
   chat: chatRouter,
   clients: clientsRouter,
   documents: documentsRouter,
+  furniture: furnitureRouter,
   invoices: invoicesRouter,
   materials: materialsRouter,
   vendors: vendorsRouter,

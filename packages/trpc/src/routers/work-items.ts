@@ -209,6 +209,7 @@ export const workItemsRouter = router({
             unitPriceCurrency: input.unitPriceCurrency ?? null,
             totalAmount: input.totalAmount ?? null,
             totalCurrency: input.totalCurrency ?? null,
+            clientMarkupPct: input.clientMarkupPct ?? null,
             status: input.status,
             plannedStart: input.plannedStart ?? null,
             plannedEnd: input.plannedEnd ?? null,

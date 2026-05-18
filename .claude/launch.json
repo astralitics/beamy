@@ -4,8 +4,8 @@
     {
       "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@beamy/web", "exec", "vite", "--port", "5173"],
-      "port": 5173
+      "runtimeArgs": ["--filter", "@beamy/web", "exec", "vite", "--port", "5190"],
+      "port": 5190
     }
   ]
 }
