@@ -217,10 +217,10 @@ function Bubble({ msg }: { msg: ChatMessage }) {
 
 function EmptyHint({ projectName }: { projectName: string }) {
   const suggestions = [
-    `What rooms are in the ${projectName}?`,
-    "Which specs are still open?",
-    "What's the most overdue bill right now?",
-    "Summarize the last week of activity.",
+    `Summarize ${projectName} for me — scope, vendors, money.`,
+    "Which bids are the cheapest per trade?",
+    "What's on the Plan that's overdue?",
+    "What was Grupo AVA's quote total and what's in it?",
   ];
   return (
     <div className="mx-auto max-w-md py-6 text-center">

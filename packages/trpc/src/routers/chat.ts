@@ -372,13 +372,34 @@ async function buildSystemPrompt(
     "- list_rooms — every room in the project (call first if a question mentions a room by name)",
   );
   lines.push(
-    "- list_assets — appliances, fixtures, HVAC, plumbing, etc. (per-instance, with manufacturer / model / serial / install date / warranty)",
+    "- list_assets — installed items: appliances, fixtures, HVAC, plumbing, wired lighting (per-instance, with manufacturer / model / serial / install date / warranty)",
+  );
+  lines.push(
+    "- list_asset_events — timeline for one specific asset (service, repairs, inspections). Pass asset_id from list_assets.",
+  );
+  lines.push(
+    "- list_furniture — free-standing pieces: sofas, tables, lamps, rugs, art (separate from list_assets)",
   );
   lines.push(
     "- list_materials — paint, tile, flooring, stone, etc. (per-batch, with lot number and attic stock)",
   );
   lines.push(
-    "- list_specs — the planning + procurement layer, with state machine (specified → approved → ordered → received → installed)",
+    "- list_specs — the procurement audit trail (specified → approved → ordered → received → installed)",
+  );
+  lines.push(
+    "- list_work_items — THE PLAN: the spine of work to be done (description, qty, price, status, planned dates). Awarded bid lines flow here as `approved`.",
+  );
+  lines.push(
+    "- list_bids — vendor quotes (one per PDF). Each has vendor / trade / total / status / flags. Use vendor_name, trade, or status to filter.",
+  );
+  lines.push(
+    "- list_bid_lines — the itemized lines INSIDE a specific bid. Pass bid_id from list_bids.",
+  );
+  lines.push(
+    "- list_bid_packages — groupings of competing bids for one piece of work (open / awarded / cancelled).",
+  );
+  lines.push(
+    "- list_proposals — client-facing artifacts already generated (status, total, sent/decided dates).",
   );
   lines.push(
     "- list_bills — money the firm owes vendors, with status + due dates + overdue flag",
