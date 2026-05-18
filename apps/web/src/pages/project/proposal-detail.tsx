@@ -68,14 +68,14 @@ export default function ProjectProposalDetail() {
     <div>
       <Link
         to={`/projects/${project.id}/proposals`}
-        className="font-mono text-[10px] uppercase tracking-wider text-slate-400 hover:text-blueprint-900"
+        className="text-[10px] uppercase tracking-wider text-slate-400 hover:text-blueprint-900"
       >
         ← Back to proposals
       </Link>
 
       <div className="mt-3 overflow-hidden rounded-lg border border-paper-200 bg-white shadow-sm">
         <div className="flex items-center justify-between gap-4 border-b border-paper-200 px-5 py-3">
-          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-slate-400">
+          <p className="text-[10px] uppercase tracking-[0.15em] text-slate-400">
             <span className="text-slate-700">{p.number}</span>
             <span className="mx-2 text-slate-300">|</span>
             generated {fmt.date(p.createdAt)}
@@ -86,7 +86,7 @@ export default function ProjectProposalDetail() {
             )}
           </p>
           <span
-            className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[p.status]}`}
+            className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[p.status]}`}
           >
             <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
             {PROPOSAL_STATUS_LABELS[p.status]}
@@ -94,7 +94,7 @@ export default function ProjectProposalDetail() {
         </div>
 
         <div className="px-5 py-5">
-          <h1 className="text-2xl font-semibold tracking-tight text-blueprint-900">
+          <h1 className="font-display text-4xl font-normal tracking-tightest text-ink-900">
             {p.title}
           </h1>
           {p.introText && (
@@ -165,7 +165,7 @@ export default function ProjectProposalDetail() {
       <div className="mt-5 overflow-hidden rounded-md border border-paper-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-paper-50 text-left">
-            <tr className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+            <tr className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
               <th className="px-3 py-2">Section</th>
               <th className="px-3 py-2">Description</th>
               <th className="px-3 py-2 text-right">Qty</th>
@@ -183,7 +183,7 @@ export default function ProjectProposalDetail() {
             ) : (
               p.lines.map((line) => (
                 <tr key={line.id} className="align-top">
-                  <td className="whitespace-nowrap px-3 py-2 font-mono text-[10px] uppercase tracking-wide text-safety-700">
+                  <td className="whitespace-nowrap px-3 py-2 text-[10px] uppercase tracking-wide text-safety-700">
                     {line.sectionLabel ?? "—"}
                   </td>
                   <td className="px-3 py-2 text-blueprint-900">

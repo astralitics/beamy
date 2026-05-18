@@ -8,11 +8,19 @@ import ProjectsPage from "./pages/projects";
 import ProjectShell from "./pages/project/shell";
 import ProjectOverview from "./pages/project/overview";
 import ProjectBids from "./pages/project/bids";
+import ProjectBidDetail from "./pages/project/bid-detail";
 import ProjectWorkPlan from "./pages/project/work-plan";
 import ProjectAssets from "./pages/project/assets";
+import ProjectAssetDetail from "./pages/project/asset-detail";
+import ProjectFurniture from "./pages/project/furniture";
+import ProjectFurnitureDetail from "./pages/project/furniture-detail";
+import ProjectRooms from "./pages/project/rooms";
+import ProjectRoomDetail from "./pages/project/room-detail";
 import ProjectMaterials from "./pages/project/materials";
 import ProjectSpecs from "./pages/project/specs";
 import ProjectMoney from "./pages/project/money";
+import ProjectBillDetail from "./pages/project/bill-detail";
+import ProjectInvoiceDetail from "./pages/project/invoice-detail";
 import ProjectProposals from "./pages/project/proposals";
 import ProjectProposalDetail from "./pages/project/proposal-detail";
 import ProjectChangeOrders from "./pages/project/change-orders";
@@ -61,13 +69,31 @@ function AppShell() {
             {/* `plan` is canonical; `work-plan` kept as alias for old bookmarks. */}
             <Route path="plan" element={<ProjectWorkPlan />} />
             <Route path="work-plan" element={<ProjectWorkPlan />} />
+            <Route path="rooms" element={<ProjectRooms />} />
+            <Route
+              path="rooms/:roomId"
+              element={<ProjectRoomDetail />}
+            />
             <Route path="bids" element={<ProjectBids />} />
+            <Route
+              path="bids/:bidId"
+              element={<ProjectBidDetail />}
+            />
             <Route
               path="drawings"
               element={<ProjectPlaceholder tab="drawings" />}
             />
             <Route path="specs" element={<ProjectSpecs />} />
             <Route path="assets" element={<ProjectAssets />} />
+            <Route
+              path="assets/:assetId"
+              element={<ProjectAssetDetail />}
+            />
+            <Route path="furniture" element={<ProjectFurniture />} />
+            <Route
+              path="furniture/:furnitureId"
+              element={<ProjectFurnitureDetail />}
+            />
             <Route path="materials" element={<ProjectMaterials />} />
             <Route
               path="rfis"
@@ -86,6 +112,14 @@ function AppShell() {
               element={<ProjectDocuments />}
             />
             <Route path="money" element={<ProjectMoney />} />
+            <Route
+              path="bills/:billId"
+              element={<ProjectBillDetail />}
+            />
+            <Route
+              path="invoices/:invoiceId"
+              element={<ProjectInvoiceDetail />}
+            />
             <Route path="proposals" element={<ProjectProposals />} />
             <Route
               path="proposals/:proposalId"

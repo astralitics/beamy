@@ -1,6 +1,8 @@
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
+  assetEvents,
+  assets,
   auditLog,
   bills,
   getDb,
@@ -76,7 +78,29 @@ export const billsRouter = router({
         .limit(1);
       const row = rows[0];
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
-      return { ...row.bill, vendor: row.vendor };
+
+      // Back-reference: if this bill was created from an asset event
+      // (the "Paid from company account" flow), surface that link so the
+      // detail page can show "From asset event" and click back.
+      const fromEvent = await db
+        .select({
+          event: assetEvents,
+          asset: assets,
+        })
+        .from(assetEvents)
+        .innerJoin(assets, eq(assetEvents.assetId, assets.id))
+        .where(
+          and(
+            eq(assetEvents.billId, input.id),
+            eq(assetEvents.orgId, ctx.orgId),
+          ),
+        )
+        .limit(1);
+      const source = fromEvent[0]
+        ? { event: fromEvent[0].event, asset: fromEvent[0].asset }
+        : null;
+
+      return { ...row.bill, vendor: row.vendor, source };
     }),
 
   create: orgScopedProcedure

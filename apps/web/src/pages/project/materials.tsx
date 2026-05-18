@@ -41,21 +41,18 @@ export default function ProjectMaterials() {
     <div>
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-blueprint-900">
+          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             Materials
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Per-batch identity — paint, tile, flooring tracked by lot. Coverage
-            and attic stock so when a tile chips two years from now, this row
-            still says <em className="not-italic">"lot 482-A, 3 boxes in the
-            basement"</em>.
+          <p className="mt-1 text-sm text-ink-500">
+            Lot-tracked finishes — paint, tile, flooring.
           </p>
         </div>
         {!adding && !editing && (
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+            className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
           >
             Add material
           </button>
@@ -96,7 +93,7 @@ export default function ProjectMaterials() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, manufacturer, color, lot…"
-            className="flex-1 rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            className="flex-1 rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
           />
         </div>
       )}
@@ -179,11 +176,11 @@ function MaterialRowItem({
             <span className="font-medium text-blueprint-900">
               {material.name}
             </span>
-            <span className="rounded-full bg-paper-100 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
+            <span className="rounded-full bg-paper-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
               {MATERIAL_CATEGORY_LABELS[material.category]}
             </span>
             {material.room && (
-              <span className="font-mono text-[10px] uppercase tracking-wide text-slate-400">
+              <span className="text-[10px] uppercase tracking-wide text-slate-400">
                 · {material.room.name}
               </span>
             )}
@@ -194,11 +191,11 @@ function MaterialRowItem({
             </div>
           )}
           {material.lotNumber && (
-            <div className="mt-1 inline-flex items-center gap-1.5 rounded-sm bg-safety-50 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-safety-800 ring-1 ring-inset ring-safety-200">
+            <div className="mt-1 inline-flex items-center gap-1.5 rounded-sm bg-safety-50 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-safety-800 ring-1 ring-inset ring-safety-200">
               lot · {material.lotNumber}
             </div>
           )}
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-slate-400">
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[10px] uppercase tracking-wider text-slate-400">
             {material.quantity && material.quantityUnit && (
               <span>
                 {material.quantity} {MATERIAL_UNIT_LABELS[material.quantityUnit]}
@@ -349,7 +346,7 @@ function MaterialForm({
       onSubmit={onSubmit}
       className="mt-4 rounded-md border border-paper-200 bg-white p-4"
     >
-      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-safety-700">
+      <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
         {mode === "edit" ? "Edit · material" : "New · material"}
       </p>
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -432,7 +429,7 @@ function MaterialForm({
             <input
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
-              className={`${inputCls} flex-1`}
+              className={`${inputCls} !w-auto flex-1`}
               placeholder="12.5"
               inputMode="decimal"
             />
@@ -510,7 +507,7 @@ function MaterialForm({
 }
 
 const inputCls =
-  "block w-full rounded-md border border-paper-200 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
 
 const selectCls =
   "block w-full rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";

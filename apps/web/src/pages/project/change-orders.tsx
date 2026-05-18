@@ -36,19 +36,18 @@ export default function ProjectChangeOrders() {
     <div>
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-blueprint-900">
+          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             Change orders
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Formal scope/budget changes. Approved COs apply their line deltas
-            to work items automatically.
+          <p className="mt-1 text-sm text-ink-500">
+            Formal scope and budget changes.
           </p>
         </div>
         {!creating && (
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+            className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
           >
             New change order
           </button>
@@ -108,11 +107,11 @@ function COCard({
       className="block rounded-md border border-paper-200 bg-white p-3 hover:border-paper-300 hover:shadow-sm"
     >
       <div className="flex items-baseline gap-3">
-        <span className="font-mono text-[11px] uppercase tracking-wider text-slate-500">
+        <span className="text-[11px] uppercase tracking-wider text-slate-500">
           {co.number}
         </span>
         <span
-          className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[co.status]}`}
+          className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[co.status]}`}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
           {CHANGE_ORDER_STATUS_LABELS[co.status]}
@@ -125,7 +124,7 @@ function COCard({
           {fmt.currency(co.totalDeltaAmount, co.totalDeltaCurrency)}
         </span>
       </div>
-      <div className="mt-1 flex gap-3 font-mono text-[10px] uppercase tracking-wider text-slate-400">
+      <div className="mt-1 flex gap-3 text-[10px] uppercase tracking-wider text-slate-400">
         <span>drafted {fmt.date(co.createdAt)}</span>
         {co.sentAt && <span>· sent {fmt.date(co.sentAt)}</span>}
         {co.decidedAt && (
@@ -281,7 +280,7 @@ function CreateForm({
       onSubmit={onSubmit}
       className="mt-4 rounded-md border border-paper-200 bg-white p-4"
     >
-      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-safety-700">
+      <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
         New · change order
       </p>
 
@@ -317,7 +316,7 @@ function CreateForm({
 
       <div className="mt-4 space-y-2">
         <div className="flex items-center justify-between">
-          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+          <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
             Lines
           </p>
           <button
@@ -341,7 +340,7 @@ function CreateForm({
         ))}
       </div>
 
-      <div className="mt-3 flex items-center justify-end gap-3 font-mono text-[11px] uppercase tracking-wider text-slate-500">
+      <div className="mt-3 flex items-center justify-end gap-3 text-[11px] uppercase tracking-wider text-slate-500">
         <span>net delta · {lines.length} line{lines.length === 1 ? "" : "s"}</span>
         <span
           className={`text-base ${total < 0 ? "text-rose-700" : "text-emerald-700"}`}
@@ -483,7 +482,7 @@ function LineRowEditor({
 
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         <label className="text-sm">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+          <span className="text-[10px] uppercase tracking-wider text-slate-500">
             Money delta * ({currency}, negative for deductive)
           </span>
           <input
@@ -495,7 +494,7 @@ function LineRowEditor({
           />
         </label>
         <label className="text-sm">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+          <span className="text-[10px] uppercase tracking-wider text-slate-500">
             Notes
           </span>
           <input
@@ -527,7 +526,7 @@ function emptyLine(kind: ChangeOrderLineKind, currency: string): DraftLine {
 // ───────────────────────────────────── primitives ─────────────
 
 const inputCls =
-  "block w-full rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
 
 const selectCls =
   "block rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";

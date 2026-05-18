@@ -12,6 +12,7 @@ import {
 import { orgs } from "./orgs";
 import { projects } from "./projects";
 import { vendors } from "./vendors";
+import { bidPackages } from "./bid-packages";
 
 /**
  * bids — what a subcontractor sent us. One row per quote PDF (or per
@@ -46,6 +47,13 @@ export const bids = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     vendorId: uuid("vendor_id").references(() => vendors.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * When set, this bid is competing inside a `bid_packages` group.
+     * Loose (un-packaged) bids leave this null.
+     */
+    packageId: uuid("package_id").references(() => bidPackages.id, {
       onDelete: "set null",
     }),
     /** Free-form trade tag — "carpintería", "electricidad", "tile". */
@@ -95,6 +103,7 @@ export const bids = pgTable(
     byProject: index("bids_by_project").on(table.projectId),
     byVendor: index("bids_by_vendor").on(table.vendorId),
     byOrgStatus: index("bids_by_org_status").on(table.orgId, table.status),
+    byPackage: index("bids_by_package").on(table.packageId),
   }),
 );
 

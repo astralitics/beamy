@@ -33,19 +33,18 @@ export default function ProjectProposals() {
     <div>
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-blueprint-900">
+          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             Proposals
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            The artifact you send the client. Pick the work items, set the
-            markup, generate. Beamy renders the printable HTML.
+          <p className="mt-1 text-sm text-ink-500">
+            What you send the client.
           </p>
         </div>
         {!generating && (
           <button
             type="button"
             onClick={() => setGenerating(true)}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+            className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
           >
             Generate new
           </button>
@@ -104,11 +103,11 @@ function ProposalCard({
       className="block rounded-md border border-paper-200 bg-white p-3 hover:border-paper-300 hover:shadow-sm"
     >
       <div className="flex items-baseline gap-3">
-        <span className="font-mono text-[11px] uppercase tracking-wider text-slate-500">
+        <span className="text-[11px] uppercase tracking-wider text-slate-500">
           {proposal.number}
         </span>
         <span
-          className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[proposal.status]}`}
+          className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[proposal.status]}`}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
           {PROPOSAL_STATUS_LABELS[proposal.status]}
@@ -122,7 +121,7 @@ function ProposalCard({
             : "—"}
         </span>
       </div>
-      <div className="mt-1 flex gap-3 font-mono text-[10px] uppercase tracking-wider text-slate-400">
+      <div className="mt-1 flex gap-3 text-[10px] uppercase tracking-wider text-slate-400">
         <span>generated {fmt.date(proposal.createdAt)}</span>
         {proposal.sentAt && <span>· sent {fmt.date(proposal.sentAt)}</span>}
         {proposal.decidedAt && (
@@ -153,7 +152,6 @@ function GenerateForm({
 
   const [title, setTitle] = useState("");
   const [introText, setIntroText] = useState("");
-  const [markupPct, setMarkupPct] = useState("20");
   const [currency, setCurrency] = useState(defaultCurrency);
   const [expiresAt, setExpiresAt] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -188,8 +186,9 @@ function GenerateForm({
     else setSelected(new Set(allEligible.map((w) => w.id)));
   }
 
-  const markup = parseFloat(markupPct) || 0;
-
+  // Preview total uses each work item's own clientMarkupPct (the Plan
+  // is now the only place markup is set). Items with no markup default
+  // to 0% — i.e. internal cost only.
   const previewTotal = useMemo(() => {
     let total = 0;
     for (const w of allEligible) {
@@ -197,10 +196,11 @@ function GenerateForm({
       const qty = w.qty ? parseFloat(w.qty) : null;
       const unit = w.unitPriceAmount ? parseFloat(w.unitPriceAmount) : null;
       if (qty == null || unit == null) continue;
-      total += qty * unit * (1 + markup / 100);
+      const m = w.clientMarkupPct ? parseFloat(w.clientMarkupPct) : 0;
+      total += qty * unit * (1 + m / 100);
     }
     return total;
-  }, [allEligible, selected, markup]);
+  }, [allEligible, selected]);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -222,7 +222,6 @@ function GenerateForm({
       workItemIds: Array.from(selected),
       title: title.trim(),
       introText: introText.trim() || undefined,
-      markupPct: markup,
       currency: currency.trim().toUpperCase(),
       expiresAt: expiresAt || undefined,
     });
@@ -233,7 +232,7 @@ function GenerateForm({
       onSubmit={onSubmit}
       className="mt-4 rounded-md border border-paper-200 bg-white p-4"
     >
-      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-safety-700">
+      <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
         New · proposal
       </p>
 
@@ -246,14 +245,6 @@ function GenerateForm({
             className={inputCls}
             autoFocus
             placeholder="Rubén Darío 123 — Proposal v1"
-          />
-        </Field>
-        <Field label="Markup %">
-          <input
-            value={markupPct}
-            onChange={(e) => setMarkupPct(e.target.value)}
-            className={inputCls}
-            inputMode="decimal"
           />
         </Field>
         <Field label="Currency">
@@ -285,7 +276,7 @@ function GenerateForm({
 
       <div className="mt-4 rounded-md border border-paper-200">
         <div className="flex items-center justify-between border-b border-paper-200 px-3 py-2">
-          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+          <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
             Work items · pick what goes on the proposal
           </p>
           <button
@@ -311,7 +302,6 @@ function GenerateForm({
                 item={w}
                 checked={selected.has(w.id)}
                 onToggle={() => toggle(w.id)}
-                markup={markup}
               />
             ))
           )}
@@ -319,10 +309,10 @@ function GenerateForm({
       </div>
 
       {selected.size > 0 && (
-        <div className="mt-3 flex items-center justify-end gap-4 font-mono text-[11px] uppercase tracking-wider text-slate-500">
+        <div className="mt-3 flex items-center justify-end gap-4 text-[11px] uppercase tracking-wider text-slate-500">
           <span>
-            {selected.size} item{selected.size === 1 ? "" : "s"} · markup{" "}
-            {markup.toFixed(2)}%
+            {selected.size} item{selected.size === 1 ? "" : "s"} · markup from
+            Plan
           </span>
           <span className="text-base text-blueprint-900">
             {fmt.currency(previewTotal.toFixed(2), currency || defaultCurrency)}
@@ -355,21 +345,22 @@ function WorkItemPickerRow({
   item,
   checked,
   onToggle,
-  markup,
 }: {
   item: WorkItemRow;
   checked: boolean;
   onToggle: () => void;
-  markup: number;
 }) {
   const fmt = useFormatters();
   const qty = item.qty ? parseFloat(item.qty) : null;
   const unit = item.unitPriceAmount ? parseFloat(item.unitPriceAmount) : null;
+  const itemMarkup = item.clientMarkupPct
+    ? parseFloat(item.clientMarkupPct)
+    : 0;
   const clientUnit =
     item.clientUnitPrice != null
       ? parseFloat(item.clientUnitPrice)
       : unit != null
-        ? unit * (1 + markup / 100)
+        ? unit * (1 + itemMarkup / 100)
         : null;
   const clientTotal = qty != null && clientUnit != null ? qty * clientUnit : null;
   const cur = item.unitPriceCurrency ?? item.totalCurrency ?? "MXN";
@@ -404,7 +395,7 @@ function WorkItemPickerRow({
             </span>
           ))}
         </div>
-        <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-slate-400">
+        <div className="mt-0.5 text-[10px] uppercase tracking-wider text-slate-400">
           {qty != null ? `${qty}${item.unit ? ` ${item.unit}` : ""}` : "—"}
           {" · "}
           internal{" "}
@@ -421,7 +412,7 @@ function WorkItemPickerRow({
 // ───────────────────────────────────── primitives ─────────────
 
 const inputCls =
-  "block w-full rounded-md border border-paper-200 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
 
 function Field({
   label,

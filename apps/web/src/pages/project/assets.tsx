@@ -1,69 +1,116 @@
-import { useState, type FormEvent, type ReactNode } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useState, type FormEvent } from "react";
+import { Link, useOutletContext } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
   ASSET_CATEGORY_LABELS,
+  ASSET_STATUS_LABELS,
   ROOM_TYPE_LABELS,
   type AssetCategory,
+  type AssetStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useFormatters } from "../../lib/i18n";
+import {
+  Button,
+  Field,
+  Icon,
+  Input,
+  Modal,
+  MoneyInput,
+  Pill,
+  Select,
+  Textarea,
+} from "../../components/ui";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type AssetRow = inferRouterOutputs<AppRouter>["assets"]["list"][number];
 
-/**
- * Assets — per-instance physical items installed on the project. The
- * "what fridge in the kitchen?" record. M2's recall layer, instance half.
- */
+const STATUS_TONE: Record<
+  AssetStatus,
+  "info" | "success" | "warn" | "neutral" | "muted"
+> = {
+  planned: "info",
+  installed: "success",
+  under_repair: "warn",
+  removed: "neutral",
+  retired: "muted",
+};
+
 export default function ProjectAssets() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
-  const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<AssetRow | null>(null);
-  const [roomFilter, setRoomFilter] = useState<string>("");
+  const [modal, setModal] = useState<
+    | { mode: "closed" }
+    | { mode: "create" }
+    | { mode: "edit"; asset: AssetRow }
+  >({ mode: "closed" });
+  const [statusFilter, setStatusFilter] = useState<AssetStatus | "">("");
   const [categoryFilter, setCategoryFilter] = useState<AssetCategory | "">("");
+  const [roomFilter, setRoomFilter] = useState<string>("");
   const [search, setSearch] = useState("");
 
   const list = trpc.assets.list.useQuery({
     projectId: project.id,
     roomId: roomFilter || undefined,
     category: categoryFilter || undefined,
+    status: statusFilter || undefined,
     search: search.trim() || undefined,
   });
   const rooms = trpc.projects.listRooms.useQuery({ projectId: project.id });
+  const fmt = useFormatters();
+
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <div>
-      <div className="flex items-start justify-between gap-6">
+    <div className="animate-fade">
+      <div className="flex items-end justify-between gap-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-blueprint-900">
+          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             Assets
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Per-instance items installed on this project — manufacturer, model,
-            serial, install date, warranty. Two years from now, this row
-            answers <em className="not-italic">"what fridge in the kitchen?"</em>
+          <p className="mt-1 text-sm text-ink-500">
+            Installed items — model, serial, warranty.
           </p>
         </div>
-        {!adding && !editing && (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
-          >
-            Add asset
-          </button>
-        )}
+        <Button variant="primary" onClick={() => setModal({ mode: "create" })}>
+          <Icon name="plus" className="h-4 w-4" />
+          Add asset
+        </Button>
       </div>
 
-      {/* Filters */}
-      {!adding && !editing && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          <select
+      <div className="mt-8 flex flex-wrap items-center gap-2">
+        <div className="w-44">
+          <Select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as AssetStatus | "")}
+          >
+            <option value="">All statuses</option>
+            {(Object.keys(ASSET_STATUS_LABELS) as AssetStatus[]).map((s) => (
+              <option key={s} value={s}>
+                {ASSET_STATUS_LABELS[s]}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="w-48">
+          <Select
+            value={categoryFilter}
+            onChange={(e) =>
+              setCategoryFilter(e.target.value as AssetCategory | "")
+            }
+          >
+            <option value="">All categories</option>
+            {(Object.keys(ASSET_CATEGORY_LABELS) as AssetCategory[]).map((c) => (
+              <option key={c} value={c}>
+                {ASSET_CATEGORY_LABELS[c]}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="w-44">
+          <Select
             value={roomFilter}
             onChange={(e) => setRoomFilter(e.target.value)}
-            className={selectCls}
           >
             <option value="">All rooms</option>
             {rooms.data?.map((r) => (
@@ -71,170 +118,198 @@ export default function ProjectAssets() {
                 {r.name}
               </option>
             ))}
-          </select>
-          <select
-            value={categoryFilter}
-            onChange={(e) =>
-              setCategoryFilter(e.target.value as AssetCategory | "")
-            }
-            className={selectCls}
-          >
-            <option value="">All categories</option>
-            {(Object.keys(ASSET_CATEGORY_LABELS) as AssetCategory[]).map(
-              (c) => (
-                <option key={c} value={c}>
-                  {ASSET_CATEGORY_LABELS[c]}
-                </option>
-              ),
-            )}
-          </select>
-          <input
+          </Select>
+        </div>
+        <div className="relative min-w-[220px] flex-1">
+          <Icon
+            name="search"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
+          />
+          <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, manufacturer, model, serial…"
-            className="flex-1 rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            placeholder="Search name, manufacturer, model, serial"
+            className="pl-10"
           />
         </div>
-      )}
+      </div>
 
-      {adding && (
-        <AssetForm
-          projectId={project.id}
-          mode="create"
-          onClose={() => setAdding(false)}
-          rooms={rooms.data ?? []}
-        />
-      )}
-      {editing && (
-        <AssetForm
-          projectId={project.id}
-          mode="edit"
-          existing={editing}
-          onClose={() => setEditing(null)}
-          rooms={rooms.data ?? []}
-        />
-      )}
-
-      <div className="mt-4">
+      <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
         {list.isLoading ? (
-          <p className="text-xs text-slate-500">Loading…</p>
+          <p className="px-6 py-8 text-sm text-ink-500">Loading…</p>
         ) : list.error ? (
-          <p className="text-xs text-rose-700">{list.error.message}</p>
+          <p className="px-6 py-8 text-sm text-rose-700">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
-          <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
-            {search.trim() || roomFilter || categoryFilter
-              ? "No assets match these filters."
-              : (
-                <>
-                  No assets yet. Click <strong>Add asset</strong> to record the
-                  first one — the appliance, fixture, or piece of equipment
-                  going in.
-                </>
-              )}
-          </p>
-        ) : (
-          <div className="grid gap-2">
-            {list.data.map((a) => (
-              <AssetRowItem
-                key={a.id}
-                asset={a}
-                onEdit={() => setEditing(a)}
-              />
-            ))}
+          <div className="px-6 py-12 text-center">
+            <p className="font-display text-xl text-ink-900">
+              {search.trim() || roomFilter || categoryFilter || statusFilter
+                ? "No assets match these filters."
+                : "No assets yet."}
+            </p>
+            {!search.trim() && !roomFilter && !categoryFilter && !statusFilter && (
+              <Button
+                variant="primary"
+                onClick={() => setModal({ mode: "create" })}
+                className="mt-5"
+              >
+                <Icon name="plus" className="h-4 w-4" />
+                Add the first asset
+              </Button>
+            )}
           </div>
+        ) : (
+          <table className="w-full text-[14px]">
+            <thead className="border-b border-ink-100 bg-paper-50">
+              <tr className="text-left">
+                <Th>Name</Th>
+                <Th>Category</Th>
+                <Th>Room</Th>
+                <Th>Status</Th>
+                <Th>Installed</Th>
+                <Th>Warranty</Th>
+                <Th align="right">Price</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {list.data.map((a) => {
+                const warrantyExpired =
+                  a.warrantyExpiresAt && a.warrantyExpiresAt < today;
+                return (
+                  <tr
+                    key={a.id}
+                    className="group border-b border-ink-100 transition-colors last:border-b-0 hover:bg-paper-50"
+                  >
+                    <Td>
+                      <Link
+                        to={`/projects/${project.id}/assets/${a.id}`}
+                        className="block"
+                      >
+                        <span className="font-medium text-ink-900 group-hover:text-ink-900">
+                          {a.name}
+                        </span>
+                        {(a.manufacturer || a.model) && (
+                          <span className="block text-xs text-ink-500">
+                            {[a.manufacturer, a.model]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        )}
+                      </Link>
+                    </Td>
+                    <Td className="text-ink-600">
+                      {ASSET_CATEGORY_LABELS[a.category]}
+                    </Td>
+                    <Td className="text-ink-600">{a.room?.name ?? "—"}</Td>
+                    <Td>
+                      <Pill tone={STATUS_TONE[a.status]} dot>
+                        {ASSET_STATUS_LABELS[a.status]}
+                      </Pill>
+                    </Td>
+                    <Td className="text-ink-600 tnum">
+                      {a.installDate ? fmt.date(a.installDate) : "—"}
+                    </Td>
+                    <Td className="tnum">
+                      {a.warrantyExpiresAt ? (
+                        <span
+                          className={
+                            warrantyExpired
+                              ? "text-rose-600"
+                              : "text-ink-600"
+                          }
+                        >
+                          {fmt.date(a.warrantyExpiresAt)}
+                          {warrantyExpired && (
+                            <span className="ml-1 text-[10px] uppercase tracking-wide">
+                              expired
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-ink-400">—</span>
+                      )}
+                    </Td>
+                    <Td align="right" className="tnum text-ink-700">
+                      {a.purchasePriceAmount && a.purchasePriceCurrency
+                        ? fmt.currency(
+                            a.purchasePriceAmount,
+                            a.purchasePriceCurrency,
+                          )
+                        : "—"}
+                    </Td>
+                    <Td align="right">
+                      <Link
+                        to={`/projects/${project.id}/assets/${a.id}`}
+                        aria-label="Open asset"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
+                      >
+                        <Icon name="chevron-right" className="h-4 w-4" />
+                      </Link>
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
+
+      {modal.mode !== "closed" && (
+        <AssetFormModal
+          projectId={project.id}
+          mode={modal.mode}
+          existing={modal.mode === "edit" ? modal.asset : undefined}
+          rooms={rooms.data ?? []}
+          onClose={() => setModal({ mode: "closed" })}
+        />
+      )}
     </div>
   );
 }
 
-// ────────────────────── row ──────────────────────
+// ────────────────────── table helpers ──────────────────────
 
-function AssetRowItem({
-  asset,
-  onEdit,
+function Th({
+  children,
+  align = "left",
 }: {
-  asset: AssetRow;
-  onEdit: () => void;
+  children?: React.ReactNode;
+  align?: "left" | "right";
 }) {
-  const fmt = useFormatters();
-  const utils = trpc.useUtils();
-  const remove = trpc.assets.remove.useMutation({
-    onSuccess: () =>
-      utils.assets.list.invalidate({ projectId: asset.projectId }),
-  });
-
-  const sub: string[] = [];
-  if (asset.manufacturer) sub.push(asset.manufacturer);
-  if (asset.model) sub.push(asset.model);
-  if (asset.serialNumber) sub.push(`SN ${asset.serialNumber}`);
-
   return (
-    <div className="rounded-md border border-paper-200 bg-white p-3">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <span className="font-medium text-blueprint-900">{asset.name}</span>
-            <span className="rounded-full bg-paper-100 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
-              {ASSET_CATEGORY_LABELS[asset.category]}
-            </span>
-            {asset.room && (
-              <span className="font-mono text-[10px] uppercase tracking-wide text-slate-400">
-                · {asset.room.name}
-              </span>
-            )}
-          </div>
-          {sub.length > 0 && (
-            <div className="mt-0.5 text-xs text-slate-600">
-              {sub.join(" · ")}
-            </div>
-          )}
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-slate-400">
-            {asset.installDate && (
-              <span>installed {fmt.date(asset.installDate)}</span>
-            )}
-            {asset.warrantyExpiresAt && (
-              <span>warranty thru {fmt.date(asset.warrantyExpiresAt)}</span>
-            )}
-            {asset.vendor && (
-              <span>vendor · {asset.vendor.name}</span>
-            )}
-          </div>
-          {asset.notes && (
-            <p className="mt-1.5 whitespace-pre-wrap text-xs text-slate-600">
-              {asset.notes}
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="text-xs text-slate-500 hover:text-slate-900"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (confirm(`Remove ${asset.name}?`)) remove.mutate({ id: asset.id });
-            }}
-            disabled={remove.isPending}
-            className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
-          >
-            {remove.isPending ? "…" : "Remove"}
-          </button>
-        </div>
-      </div>
-    </div>
+    <th
+      className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 ${
+        align === "right" ? "text-right" : "text-left"
+      }`}
+    >
+      {children}
+    </th>
   );
 }
 
-// ────────────────────── form ──────────────────────
+function Td({
+  children,
+  align = "left",
+  className = "",
+}: {
+  children?: React.ReactNode;
+  align?: "left" | "right";
+  className?: string;
+}) {
+  return (
+    <td
+      className={`px-5 py-3 ${align === "right" ? "text-right" : "text-left"} ${className}`}
+    >
+      {children}
+    </td>
+  );
+}
+
+// ────────────────────── form modal ──────────────────────
 
 type RoomLite = { id: string; name: string; roomType: string | null };
 
-function AssetForm({
+function AssetFormModal({
   projectId,
   mode,
   existing,
@@ -247,18 +322,19 @@ function AssetForm({
   rooms: RoomLite[];
   onClose: () => void;
 }) {
+  const isEdit = mode === "edit";
+
   const [name, setName] = useState(existing?.name ?? "");
   const [category, setCategory] = useState<AssetCategory>(
     existing?.category ?? "appliance",
   );
+  const [status, setStatus] = useState<AssetStatus>(
+    existing?.status ?? "installed",
+  );
   const [roomId, setRoomId] = useState(existing?.roomId ?? "");
-  const [manufacturer, setManufacturer] = useState(
-    existing?.manufacturer ?? "",
-  );
+  const [manufacturer, setManufacturer] = useState(existing?.manufacturer ?? "");
   const [model, setModel] = useState(existing?.model ?? "");
-  const [serialNumber, setSerialNumber] = useState(
-    existing?.serialNumber ?? "",
-  );
+  const [serialNumber, setSerialNumber] = useState(existing?.serialNumber ?? "");
   const [installDate, setInstallDate] = useState(existing?.installDate ?? "");
   const [warrantyExpiresAt, setWarrantyExpiresAt] = useState(
     existing?.warrantyExpiresAt ?? "",
@@ -269,6 +345,7 @@ function AssetForm({
   const [purchasePriceCurrency, setPurchasePriceCurrency] = useState(
     existing?.purchasePriceCurrency ?? "USD",
   );
+  const [productUrl, setProductUrl] = useState(existing?.productUrl ?? "");
   const [photoUrl, setPhotoUrl] = useState(existing?.photoUrl ?? "");
   const [notes, setNotes] = useState(existing?.notes ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -284,6 +361,7 @@ function AssetForm({
   const update = trpc.assets.update.useMutation({
     onSuccess: () => {
       utils.assets.list.invalidate({ projectId });
+      if (existing) utils.assets.get.invalidate({ id: existing.id });
       onClose();
     },
     onError: (err) => setError(err.message),
@@ -301,6 +379,7 @@ function AssetForm({
     }
     const base = {
       category,
+      status,
       name: name.trim(),
       roomId: roomId || undefined,
       manufacturer: manufacturer.trim() || undefined,
@@ -310,10 +389,11 @@ function AssetForm({
       warrantyExpiresAt: warrantyExpiresAt || undefined,
       purchasePriceAmount: amt || undefined,
       purchasePriceCurrency: amt ? cur : undefined,
+      productUrl: productUrl.trim() || undefined,
       photoUrl: photoUrl.trim() || undefined,
       notes: notes.trim() || undefined,
     };
-    if (mode === "edit" && existing) {
+    if (isEdit && existing) {
       update.mutate({ id: existing.id, patch: base });
     } else {
       create.mutate({ projectId, ...base });
@@ -321,46 +401,67 @@ function AssetForm({
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="mt-4 rounded-md border border-paper-200 bg-white p-4"
+    <Modal
+      title={isEdit && existing ? `Edit ${existing.name}` : "New asset"}
+      subtitle={isEdit ? undefined : "Add an installed item to this project."}
+      onClose={onClose}
+      size="lg"
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-rose-600">{error}</p>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="asset-form"
+              variant="primary"
+              disabled={submitting}
+            >
+              {submitting ? "Saving…" : isEdit ? "Save changes" : "Add asset"}
+            </Button>
+          </div>
+        </div>
+      }
     >
-      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-safety-700">
-        {mode === "edit" ? "Edit · asset" : "New · asset"}
-      </p>
-      <div className="mt-2 grid gap-3 sm:grid-cols-2">
-        <Field label="Name *" wide>
-          <input
+      <form id="asset-form" onSubmit={onSubmit} className="grid gap-5 sm:grid-cols-2">
+        <Field label="Name" required wide>
+          <Input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className={inputCls}
             autoFocus
             placeholder="e.g. Sub-Zero PRO 48 Fridge"
           />
         </Field>
         <Field label="Category">
-          <select
+          <Select
             value={category}
             onChange={(e) => setCategory(e.target.value as AssetCategory)}
-            className={selectCls}
           >
-            {(Object.keys(ASSET_CATEGORY_LABELS) as AssetCategory[]).map(
-              (c) => (
-                <option key={c} value={c}>
-                  {ASSET_CATEGORY_LABELS[c]}
-                </option>
-              ),
-            )}
-          </select>
+            {(Object.keys(ASSET_CATEGORY_LABELS) as AssetCategory[]).map((c) => (
+              <option key={c} value={c}>
+                {ASSET_CATEGORY_LABELS[c]}
+              </option>
+            ))}
+          </Select>
         </Field>
-        <Field label="Room">
-          <select
-            value={roomId}
-            onChange={(e) => setRoomId(e.target.value)}
-            className={selectCls}
+        <Field label="Status">
+          <Select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as AssetStatus)}
           >
-            <option value="">— (none)</option>
+            {(Object.keys(ASSET_STATUS_LABELS) as AssetStatus[]).map((s) => (
+              <option key={s} value={s}>
+                {ASSET_STATUS_LABELS[s]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Room" hint="Optional" wide>
+          <Select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+            <option value="">— None</option>
             {rooms.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -369,126 +470,77 @@ function AssetForm({
                   : ""}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label="Manufacturer">
-          <input
+          <Input
             value={manufacturer}
             onChange={(e) => setManufacturer(e.target.value)}
-            className={inputCls}
             placeholder="Sub-Zero"
           />
         </Field>
         <Field label="Model">
-          <input
+          <Input
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            className={inputCls}
             placeholder="BI-48S/O"
           />
         </Field>
-        <Field label="Serial number">
-          <input
+        <Field label="Serial number" wide>
+          <Input
             value={serialNumber}
             onChange={(e) => setSerialNumber(e.target.value)}
-            className={inputCls}
             placeholder="SN-1234567"
           />
         </Field>
         <Field label="Install date">
-          <input
+          <Input
             type="date"
             value={installDate}
             onChange={(e) => setInstallDate(e.target.value)}
-            className={inputCls}
           />
         </Field>
         <Field label="Warranty expires">
-          <input
+          <Input
             type="date"
             value={warrantyExpiresAt}
             onChange={(e) => setWarrantyExpiresAt(e.target.value)}
-            className={inputCls}
           />
         </Field>
-        <Field label="Purchase price">
-          <div className="flex gap-2">
-            <input
-              value={purchasePriceAmount}
-              onChange={(e) => setPurchasePriceAmount(e.target.value)}
-              className={`${inputCls} flex-1`}
-              placeholder="12500.00"
-              inputMode="decimal"
-            />
-            <input
-              value={purchasePriceCurrency}
-              onChange={(e) =>
-                setPurchasePriceCurrency(e.target.value.toUpperCase())
-              }
-              className={`${inputCls} w-16 uppercase`}
-              maxLength={3}
-            />
-          </div>
+        <Field label="Purchase price" hint="Optional" wide>
+          <MoneyInput
+            amount={purchasePriceAmount}
+            currency={purchasePriceCurrency}
+            onAmountChange={setPurchasePriceAmount}
+            onCurrencyChange={setPurchasePriceCurrency}
+            placeholder="12,500.00"
+          />
+        </Field>
+        <Field label="Product link" hint="Manufacturer or vendor URL" wide>
+          <Input
+            type="url"
+            value={productUrl}
+            onChange={(e) => setProductUrl(e.target.value)}
+            placeholder="https://subzero-wolf.com/…"
+          />
         </Field>
         <Field label="Photo URL" wide>
-          <input
+          <Input
+            type="url"
             value={photoUrl}
             onChange={(e) => setPhotoUrl(e.target.value)}
-            className={inputCls}
-            placeholder="https://… (full Storage backend lands in M8)"
+            placeholder="https://…"
           />
         </Field>
         <Field label="Notes" wide>
-          <textarea
+          <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            className={inputCls}
+            rows={3}
+            placeholder="Anything specific about this unit."
           />
         </Field>
-      </div>
-      {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
-      <div className="mt-3 flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-        >
-          {submitting ? "Saving…" : mode === "edit" ? "Save" : "Add"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-// ────────────────────── styles + Field ──────────────────────
-
-const inputCls =
-  "block w-full rounded-md border border-paper-200 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
-
-const selectCls =
-  "block w-full rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
-
-function Field({
-  label,
-  children,
-  wide,
-}: {
-  label: string;
-  children: ReactNode;
-  wide?: boolean;
-}) {
-  return (
-    <label className={`block text-sm ${wide ? "sm:col-span-2" : ""}`}>
-      <span className="text-slate-700">{label}</span>
-      <div className="mt-1">{children}</div>
-    </label>
+      </form>
+    </Modal>
   );
 }

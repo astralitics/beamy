@@ -1,17 +1,13 @@
 /**
  * Translation catalogs.
  *
- * `messagesEn` is the source of truth. Other locales are `Partial<>` —
- * missing keys fall back to English at lookup time, so we can ship strings
- * progressively without blocking on a complete translation pass.
+ * `messagesEn` is the source of truth. `messagesEsMx` is a Partial — missing
+ * keys fall back to English at lookup time, so we can ship strings
+ * progressively without blocking on a full translation pass.
  *
  * Adding a new key: add it to `messagesEn`. The `MessageKey` type updates
  * automatically; consumers get autocomplete + compile-time errors for
  * unknown keys.
- *
- * Adding a new locale (e.g., when the MX firm fully onboards): create
- * `messagesEsMx: Partial<typeof messagesEn> = { ... }` here and route to
- * it in `useT` based on `locale` from `LocaleContext`.
  */
 export const messagesEn = {
   // ── sidebar nav (workspace mode) ──
@@ -32,6 +28,7 @@ export const messagesEn = {
   "picker.new": "+ New project",
   "picker.view_all": "View all projects",
   "picker.back_to_workspace": "← Back to workspace",
+  "picker.all_projects": "All projects",
 
   // ── sidebar nav (project mode) ──
   "project_nav.overview": "Overview",
@@ -42,6 +39,7 @@ export const messagesEn = {
   "project_nav.rooms": "Rooms",
   "project_nav.drawings": "Drawings",
   "project_nav.assets": "Assets",
+  "project_nav.furniture": "Furniture",
   "project_nav.materials": "Materials",
   "project_nav.bids": "Bids",
   "project_nav.plan_scope": "Plan — scope",
@@ -65,25 +63,180 @@ export const messagesEn = {
   "home.title": "Beamy is alive.",
   "home.lede":
     "M1 complete: clients, vendors (+ compliance), services, contacts, members + invitations, i18n scaffold, Supabase Auth. M2 in flight — projects + rooms landed; assets, materials, photos, and recall search are next.",
+  "home.jump_in": "Jump in",
   "home.repo.heading": "What's in the repo",
   "home.next.heading": "Next up — M2",
   "home.next.body":
     "Assets (manufacturer / model / serial / warranty), materials with lot numbers + coverage, photo upload via Supabase Storage, and Postgres full-text search. The hero recall demo — \"what fridge in the Anderson kitchen?\" — lands at the end of M2.",
+  "home.tile.projects": "Projects",
+  "home.tile.projects.sub": "Active engagements",
+  "home.tile.clients": "Clients",
+  "home.tile.clients.sub": "People you build for",
+  "home.tile.vendors": "Vendors",
+  "home.tile.vendors.sub": "Subs, suppliers, contacts",
+  "home.tile.services": "Services",
+  "home.tile.services.sub": "Reusable scope library",
+
+  // ── projects list ──
+  "projects.title": "Projects",
+  "projects.lede": "One per engagement.",
+  "projects.new": "New project",
+  "projects.search": "Search projects",
+  "projects.empty": "No projects yet.",
+  "projects.empty_archived": "No archived projects.",
+  "projects.empty_filtered": "No projects match these filters.",
+  "projects.create_first": "Create the first one",
+  "projects.filter.active": "Active",
+  "projects.filter.lead": "Lead",
+  "projects.filter.on_hold": "On hold",
+  "projects.filter.completed": "Completed",
+  "projects.filter.archived": "Archived",
+  "projects.filter.all": "All",
+  "projects.filter.all_types": "All types",
+
+  // ── project shell ──
+  "project.details": "Project details",
+  "project.fact.project_number": "Project #",
+  "project.fact.contract": "Contract",
+  "project.fact.started": "Started",
+  "project.fact.completion": "Completion",
+  "project.fact.issued": "Issued",
+
+  // ── status pills ──
+  "status.project.lead": "lead",
+  "status.project.active": "active",
+  "status.project.on_hold": "on hold",
+  "status.project.completed": "completed",
+  "status.project.archived": "archived",
+  "status.bill.open": "Open",
+  "status.bill.paid": "Paid",
+  "status.bill.void": "Void",
+  "status.bill.overdue": "Overdue",
+  "status.invoice.draft": "Draft",
+  "status.invoice.sent": "Sent",
+  "status.invoice.paid": "Paid",
+  "status.invoice.void": "Void",
+  "status.asset.planned": "Planned",
+  "status.asset.installed": "Installed",
+  "status.asset.under_repair": "Under repair",
+  "status.asset.removed": "Removed",
+  "status.asset.retired": "Retired",
+  "status.furniture.planned": "Planned",
+  "status.furniture.selected": "Selected",
+  "status.furniture.ordered": "Ordered",
+  "status.furniture.delivered": "Delivered",
+  "status.furniture.placed": "Placed",
+  "status.furniture.returned": "Returned",
+  "status.furniture.retired": "Retired",
+
+  // ── money tab ──
+  "money.summary.outstanding_we_owe": "Outstanding · we owe",
+  "money.summary.outstanding_clients_owe": "Outstanding · clients owe",
+  "money.summary.paid_to_vendors": "Paid to vendors",
+  "money.summary.collected_from_clients": "Collected from clients",
+  "money.summary.overdue_suffix": "overdue",
+  "money.summary.total": "total",
+  "money.tab.bills": "Bills",
+  "money.tab.invoices": "Invoices",
+  "money.bills.title": "Bills",
+  "money.bills.lede": "What we owe vendors.",
+  "money.bills.new": "New bill",
+  "money.bills.search": "Search description, vendor, bill #",
+  "money.bills.empty": "No bills yet.",
+  "money.bills.empty_filtered": "No bills match these filters.",
+  "money.bills.add_first": "Add the first bill",
+  "money.bills.self_purchase": "Self-purchase",
+  "money.invoices.title": "Invoices",
+  "money.invoices.lede": "What we bill clients.",
+  "money.invoices.new": "New invoice",
+  "money.invoices.search": "Search description, client, invoice #",
+  "money.invoices.empty": "No invoices yet.",
+  "money.invoices.empty_filtered": "No invoices match these filters.",
+  "money.invoices.draft_first": "Draft the first invoice",
+
+  // ── table columns (shared across pages) ──
+  "col.description": "Description",
+  "col.name": "Name",
+  "col.piece": "Piece",
+  "col.vendor": "Vendor",
+  "col.client": "Client",
+  "col.amount": "Amount",
+  "col.price": "Price",
+  "col.qty": "Qty",
+  "col.status": "Status",
+  "col.due": "Due",
+  "col.installed": "Installed",
+  "col.delivery": "Delivery",
+  "col.warranty": "Warranty",
+  "col.category": "Category",
+  "col.room": "Room",
+  "col.type": "Type",
+  "col.address": "Address",
+  "col.contract": "Contract",
+  "col.updated": "Updated",
+
+  // ── filters (shared) ──
+  "filter.all_statuses": "All statuses",
+  "filter.all_categories": "All categories",
+  "filter.all_rooms": "All rooms",
+
+  // ── assets tab ──
+  "assets.title": "Assets",
+  "assets.lede": "Installed items — model, serial, warranty.",
+  "assets.add": "Add asset",
+  "assets.add_first": "Add the first asset",
+  "assets.empty": "No assets yet.",
+  "assets.empty_filtered": "No assets match these filters.",
+  "assets.search": "Search name, manufacturer, model, serial",
+  "assets.warranty_expired": "expired",
+
+  // ── furniture tab ──
+  "furniture.title": "Furniture",
+  "furniture.lede": "Free-standing pieces — sofas, tables, lamps, rugs.",
+  "furniture.add": "Add piece",
+  "furniture.add_first": "Add the first piece",
+  "furniture.empty": "No furniture yet.",
+  "furniture.empty_filtered": "No pieces match these filters.",
+  "furniture.search": "Search name, designer, material",
+
+  // ── detail pages (shared verbs) ──
+  "detail.timeline": "Timeline",
+  "detail.timeline_lede.asset": "Work done on this asset, in chronological order.",
+  "detail.timeline_lede.furniture":
+    "What's happened to this piece, in chronological order.",
+  "detail.notes": "Notes",
+  "detail.source": "Source",
+  "detail.material_finish": "Material · finish",
+  "detail.log_event": "Log event",
+  "detail.log_first_event": "Log first event",
+  "detail.nothing_logged": "Nothing logged yet.",
+  "detail.product_page": "Product page",
+  "detail.delete_asset": "Delete this asset",
+  "detail.delete_furniture": "Delete this piece",
+  "detail.delete_bill": "Delete this bill",
+  "detail.delete_invoice": "Delete this invoice",
+  "detail.tracked_in_finance": "Tracked in finance",
+  "detail.mark_paid": "Mark paid",
+  "detail.mark_sent": "Mark sent",
+  "detail.paid_from_company": "Paid from company account",
+  "detail.paid_from_company_hint":
+    "Logs a paid bill in the project ledger and links it here. Uncheck if this cost is informational only.",
 
   // ── shared / common ──
   "common.loading": "Loading…",
   "common.saving": "Saving…",
   "common.cancel": "Cancel",
   "common.save": "Save",
+  "common.save_changes": "Save changes",
   "common.create": "Create",
   "common.remove": "Remove",
   "common.edit": "Edit",
+  "common.add": "Add",
+  "common.optional": "Optional",
 } as const;
 
 export const messagesEsMx: Partial<Record<keyof typeof messagesEn, string>> = {
-  // Translations land progressively when the MX firm fully onboards.
-  // Until then, lookup falls through to messagesEn. Stub a few high-visibility
-  // keys so we can sanity-check the locale-routing infra during dev.
+  // ── workspace nav ──
   "nav.home": "Inicio",
   "nav.projects": "Proyectos",
   "nav.clients": "Clientes",
@@ -94,11 +247,16 @@ export const messagesEsMx: Partial<Record<keyof typeof messagesEn, string>> = {
   "nav.workflows": "Flujos de trabajo",
   "nav.prompts": "Prompts",
   "nav.settings": "Configuración",
+
+  // ── project picker ──
   "picker.label": "Proyecto",
   "picker.empty": "No hay proyectos",
   "picker.new": "+ Nuevo proyecto",
   "picker.view_all": "Ver todos los proyectos",
   "picker.back_to_workspace": "← Volver al espacio de trabajo",
+  "picker.all_projects": "Todos los proyectos",
+
+  // ── project nav ──
   "project_nav.overview": "Resumen",
   "project_nav.assistant": "Asistente",
   "project_nav.section.property": "Documentación del inmueble",
@@ -107,6 +265,7 @@ export const messagesEsMx: Partial<Record<keyof typeof messagesEn, string>> = {
   "project_nav.rooms": "Espacios",
   "project_nav.drawings": "Planos",
   "project_nav.assets": "Activos",
+  "project_nav.furniture": "Mobiliario",
   "project_nav.materials": "Materiales",
   "project_nav.bids": "Cotizaciones",
   "project_nav.plan_scope": "Plan — alcance",
@@ -124,10 +283,179 @@ export const messagesEsMx: Partial<Record<keyof typeof messagesEn, string>> = {
   "project_nav.money": "Dinero",
   "project_nav.work_plan": "Plan",
   "project_nav.activity": "Actividad",
+
+  // ── home ──
+  "home.milestone": "Hito 2 — Demo de Recall",
+  "home.title": "Beamy está vivo.",
+  "home.lede":
+    "M1 completo: clientes, proveedores (+ cumplimiento), servicios, contactos, miembros + invitaciones, i18n, Supabase Auth. M2 en curso — proyectos + espacios; siguen activos, materiales, fotos y búsqueda de recall.",
+  "home.jump_in": "Entrar",
+  "home.tile.projects": "Proyectos",
+  "home.tile.projects.sub": "Trabajos en curso",
+  "home.tile.clients": "Clientes",
+  "home.tile.clients.sub": "Personas para quienes construyes",
+  "home.tile.vendors": "Proveedores",
+  "home.tile.vendors.sub": "Subcontratistas, proveedores, contactos",
+  "home.tile.services": "Servicios",
+  "home.tile.services.sub": "Biblioteca reutilizable de alcances",
+
+  // ── projects list ──
+  "projects.title": "Proyectos",
+  "projects.lede": "Uno por trabajo.",
+  "projects.new": "Nuevo proyecto",
+  "projects.search": "Buscar proyectos",
+  "projects.empty": "Aún no hay proyectos.",
+  "projects.empty_archived": "No hay proyectos archivados.",
+  "projects.empty_filtered": "Ningún proyecto coincide con estos filtros.",
+  "projects.create_first": "Crear el primero",
+  "projects.filter.active": "Activos",
+  "projects.filter.lead": "Prospecto",
+  "projects.filter.on_hold": "En pausa",
+  "projects.filter.completed": "Completados",
+  "projects.filter.archived": "Archivados",
+  "projects.filter.all": "Todos",
+  "projects.filter.all_types": "Todos los tipos",
+
+  // ── project shell ──
+  "project.details": "Detalles del proyecto",
+  "project.fact.project_number": "Proyecto #",
+  "project.fact.contract": "Contrato",
+  "project.fact.started": "Inicio",
+  "project.fact.completion": "Finalización",
+  "project.fact.issued": "Emitido",
+
+  // ── status pills ──
+  "status.project.lead": "prospecto",
+  "status.project.active": "activo",
+  "status.project.on_hold": "en pausa",
+  "status.project.completed": "completado",
+  "status.project.archived": "archivado",
+  "status.bill.open": "Abierta",
+  "status.bill.paid": "Pagada",
+  "status.bill.void": "Anulada",
+  "status.bill.overdue": "Vencida",
+  "status.invoice.draft": "Borrador",
+  "status.invoice.sent": "Enviada",
+  "status.invoice.paid": "Pagada",
+  "status.invoice.void": "Anulada",
+  "status.asset.planned": "Planeado",
+  "status.asset.installed": "Instalado",
+  "status.asset.under_repair": "En reparación",
+  "status.asset.removed": "Retirado",
+  "status.asset.retired": "Dado de baja",
+  "status.furniture.planned": "Planeado",
+  "status.furniture.selected": "Seleccionado",
+  "status.furniture.ordered": "Pedido",
+  "status.furniture.delivered": "Entregado",
+  "status.furniture.placed": "Colocado",
+  "status.furniture.returned": "Devuelto",
+  "status.furniture.retired": "Dado de baja",
+
+  // ── money ──
+  "money.summary.outstanding_we_owe": "Por pagar · debemos",
+  "money.summary.outstanding_clients_owe": "Por cobrar · clientes nos deben",
+  "money.summary.paid_to_vendors": "Pagado a proveedores",
+  "money.summary.collected_from_clients": "Cobrado a clientes",
+  "money.summary.overdue_suffix": "vencidas",
+  "money.summary.total": "total",
+  "money.tab.bills": "Cuentas",
+  "money.tab.invoices": "Facturas",
+  "money.bills.title": "Cuentas",
+  "money.bills.lede": "Lo que debemos a proveedores.",
+  "money.bills.new": "Nueva cuenta",
+  "money.bills.search": "Buscar descripción, proveedor, número",
+  "money.bills.empty": "Aún no hay cuentas.",
+  "money.bills.empty_filtered": "Ninguna cuenta coincide con los filtros.",
+  "money.bills.add_first": "Agregar la primera cuenta",
+  "money.bills.self_purchase": "Compra propia",
+  "money.invoices.title": "Facturas",
+  "money.invoices.lede": "Lo que facturamos a clientes.",
+  "money.invoices.new": "Nueva factura",
+  "money.invoices.search": "Buscar descripción, cliente, número",
+  "money.invoices.empty": "Aún no hay facturas.",
+  "money.invoices.empty_filtered": "Ninguna factura coincide con los filtros.",
+  "money.invoices.draft_first": "Crear la primera factura",
+
+  // ── table columns ──
+  "col.description": "Descripción",
+  "col.name": "Nombre",
+  "col.piece": "Pieza",
+  "col.vendor": "Proveedor",
+  "col.client": "Cliente",
+  "col.amount": "Monto",
+  "col.price": "Precio",
+  "col.qty": "Cant.",
+  "col.status": "Estado",
+  "col.due": "Vence",
+  "col.installed": "Instalado",
+  "col.delivery": "Entrega",
+  "col.warranty": "Garantía",
+  "col.category": "Categoría",
+  "col.room": "Espacio",
+  "col.type": "Tipo",
+  "col.address": "Dirección",
+  "col.contract": "Contrato",
+  "col.updated": "Actualizado",
+
+  // ── filters ──
+  "filter.all_statuses": "Todos los estados",
+  "filter.all_categories": "Todas las categorías",
+  "filter.all_rooms": "Todos los espacios",
+
+  // ── assets ──
+  "assets.title": "Activos",
+  "assets.lede": "Items instalados — modelo, serie, garantía.",
+  "assets.add": "Agregar activo",
+  "assets.add_first": "Agregar el primer activo",
+  "assets.empty": "Aún no hay activos.",
+  "assets.empty_filtered": "Ningún activo coincide con los filtros.",
+  "assets.search": "Buscar nombre, fabricante, modelo, serie",
+  "assets.warranty_expired": "vencida",
+
+  // ── furniture ──
+  "furniture.title": "Mobiliario",
+  "furniture.lede": "Piezas independientes — sofás, mesas, lámparas, tapetes.",
+  "furniture.add": "Agregar pieza",
+  "furniture.add_first": "Agregar la primera pieza",
+  "furniture.empty": "Aún no hay mobiliario.",
+  "furniture.empty_filtered": "Ninguna pieza coincide con los filtros.",
+  "furniture.search": "Buscar nombre, diseñador, material",
+
+  // ── detail pages ──
+  "detail.timeline": "Línea de tiempo",
+  "detail.timeline_lede.asset":
+    "Trabajos hechos a este activo, en orden cronológico.",
+  "detail.timeline_lede.furniture":
+    "Qué ha pasado con esta pieza, en orden cronológico.",
+  "detail.notes": "Notas",
+  "detail.source": "Origen",
+  "detail.material_finish": "Material · acabado",
+  "detail.log_event": "Registrar evento",
+  "detail.log_first_event": "Registrar el primer evento",
+  "detail.nothing_logged": "Nada registrado aún.",
+  "detail.product_page": "Página del producto",
+  "detail.delete_asset": "Eliminar este activo",
+  "detail.delete_furniture": "Eliminar esta pieza",
+  "detail.delete_bill": "Eliminar esta cuenta",
+  "detail.delete_invoice": "Eliminar esta factura",
+  "detail.tracked_in_finance": "Registrado en finanzas",
+  "detail.mark_paid": "Marcar pagada",
+  "detail.mark_sent": "Marcar enviada",
+  "detail.paid_from_company": "Pagado con cuenta de la empresa",
+  "detail.paid_from_company_hint":
+    "Registra una cuenta pagada en el libro del proyecto y la enlaza aquí. Desmarca si el costo es solo informativo.",
+
+  // ── common ──
   "common.loading": "Cargando…",
+  "common.saving": "Guardando…",
   "common.cancel": "Cancelar",
   "common.save": "Guardar",
+  "common.save_changes": "Guardar cambios",
   "common.create": "Crear",
+  "common.remove": "Quitar",
+  "common.edit": "Editar",
+  "common.add": "Agregar",
+  "common.optional": "Opcional",
 };
 
 export type MessageKey = keyof typeof messagesEn;

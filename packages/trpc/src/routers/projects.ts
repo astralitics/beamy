@@ -958,6 +958,20 @@ export const projectsRouter = router({
         .orderBy(asc(rooms.name));
     }),
 
+  getRoom: orgScopedProcedure
+    .input(roomIdInputSchema)
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const rowsRes = await db
+        .select()
+        .from(rooms)
+        .where(and(eq(rooms.id, input.id), eq(rooms.orgId, ctx.orgId)))
+        .limit(1);
+      const row = rowsRes[0];
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return row;
+    }),
+
   addRoom: orgScopedProcedure
     .input(roomCreateInputSchema)
     .mutation(async ({ ctx, input }) => {
@@ -982,6 +996,11 @@ export const projectsRouter = router({
             projectId: input.projectId,
             name: input.name,
             roomType: input.roomType ?? null,
+            description: input.description ?? null,
+            floor: input.floor ?? null,
+            floorAreaSqM: input.floorAreaSqM ?? null,
+            ceilingHeightM: input.ceilingHeightM ?? null,
+            photoUrl: input.photoUrl ?? null,
             notes: input.notes ?? null,
             createdBy: ctx.actor,
             updatedBy: ctx.actor,
@@ -1020,7 +1039,14 @@ export const projectsRouter = router({
         const p = input.patch;
         if (p.name !== undefined) setClause.name = p.name;
         if (p.roomType !== undefined) setClause.roomType = p.roomType;
-        if (p.notes !== undefined) setClause.notes = p.notes ?? null;
+        if (p.description !== undefined) setClause.description = p.description;
+        if (p.floor !== undefined) setClause.floor = p.floor;
+        if (p.floorAreaSqM !== undefined) setClause.floorAreaSqM = p.floorAreaSqM;
+        if (p.ceilingHeightM !== undefined) {
+          setClause.ceilingHeightM = p.ceilingHeightM;
+        }
+        if (p.photoUrl !== undefined) setClause.photoUrl = p.photoUrl;
+        if (p.notes !== undefined) setClause.notes = p.notes;
 
         const [updated] = await tx
           .update(rooms)

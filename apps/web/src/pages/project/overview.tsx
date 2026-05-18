@@ -9,6 +9,7 @@ import {
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useFormatters } from "../../lib/i18n";
+import { Pill } from "../../components/ui";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type Stats = inferRouterOutputs<AppRouter>["projects"]["overviewStats"];
@@ -16,10 +17,9 @@ type Phase = inferRouterOutputs<AppRouter>["projects"]["phaseAndCompleteness"];
 type MoneyByCurrency = { currency: string; amount: string };
 
 /**
- * Project Overview — daily-driver landing surface. Cards pull from
- * a single `overviewStats` round-trip and surface what needs
- * attention right now. Each card deep-links to the relevant tab
- * pre-filtered so the user doesn't have to hunt for the rows.
+ * Project Overview — opens with a single focal "Today" panel that answers
+ * "what should I look at right now?", then progressively reveals secondary
+ * surfaces (money totals, completeness, recent proposals).
  */
 export default function ProjectOverview() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
@@ -30,253 +30,272 @@ export default function ProjectOverview() {
   const fmt = useFormatters();
 
   if (stats.isLoading) {
-    return <p className="text-xs text-slate-500">Loading…</p>;
+    return <p className="text-sm text-ink-500">Loading…</p>;
   }
   if (stats.error) {
-    return <p className="text-xs text-rose-700">{stats.error.message}</p>;
+    return <p className="text-sm text-rose-700">{stats.error.message}</p>;
   }
   const s = stats.data;
   if (!s) return null;
 
-  const everythingQuiet =
-    s.workItems.overdueCount === 0 &&
-    s.workItems.scheduledSoonCount === 0 &&
-    s.bids.expiringCount === 0 &&
-    s.bids.comparingCount === 0 &&
-    s.billsInvoices.overdueBillsCount === 0 &&
-    s.billsInvoices.overdueInvoicesCount === 0 &&
-    s.workItems.totalCount === 0;
-
   return (
-    <div className="space-y-8">
-      {everythingQuiet ? (
-        <EmptyState projectId={project.id} />
-      ) : (
-        <PulseGrid projectId={project.id} s={s} />
-      )}
+    <div className="space-y-16">
+      <TodayPanel projectId={project.id} s={s} />
+
+      <MoneySection projectId={project.id} s={s} />
 
       {phase.data && <CompletenessSection phase={phase.data} />}
 
-      <MoneySection projectId={project.id} s={s} />
       <ProposalsSection projectId={project.id} s={s} fmt={fmt} />
 
       {project.notes && (
-        <Section label="Notes">
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+        <SubSection label="Notes">
+          <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink-700">
             {project.notes}
           </p>
-        </Section>
+        </SubSection>
       )}
     </div>
   );
 }
 
-// ───────────────────────────────────── pulses ─────────────────
+// ───────────────────────────────────── TODAY ──────────────────
 
-function PulseGrid({ projectId, s }: { projectId: string; s: Stats }) {
+/**
+ * The single focal panel. Pulls the highest-priority signal (overdue first,
+ * then warning, then calm). One BIG number, secondary signals beneath it.
+ */
+function TodayPanel({ projectId, s }: { projectId: string; s: Stats }) {
   const baseUrl = `/projects/${projectId}`;
-  const pulses: Pulse[] = [
+  const signals: Signal[] = [
     {
       label: "Overdue work",
       value: s.workItems.overdueCount,
-      tone: s.workItems.overdueCount > 0 ? "alert" : "quiet",
       to: `${baseUrl}/work-plan`,
-      hint: "past planned end",
-    },
-    {
-      label: "Scheduled this week",
-      value: s.workItems.scheduledSoonCount,
-      tone: "calm",
-      to: `${baseUrl}/work-plan`,
-      hint: "starts within 7 days",
-    },
-    {
-      label: "In flight",
-      value: s.workItems.inFlightCount,
-      tone: "calm",
-      to: `${baseUrl}/work-plan`,
-      hint: "scheduled + in progress",
-    },
-    {
-      label: "Blocked",
-      value: s.workItems.blockedCount,
-      tone: s.workItems.blockedCount > 0 ? "warn" : "quiet",
-      to: `${baseUrl}/work-plan`,
-      hint: "waiting on a predecessor",
-    },
-    {
-      label: "Expired bids",
-      value: s.bids.expiringCount,
-      tone: s.bids.expiringCount > 0 ? "warn" : "quiet",
-      to: `${baseUrl}/work-plan`,
-      hint: "past validity, need re-quote",
-    },
-    {
-      label: "Bids comparing",
-      value: s.bids.comparingCount,
-      tone: s.bids.comparingCount > 0 ? "warn" : "quiet",
-      to: `${baseUrl}/work-plan`,
-      hint: "awaiting decision",
+      severity: 3,
     },
     {
       label: "Overdue bills",
       value: s.billsInvoices.overdueBillsCount,
-      tone: s.billsInvoices.overdueBillsCount > 0 ? "alert" : "quiet",
       to: `${baseUrl}/money`,
-      hint: "vendor bills past due",
+      severity: 3,
     },
     {
       label: "Overdue invoices",
       value: s.billsInvoices.overdueInvoicesCount,
-      tone: s.billsInvoices.overdueInvoicesCount > 0 ? "alert" : "quiet",
       to: `${baseUrl}/money`,
-      hint: "client invoices past due",
+      severity: 3,
+    },
+    {
+      label: "Blocked work",
+      value: s.workItems.blockedCount,
+      to: `${baseUrl}/work-plan`,
+      severity: 2,
+    },
+    {
+      label: "Expired bids",
+      value: s.bids.expiringCount,
+      to: `${baseUrl}/bids`,
+      severity: 2,
+    },
+    {
+      label: "Bids to compare",
+      value: s.bids.comparingCount,
+      to: `${baseUrl}/bids`,
+      severity: 2,
     },
     {
       label: "COs awaiting decision",
       value: s.changeOrders.awaitingDecisionCount,
-      tone: s.changeOrders.awaitingDecisionCount > 0 ? "warn" : "quiet",
       to: `${baseUrl}/change-orders`,
-      hint: "sent, no answer yet",
+      severity: 2,
+    },
+    {
+      label: "Scheduled this week",
+      value: s.workItems.scheduledSoonCount,
+      to: `${baseUrl}/work-plan`,
+      severity: 1,
+    },
+    {
+      label: "In flight",
+      value: s.workItems.inFlightCount,
+      to: `${baseUrl}/work-plan`,
+      severity: 1,
     },
   ];
 
+  const active = signals.filter((x) => x.value > 0);
+  if (active.length === 0) return <EmptyToday projectId={projectId} />;
+
+  // Sort: highest severity first, then highest value
+  active.sort((a, b) => b.severity - a.severity || b.value - a.value);
+  const hero = active[0]!;
+  const rest = active.slice(1);
+
   return (
-    <Section label="Pulse">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {pulses.map((p) => (
-          <PulseCard key={p.label} pulse={p} />
-        ))}
+    <section className="relative overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft">
+      {/* Editorial accent rule */}
+      <div
+        aria-hidden
+        className={`absolute inset-x-0 top-0 h-0.5 ${
+          hero.severity >= 3
+            ? "bg-rose-500"
+            : hero.severity >= 2
+              ? "bg-amber-500"
+              : "bg-emerald-500"
+        }`}
+      />
+      <div className="grid gap-10 px-8 py-9 md:grid-cols-[1.1fr_1fr]">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+            Today
+          </p>
+          <Link
+            to={hero.to}
+            className="mt-3 block transition-opacity hover:opacity-80"
+          >
+            <p className="num text-6xl leading-none text-ink-900">
+              {hero.value}
+            </p>
+            <p className="mt-3 font-display text-2xl font-normal tracking-tight text-ink-900">
+              {hero.label}
+            </p>
+            <p className="mt-1 text-[13px] text-ink-500">
+              {heroBlurb(hero)}
+            </p>
+          </Link>
+        </div>
+        {rest.length > 0 && (
+          <div className="border-t border-ink-100 pt-6 md:border-l md:border-t-0 md:pl-8 md:pt-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+              Also today
+            </p>
+            <ul className="mt-3 divide-y divide-ink-100">
+              {rest.slice(0, 4).map((sig) => (
+                <li key={sig.label}>
+                  <Link
+                    to={sig.to}
+                    className="flex items-center justify-between gap-4 py-2.5 hover:opacity-80"
+                  >
+                    <span className="text-[14px] text-ink-700">
+                      {sig.label}
+                    </span>
+                    <span
+                      className={`num text-xl leading-none ${severityText(sig.severity)}`}
+                    >
+                      {sig.value}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
-    </Section>
+    </section>
   );
 }
 
-type PulseTone = "alert" | "warn" | "calm" | "quiet";
-type Pulse = {
-  label: string;
-  value: number;
-  tone: PulseTone;
-  to: string;
-  hint: string;
-};
-
-const TONE_CLS: Record<PulseTone, string> = {
-  alert: "border-rose-200 bg-rose-50 hover:border-rose-300",
-  warn: "border-amber-200 bg-amber-50 hover:border-amber-300",
-  calm: "border-paper-200 bg-white hover:border-paper-300",
-  quiet: "border-paper-200 bg-paper-50 text-slate-400 hover:border-paper-300",
-};
-const VALUE_TONE_CLS: Record<PulseTone, string> = {
-  alert: "text-rose-700",
-  warn: "text-amber-800",
-  calm: "text-blueprint-900",
-  quiet: "text-slate-400",
-};
-
-function PulseCard({ pulse }: { pulse: Pulse }) {
+function EmptyToday({ projectId }: { projectId: string }) {
   return (
-    <Link
-      to={pulse.to}
-      className={`block rounded-lg border p-4 transition-colors ${TONE_CLS[pulse.tone]}`}
-    >
-      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
-        {pulse.label}
+    <section className="relative overflow-hidden rounded-2xl border border-ink-200/70 bg-white px-8 py-12 text-center shadow-soft">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+        Today
       </p>
-      <p className={`mt-1 text-3xl font-semibold ${VALUE_TONE_CLS[pulse.tone]}`}>
-        {pulse.value}
+      <p className="mt-3 font-display text-3xl font-normal tracking-tight text-ink-900">
+        All quiet.
       </p>
-      <p className="mt-1 text-[10px] text-slate-400">{pulse.hint}</p>
-    </Link>
+      <p className="mt-2 text-[14px] text-ink-500">
+        No overdue work, no late invoices, no decisions waiting.
+      </p>
+      <Link
+        to={`/projects/${projectId}/work-plan`}
+        className="mt-5 inline-block text-[13px] font-medium text-accent-600 hover:text-accent-700"
+      >
+        Plan some work →
+      </Link>
+    </section>
   );
 }
 
-function EmptyState({ projectId }: { projectId: string }) {
-  return (
-    <Section label="Pulse">
-      <div className="rounded-lg border border-paper-200 bg-paper-50 p-6 text-center">
-        <p className="text-sm text-slate-600">
-          Nothing on fire. The pulse cards activate once there are work items,
-          bids, and bills to track.
-        </p>
-        <Link
-          to={`/projects/${projectId}/work-plan`}
-          className="mt-3 inline-block text-xs font-medium text-safety-700 hover:text-safety-800"
-        >
-          Add the first work item →
-        </Link>
-      </div>
-    </Section>
-  );
+type Signal = { label: string; value: number; to: string; severity: 1 | 2 | 3 };
+
+function heroBlurb(s: Signal): string {
+  switch (s.label) {
+    case "Overdue work":
+      return "Work items past their planned end date.";
+    case "Overdue bills":
+      return "Vendor invoices past due.";
+    case "Overdue invoices":
+      return "Client invoices past due.";
+    case "Blocked work":
+      return "Items waiting on a predecessor.";
+    case "Expired bids":
+      return "Past validity — needs a fresh quote.";
+    case "Bids to compare":
+      return "Awaiting your decision.";
+    case "COs awaiting decision":
+      return "Change orders sent — no answer yet.";
+    case "Scheduled this week":
+      return "Starts within the next 7 days.";
+    case "In flight":
+      return "Scheduled + in progress.";
+    default:
+      return "";
+  }
 }
 
-// ───────────────────────────────────── money ──────────────────
+function severityText(sev: number): string {
+  if (sev >= 3) return "text-rose-600";
+  if (sev >= 2) return "text-amber-700";
+  return "text-ink-900";
+}
+
+// ───────────────────────────────────── MONEY ──────────────────
 
 function MoneySection({ projectId, s }: { projectId: string; s: Stats }) {
   const fmt = useFormatters();
-  const tiles: Array<{ label: string; values: MoneyByCurrency[]; hint: string }> = [
-    {
-      label: "Committed",
-      values: s.bids.committedByCurrency,
-      hint: "accepted bids → vendors",
-    },
-    {
-      label: "Sold",
-      values: s.proposals.soldByCurrency,
-      hint: "accepted proposals → client",
-    },
-    {
-      label: "Billed",
-      values: s.money.billedByCurrency,
-      hint: "invoices sent to client",
-    },
-    {
-      label: "Paid",
-      values: s.money.paidByCurrency,
-      hint: "client payments received",
-    },
-    {
-      label: "Scope changes",
-      values: s.changeOrders.approvedDeltaByCurrency,
-      hint: "approved CO net delta",
-    },
+  const tiles: Array<{ label: string; values: MoneyByCurrency[] }> = [
+    { label: "Sold", values: s.proposals.soldByCurrency },
+    { label: "Committed", values: s.bids.committedByCurrency },
+    { label: "Billed", values: s.money.billedByCurrency },
+    { label: "Paid", values: s.money.paidByCurrency },
   ];
 
   return (
-    <Section label="Money">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <SubSection
+      label="Money"
+      hint="Top-line totals. Click any tile for the full ledger."
+    >
+      <div className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((t) => (
           <Link
             key={t.label}
             to={`/projects/${projectId}/money`}
-            className="block rounded-lg border border-paper-200 bg-white p-4 transition-colors hover:border-paper-300"
+            className="bg-white px-5 py-5 transition-colors hover:bg-paper-50"
           >
-            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
               {t.label}
             </p>
-            <div className="mt-1 space-y-0.5">
+            <div className="mt-3 space-y-1">
               {t.values.length === 0 ? (
-                <p className="text-xl font-semibold text-slate-400">—</p>
+                <p className="num text-3xl text-ink-300">—</p>
               ) : (
                 t.values.map((v) => (
-                  <p
-                    key={v.currency}
-                    className="font-mono text-lg font-semibold text-blueprint-900"
-                  >
+                  <p key={v.currency} className="num text-2xl text-ink-900">
                     {fmt.currency(v.amount, v.currency)}
                   </p>
                 ))
               )}
             </div>
-            <p className="mt-1 text-[10px] text-slate-400">{t.hint}</p>
           </Link>
         ))}
       </div>
-    </Section>
+    </SubSection>
   );
 }
 
-// ───────────────────────────────────── proposals ──────────────
+// ───────────────────────────────────── PROPOSALS ──────────────
 
 function ProposalsSection({
   projectId,
@@ -289,42 +308,37 @@ function ProposalsSection({
 }) {
   if (s.proposals.recent.length === 0) return null;
   return (
-    <Section label="Recent proposals">
-      <div className="grid gap-2">
+    <SubSection label="Recent proposals">
+      <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200/70 bg-white">
         {s.proposals.recent.map((p) => (
-          <Link
-            key={p.id}
-            to={`/projects/${projectId}/proposals/${p.id}`}
-            className="flex items-baseline gap-3 rounded-md border border-paper-200 bg-white px-3 py-2 hover:border-paper-300"
-          >
-            <span className="font-mono text-[11px] uppercase tracking-wider text-slate-500">
-              {p.number}
-            </span>
-            <span className="rounded-sm bg-paper-100 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
-              {PROPOSAL_STATUS_LABELS[p.status]}
-            </span>
-            <span className="text-sm text-blueprint-900">{p.title}</span>
-            <span className="ml-auto font-mono text-sm font-semibold text-blueprint-900">
-              {p.totalAmount && p.totalCurrency
-                ? fmt.currency(p.totalAmount, p.totalCurrency)
-                : "—"}
-            </span>
-          </Link>
+          <li key={p.id}>
+            <Link
+              to={`/projects/${projectId}/proposals/${p.id}`}
+              className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-paper-50"
+            >
+              <span className="font-mono text-[12px] text-ink-500">{p.number}</span>
+              <Pill tone="muted">{PROPOSAL_STATUS_LABELS[p.status]}</Pill>
+              <span className="truncate text-[14px] text-ink-900">{p.title}</span>
+              <span className="ml-auto num text-[16px] text-ink-900">
+                {p.totalAmount && p.totalCurrency
+                  ? fmt.currency(p.totalAmount, p.totalCurrency)
+                  : "—"}
+              </span>
+            </Link>
+          </li>
         ))}
-        <Link
-          to={`/projects/${projectId}/proposals`}
-          className="text-xs text-slate-500 hover:text-slate-900"
-        >
-          All proposals →
-        </Link>
-      </div>
-    </Section>
+      </ul>
+      <Link
+        to={`/projects/${projectId}/proposals`}
+        className="mt-3 inline-block text-[13px] text-ink-500 hover:text-ink-900"
+      >
+        All proposals →
+      </Link>
+    </SubSection>
   );
 }
 
-// ───────────────────────────────────── primitives ─────────────
-
-// ───────────────────────────────────── completeness ──────────
+// ───────────────────────────────────── COMPLETENESS ──────────
 
 function CompletenessSection({ phase }: { phase: Phase }) {
   const sectionOrder: ProjectSection[] = [
@@ -333,17 +347,16 @@ function CompletenessSection({ phase }: { phase: Phase }) {
     "execution",
   ];
   return (
-    <Section label="Completeness">
-      <div className="grid gap-3 sm:grid-cols-3">
+    <SubSection
+      label="Completeness"
+      hint="What's missing per workflow section."
+    >
+      <div className="grid gap-3 md:grid-cols-3">
         {sectionOrder.map((id) => (
-          <CompletenessCard
-            key={id}
-            id={id}
-            section={phase.sections[id]}
-          />
+          <CompletenessCard key={id} id={id} section={phase.sections[id]} />
         ))}
       </div>
-    </Section>
+    </SubSection>
   );
 }
 
@@ -356,52 +369,51 @@ function CompletenessCard({
 }) {
   const pct = Math.round(section.ratio * 100);
   const allDone = section.filled === section.total;
-  const ringColor = allDone
-    ? "text-emerald-600"
-    : pct >= 50
-      ? "text-safety-600"
-      : "text-slate-400";
-
   const missing = section.checks.filter((c) => !c.passed);
 
   return (
-    <div className="rounded-lg border border-paper-200 bg-white p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
-            {PROJECT_SECTION_LABELS[id]}
-          </p>
-          <p className="mt-1 font-mono text-2xl font-semibold text-blueprint-900">
-            {section.filled}
-            <span className="text-base text-slate-400">/{section.total}</span>
-          </p>
-        </div>
-        <CompletenessRing pct={pct} className={ringColor} />
+    <div className="rounded-xl border border-ink-200/70 bg-white px-5 py-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[13px] font-medium text-ink-800">
+          {PROJECT_SECTION_LABELS[id]}
+        </p>
+        <p className="num text-sm text-ink-400">
+          {section.filled}/{section.total}
+        </p>
+      </div>
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-paper-100">
+        <div
+          className={`h-full rounded-full transition-all ${
+            allDone
+              ? "bg-emerald-500"
+              : pct >= 50
+                ? "bg-accent-500"
+                : "bg-ink-300"
+          }`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
       {missing.length === 0 ? (
-        <p className="mt-3 text-[11px] text-emerald-700">
-          All set — nothing missing here.
-        </p>
+        <p className="mt-4 text-[12px] text-emerald-700">All set.</p>
       ) : (
-        <ul className="mt-3 space-y-1">
-          {missing.slice(0, 4).map((c) => (
-            <li key={c.id} className="flex items-start gap-1.5 text-[11px]">
-              <span aria-hidden className="mt-0.5 text-slate-400">○</span>
+        <ul className="mt-4 space-y-1.5">
+          {missing.slice(0, 3).map((c) => (
+            <li key={c.id} className="text-[13px] leading-snug">
               {c.deepLink ? (
                 <Link
                   to={c.deepLink}
-                  className="text-slate-600 hover:text-blueprint-900"
+                  className="text-ink-600 hover:text-ink-900"
                 >
-                  {c.label}
+                  · {c.label}
                 </Link>
               ) : (
-                <span className="text-slate-600">{c.label}</span>
+                <span className="text-ink-600">· {c.label}</span>
               )}
             </li>
           ))}
-          {missing.length > 4 && (
-            <li className="text-[10px] text-slate-400">
-              +{missing.length - 4} more
+          {missing.length > 3 && (
+            <li className="text-[12px] text-ink-400">
+              +{missing.length - 3} more
             </li>
           )}
         </ul>
@@ -410,72 +422,26 @@ function CompletenessCard({
   );
 }
 
-function CompletenessRing({
-  pct,
-  className,
-}: {
-  pct: number;
-  className: string;
-}) {
-  const SIZE = 36;
-  const STROKE = 4;
-  const R = (SIZE - STROKE) / 2;
-  const C = 2 * Math.PI * R;
-  const offset = C * (1 - pct / 100);
-  return (
-    <svg width={SIZE} height={SIZE} className="shrink-0">
-      <circle
-        cx={SIZE / 2}
-        cy={SIZE / 2}
-        r={R}
-        fill="none"
-        stroke="#e6e9ef"
-        strokeWidth={STROKE}
-      />
-      <circle
-        cx={SIZE / 2}
-        cy={SIZE / 2}
-        r={R}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={STROKE}
-        strokeDasharray={C}
-        strokeDashoffset={offset}
-        strokeLinecap="round"
-        transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
-        className={className}
-      />
-      <text
-        x={SIZE / 2}
-        y={SIZE / 2 + 3}
-        textAnchor="middle"
-        fontSize={9}
-        fontFamily="ui-monospace, monospace"
-        fill="#475569"
-      >
-        {pct}%
-      </text>
-    </svg>
-  );
-}
+// ───────────────────────────────────── primitive ──────────────
 
-function Section({
+function SubSection({
   label,
+  hint,
   children,
 }: {
   label: string;
+  hint?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="relative pl-5">
-      <span
-        aria-hidden
-        className="absolute left-0 top-1 h-5 w-1 rounded-r bg-paper-200"
-      />
-      <h2 className="font-mono text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
-        {label}
-      </h2>
-      <div className="mt-3">{children}</div>
+    <section>
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 className="font-display text-xl font-normal tracking-tight text-ink-900">
+          {label}
+        </h2>
+        {hint && <p className="text-[13px] text-ink-500">{hint}</p>}
+      </div>
+      <div className="mt-5">{children}</div>
     </section>
   );
 }

@@ -190,7 +190,10 @@ export const proposalsRouter = router({
       let runningTotal = 0;
       const lineRows: typeof proposalLines.$inferInsert[] = [];
       const renderLines: ProposalRenderLine[] = [];
-      const markup = input.markupPct;
+      // Project-level fallback when a work_item has no per-row markup.
+      // Each line still resolves its own markup independently — the
+      // Plan is the editing surface for that.
+      const fallbackMarkup = input.markupPct;
 
       for (let i = 0; i < orderedItems.length; i++) {
         const w = orderedItems[i]!;
@@ -199,12 +202,18 @@ export const proposalsRouter = router({
           ? parseFloat(w.unitPriceAmount)
           : null;
 
-        // Precedence: per-item override → markup × internal unit → null.
+        // Precedence: per-item override → per-item markup → fallback
+        // markup. `clientMarkupPct` lives on the work_item so the Plan
+        // is the single editing surface for pricing.
+        const itemMarkup =
+          w.clientMarkupPct != null
+            ? parseFloat(w.clientMarkupPct)
+            : fallbackMarkup;
         let clientUnit: number | null = null;
         if (w.clientUnitPrice != null) {
           clientUnit = parseFloat(w.clientUnitPrice);
         } else if (internalUnit != null) {
-          clientUnit = internalUnit * (1 + markup / 100);
+          clientUnit = internalUnit * (1 + itemMarkup / 100);
         }
         const clientTotal =
           qty != null && clientUnit != null ? qty * clientUnit : null;
@@ -228,7 +237,7 @@ export const proposalsRouter = router({
           displayUnitPrice: clientUnit != null ? clientUnit.toFixed(2) : null,
           displayTotal: clientTotal != null ? clientTotal.toFixed(2) : null,
           currency: input.currency,
-          markupPctApplied: markup.toFixed(2),
+          markupPctApplied: itemMarkup.toFixed(2),
         });
 
         renderLines.push({
@@ -350,15 +359,15 @@ export const proposalsRouter = router({
         }
 
         // Snapshot the client_* fields back onto the work_items for
-        // dashboard math + future regenerations. Computed already; just
-        // write per-item.
+        // dashboard math + future regenerations. Each item keeps its
+        // own markup (from the Plan), not a single value.
         for (let i = 0; i < orderedItems.length; i++) {
           const w = orderedItems[i]!;
           const computed = lineRows[i]!;
           await tx
             .update(workItems)
             .set({
-              clientMarkupPct: markup.toFixed(2),
+              clientMarkupPct: computed.markupPctApplied,
               clientUnitPrice: computed.displayUnitPrice ?? null,
               clientTotal: computed.displayTotal ?? null,
               clientCurrency: input.currency,

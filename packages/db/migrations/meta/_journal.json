@@ -113,6 +113,41 @@
       "when": 1778603171432,
       "tag": "0015_romantic_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1778617770143,
+      "tag": "0016_known_nightshade",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1778619971493,
+      "tag": "0017_small_black_cat",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1778622359695,
+      "tag": "0018_young_catseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1778625967426,
+      "tag": "0019_motionless_risque",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1778626950263,
+      "tag": "0020_public_alex_power",
+      "breakpoints": true
     }
   ]
 }

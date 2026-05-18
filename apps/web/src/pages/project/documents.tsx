@@ -32,12 +32,11 @@ export default function ProjectDocuments() {
     <div>
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-blueprint-900">
+          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             Documents
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Project-scoped file library. Contracts, warranties, manufacturer
-            spec sheets, photos. Backed by Supabase Storage.
+          <p className="mt-1 text-sm text-ink-500">
+            Contracts, warranties, photos.
           </p>
         </div>
         <UploadButton projectId={project.id} />
@@ -48,7 +47,7 @@ export default function ProjectDocuments() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name or description…"
-          className="block w-full max-w-md rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
+          className="block w-full max-w-md rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
         />
       </div>
 
@@ -144,7 +143,7 @@ function UploadButton({ projectId }: { projectId: string }) {
         type="button"
         onClick={() => fileRef.current?.click()}
         disabled={busy}
-        className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+        className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800 disabled:opacity-50"
       >
         {busy
           ? state.phase === "creating"
@@ -191,22 +190,22 @@ function DocumentRowItem({ doc }: { doc: DocumentRow }) {
             {doc.name}
           </button>
           {doc.room && (
-            <span className="font-mono text-[10px] uppercase tracking-wide text-slate-400">
+            <span className="text-[10px] uppercase tracking-wide text-slate-400">
               · {doc.room.name}
             </span>
           )}
           {doc.asset && (
-            <span className="font-mono text-[10px] uppercase tracking-wide text-slate-400">
+            <span className="text-[10px] uppercase tracking-wide text-slate-400">
               · asset {doc.asset.name}
             </span>
           )}
           {doc.material && (
-            <span className="font-mono text-[10px] uppercase tracking-wide text-slate-400">
+            <span className="text-[10px] uppercase tracking-wide text-slate-400">
               · material {doc.material.name}
             </span>
           )}
         </div>
-        <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] uppercase tracking-wider text-slate-400">
+        <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] uppercase tracking-wider text-slate-400">
           <span>{prettyBytes(doc.sizeBytes)}</span>
           <span>{doc.mimeType}</span>
           <span>uploaded {fmt.date(doc.createdAt)}</span>
