@@ -1,12 +1,19 @@
 import { randomBytes } from "node:crypto";
 import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { auditLog, getDb, invitations, orgMemberships } from "@beamy/db";
+import { auditLog, getDb, invitations, orgMemberships, orgs } from "@beamy/db";
 import {
+  inviteAcceptInputSchema,
   inviteCreateInputSchema,
   inviteIdInputSchema,
 } from "@beamy/shared";
-import { orgAdminProcedure, orgScopedProcedure, router } from "../init";
+import {
+  orgAdminProcedure,
+  orgScopedProcedure,
+  protectedProcedure,
+  publicProcedure,
+  router,
+} from "../init";
 
 /**
  * `members` router — manage who's in the org.
@@ -106,6 +113,113 @@ export const membersRouter = router({
           payload: { email: existing[0].email, role: existing[0].role },
         });
         return { ok: true as const };
+      });
+    }),
+
+  /**
+   * Preview an invite by token WITHOUT consuming it. Public so the redeem
+   * page can show "Join <Org> as <role>" before the invitee has signed in.
+   * Returns no secrets — the unguessable token is itself the access grant.
+   */
+  peekInvitation: publicProcedure
+    .input(inviteAcceptInputSchema)
+    .query(async ({ input }) => {
+      const db = getDb();
+      const [inv] = await db
+        .select()
+        .from(invitations)
+        .where(eq(invitations.token, input.token))
+        .limit(1);
+      if (!inv) return { valid: false as const, reason: "not_found" as const };
+      if (inv.acceptedAt)
+        return { valid: false as const, reason: "used" as const };
+      if (inv.expiresAt.getTime() <= Date.now())
+        return { valid: false as const, reason: "expired" as const };
+
+      const [org] = await db
+        .select({ name: orgs.name })
+        .from(orgs)
+        .where(eq(orgs.id, inv.orgId))
+        .limit(1);
+      return {
+        valid: true as const,
+        orgName: org?.name ?? "the workspace",
+        role: inv.role,
+        email: inv.email,
+      };
+    }),
+
+  /**
+   * Redeem an invite token into a real org membership. On `protectedProcedure`
+   * (not org-scoped) because the caller is authenticated but — by definition —
+   * not yet a member of any org. Enforces the v1 invariant (1 user → 1 org,
+   * D-12) and marks the invitation consumed in the same transaction.
+   */
+  accept: protectedProcedure
+    .input(inviteAcceptInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        const [inv] = await tx
+          .select()
+          .from(invitations)
+          .where(eq(invitations.token, input.token))
+          .limit(1);
+        if (!inv)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "We didn't recognize that invite.",
+          });
+        if (inv.acceptedAt)
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "That invite has already been used.",
+          });
+        if (inv.expiresAt.getTime() <= Date.now())
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "That invite has expired. Ask your admin for a new one.",
+          });
+
+        // v1 invariant (D-12): one user → one org. Refuse a second membership.
+        const existing = await tx
+          .select({ id: orgMemberships.id })
+          .from(orgMemberships)
+          .where(eq(orgMemberships.userId, ctx.userId))
+          .limit(1);
+        if (existing[0])
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "You already belong to a workspace.",
+          });
+
+        const [membership] = await tx
+          .insert(orgMemberships)
+          .values({
+            userId: ctx.userId,
+            orgId: inv.orgId,
+            role: inv.role,
+            invitedByUserId: inv.invitedByUserId,
+          })
+          .returning();
+        if (!membership)
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        await tx
+          .update(invitations)
+          .set({ acceptedAt: new Date(), acceptedByUserId: ctx.userId })
+          .where(eq(invitations.id, inv.id));
+
+        await tx.insert(auditLog).values({
+          orgId: inv.orgId,
+          actor: ctx.actor,
+          action: "invitation.accepted",
+          resourceType: "org_membership",
+          resourceId: membership.id,
+          payload: { invitationId: inv.id, email: inv.email, role: inv.role },
+        });
+
+        return { orgId: inv.orgId, role: inv.role };
       });
     }),
 });

@@ -25,3 +25,13 @@ export const inviteIdInputSchema = z.object({
   id: z.string().uuid(),
 });
 export type InviteIdInput = z.infer<typeof inviteIdInputSchema>;
+
+/**
+ * Redeeming / previewing an invite by its token. The token is the random
+ * secret minted in `members.invite`; possession is the authorization (the
+ * caller may not be a member of any org yet). Used by the invite-redeem page.
+ */
+export const inviteAcceptInputSchema = z.object({
+  token: z.string().trim().min(1).max(500),
+});
+export type InviteAcceptInput = z.infer<typeof inviteAcceptInputSchema>;
