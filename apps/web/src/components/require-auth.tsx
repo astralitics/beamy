@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { supabaseConfigured } from "../lib/supabase";
 
@@ -10,9 +10,11 @@ import { supabaseConfigured } from "../lib/supabase";
  */
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
+  const location = useLocation();
 
   if (!supabaseConfigured) return <>{children}</>;
   if (loading) return null;
-  if (!session) return <Navigate to="/login" replace />;
+  if (!session)
+    return <Navigate to="/login" replace state={{ from: location }} />;
   return <>{children}</>;
 }

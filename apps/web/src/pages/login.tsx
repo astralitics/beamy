@@ -1,26 +1,64 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { trpc } from "../lib/trpc";
 
-type Mode = "signin" | "signup";
+/**
+ * LoginPage — invite-only, mirroring petfactory's LoginPage.
+ *
+ * Sign in only: Google or email/password. There is NO self-serve workspace
+ * creation here — joining a workspace happens through an invite (see
+ * `/invite/:token` + `/redeem`). The first workspace is bootstrapped from the
+ * unlinked `/register` route.
+ *
+ * Banners are driven by URL params, like petfactory:
+ *   ?error=not_authorized   — signed in but not in a workspace
+ *   ?invite=used|expired|not_found — a redeem attempt that didn't take
+ */
+type LocationState = { from?: { pathname: string } };
+
+const ERROR_BANNER: Record<string, { tone: "amber" | "rose"; text: string }> = {
+  not_authorized: {
+    tone: "rose",
+    text: "This email isn't in a workspace yet. Ask an admin to send you an invite.",
+  },
+};
+
+const INVITE_BANNER: Record<string, { tone: "amber" | "rose"; text: string }> = {
+  used: {
+    tone: "amber",
+    text: "That invite was already used. Ask your admin for a new one.",
+  },
+  expired: {
+    tone: "amber",
+    text: "That invite has expired. Ask your admin for a new one.",
+  },
+  not_found: {
+    tone: "rose",
+    text: "We didn't recognize that invite link.",
+  },
+};
 
 export default function LoginPage() {
   const { session, loading } = useAuth();
-  const [mode, setMode] = useState<Mode>("signin");
+  const location = useLocation();
+  const [params] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [orgName, setOrgName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const navigate = useNavigate();
 
-  const utils = trpc.useUtils();
-  const createOrg = trpc.orgs.create.useMutation();
+  const errorNotice = params.get("error");
+  const inviteNotice = params.get("invite");
+  const banner =
+    (errorNotice ? ERROR_BANNER[errorNotice] : undefined) ??
+    (inviteNotice ? INVITE_BANNER[inviteNotice] : undefined);
 
-  // Already signed in? Bounce home.
-  if (!loading && session) return <Navigate to="/" replace />;
+  // Already signed in? Bounce to where they were headed (or home).
+  if (!loading && session) {
+    const to = (location.state as LocationState | null)?.from?.pathname ?? "/";
+    return <Navigate to={to} replace />;
+  }
 
   if (!supabaseConfigured) {
     return (
@@ -42,30 +80,14 @@ export default function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      if (mode === "signup") {
-        const { error: suErr } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-        });
-        if (suErr) throw suErr;
-        // Default org name = "<local-part>'s Workspace" if blank.
-        const localPart = email.split("@")[0] ?? "my";
-        const name = orgName.trim() || `${localPart}'s Workspace`;
-        const slug = slugify(name);
-        await createOrg.mutateAsync({ name, slug });
-        await utils.invalidate();
-        navigate("/", { replace: true });
-      } else {
-        const { error: siErr } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
-        if (siErr) throw siErr;
-        await utils.invalidate();
-        navigate("/", { replace: true });
-      }
+      const { error: siErr } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (siErr) throw siErr;
+      // Auth state change → session → the redirect above takes over.
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof Error ? err.message : "Couldn't sign in.");
     } finally {
       setSubmitting(false);
     }
@@ -97,6 +119,18 @@ export default function LoginPage() {
         The operating system for small construction & design agencies.
       </p>
 
+      {banner && (
+        <div
+          className={`mt-6 rounded-md border px-3 py-2 text-xs ${
+            banner.tone === "amber"
+              ? "border-amber-200 bg-amber-50 text-amber-900"
+              : "border-rose-200 bg-rose-50 text-rose-800"
+          }`}
+        >
+          {banner.text}
+        </div>
+      )}
+
       <button
         type="button"
         onClick={signInWithGoogle}
@@ -113,16 +147,7 @@ export default function LoginPage() {
         <span className="h-px flex-1 bg-slate-200" />
       </div>
 
-      <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5 text-sm">
-        <TabButton active={mode === "signin"} onClick={() => setMode("signin")}>
-          Sign in
-        </TabButton>
-        <TabButton active={mode === "signup"} onClick={() => setMode("signup")}>
-          Create workspace
-        </TabButton>
-      </div>
-
-      <form onSubmit={onSubmit} className="mt-4 space-y-3">
+      <form onSubmit={onSubmit} className="space-y-3">
         <Field label="Email">
           <input
             type="email"
@@ -142,63 +167,27 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className={inputCls}
-            autoComplete={
-              mode === "signup" ? "new-password" : "current-password"
-            }
+            autoComplete="current-password"
           />
         </Field>
-        {mode === "signup" && (
-          <Field label="Workspace name (optional)">
-            <input
-              value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-              className={inputCls}
-              placeholder="Anderson Construction"
-            />
-          </Field>
-        )}
         {error && <p className="text-sm text-rose-700">{error}</p>}
         <button
           type="submit"
           disabled={submitting}
           className="mt-2 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {submitting
-            ? "Working…"
-            : mode === "signup"
-              ? "Create workspace"
-              : "Sign in"}
+          {submitting ? "Working…" : "Sign in"}
         </button>
       </form>
+
+      <p className="mt-8 text-xs text-slate-400">
+        First time here? Ask an admin for an invite.
+      </p>
     </div>
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded px-3 py-1 text-sm ${
-        active
-          ? "bg-slate-900 text-white"
-          : "text-slate-600 hover:text-slate-900"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Field({
+export function Field({
   label,
   children,
 }: {
@@ -213,7 +202,7 @@ function Field({
   );
 }
 
-const inputCls =
+export const inputCls =
   "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
 
 function GoogleIcon() {
@@ -237,12 +226,4 @@ function GoogleIcon() {
       />
     </svg>
   );
-}
-
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
 }
