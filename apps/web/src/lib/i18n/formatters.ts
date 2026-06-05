@@ -9,8 +9,23 @@ export function formatDate(
   locale: string,
   style: Intl.DateTimeFormatOptions["dateStyle"] = "medium",
 ): string {
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = parseLocalDate(date);
   return new Intl.DateTimeFormat(locale, { dateStyle: style }).format(d);
+}
+
+/**
+ * Parse a date input without the UTC off-by-one. A bare "YYYY-MM-DD"
+ * (our Postgres `date` columns) is constructed at LOCAL midnight so it
+ * renders as the same calendar day everywhere — `new Date("2026-05-20")`
+ * parses as UTC midnight, which formats to the prior day in any
+ * negative-UTC timezone. Full datetime strings + Date objects pass
+ * through unchanged.
+ */
+function parseLocalDate(date: Date | string): Date {
+  if (typeof date !== "string") return date;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) return new Date(date);
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
 
 export function formatDateTime(
