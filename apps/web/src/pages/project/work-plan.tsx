@@ -77,7 +77,7 @@ const STATUS_PILL_CLS: Record<WorkItemStatus, string> = {
   cancelled: "bg-rose-50 text-rose-700 ring-rose-200",
 };
 
-type PlanView = "table" | "rooms" | "timeline";
+type PlanView = "table" | "rooms" | "timeline" | "calendar";
 
 type PhaseLens = "proposal" | "execution" | null;
 
@@ -98,20 +98,22 @@ function readUrlDefaults(search: URLSearchParams): {
   const phase = search.get("phase");
   if (phase === "proposal") {
     return {
-      view: view === "timeline" || view === "rooms" ? view : "table",
+      view: ["timeline", "rooms", "calendar"].includes(view) ? view : "table",
       statusFilter: "scope_active",
       lens: "proposal",
     };
   }
   if (phase === "execution") {
     return {
-      view: view === "timeline" || view === "rooms" ? view : "table",
+      view: ["timeline", "rooms", "calendar"].includes(view) ? view : "table",
       statusFilter: "execution_active",
       lens: "execution",
     };
   }
   return {
-    view: ["table", "rooms", "timeline"].includes(view) ? view : "table",
+    view: ["table", "rooms", "timeline", "calendar"].includes(view)
+      ? view
+      : "table",
     statusFilter: "open",
     lens: null,
   };
@@ -225,19 +227,6 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
     }
     return m;
   }, [depsByItem, allItemsById]);
-
-  const totalsByCurrency = useMemo(() => {
-    const acc = new Map<string, number>();
-    for (const w of filtered) {
-      if (w.totalAmount && w.totalCurrency) {
-        acc.set(
-          w.totalCurrency,
-          (acc.get(w.totalCurrency) ?? 0) + parseFloat(w.totalAmount),
-        );
-      }
-    }
-    return acc;
-  }, [filtered]);
 
   return (
     <div>
@@ -404,6 +393,8 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             blockedByItem={blockedByItem}
             onEdit={setEditing}
           />
+        ) : view === "calendar" ? (
+          <CalendarView items={filtered} onEdit={setEditing} />
         ) : (
           <WorkItemsTable
             items={filtered}
@@ -412,30 +403,8 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             onEdit={setEditing}
           />
         )}
-
-        {filtered.length > 0 && totalsByCurrency.size > 0 && (
-          <div className="mt-3 flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[10px] uppercase tracking-wider text-slate-500">
-            <span>filtered total ·</span>
-            {Array.from(totalsByCurrency.entries()).map(([cur, amt]) => (
-              <SubtotalChip key={cur} amount={amt.toFixed(2)} currency={cur} />
-            ))}
-          </div>
-        )}
       </div>
     </div>
-  );
-}
-
-function SubtotalChip({
-  amount,
-  currency,
-}: {
-  amount: string;
-  currency: string;
-}) {
-  const fmt = useFormatters();
-  return (
-    <span className="text-slate-700">{fmt.currency(amount, currency)}</span>
   );
 }
 
@@ -450,6 +419,7 @@ function ViewToggle({
     { value: "table", label: "Table" },
     { value: "rooms", label: "By room" },
     { value: "timeline", label: "Timeline" },
+    { value: "calendar", label: "Calendar" },
   ];
   return (
     <div className="inline-flex rounded-md border border-paper-200 bg-white p-0.5 text-xs">
@@ -561,7 +531,6 @@ function ScopeByRoom({
                 <th className="px-3 py-1.5">Ref</th>
                 <th className="px-3 py-1.5">Description</th>
                 <th className="px-3 py-1.5 text-right">Qty</th>
-                <th className="px-3 py-1.5 text-right">Total</th>
                 <th className="px-3 py-1.5">Status</th>
                 <th className="px-3 py-1.5"></th>
               </tr>
@@ -595,7 +564,6 @@ function ScopeByRoomRow({
   blockedBy: WorkItemRow[] | null;
   onEdit: () => void;
 }) {
-  const fmt = useFormatters();
   const otherRooms =
     currentRoomId == null
       ? []
@@ -648,23 +616,6 @@ function ScopeByRoomRow({
           ? `${trimQty(item.qty)}${item.unit ? ` ${item.unit}` : ""}`
           : "—"}
       </td>
-      <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px] font-medium text-blueprint-900">
-        {item.totalAmount && item.totalCurrency
-          ? fmt.currency(item.totalAmount, item.totalCurrency)
-          : "—"}
-        {item.clientMarkupPct && parseFloat(item.clientMarkupPct) > 0 && (
-          <span
-            className="ml-2 inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"
-            title={
-              item.totalAmount && item.totalCurrency
-                ? `Client price: ${fmt.currency((parseFloat(item.totalAmount) * (1 + parseFloat(item.clientMarkupPct) / 100)).toFixed(2), item.totalCurrency)}`
-                : undefined
-            }
-          >
-            +{trimQty(item.clientMarkupPct)}%
-          </span>
-        )}
-      </td>
       <td className="px-3 py-2">
         <span
           className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[item.status]}`}
@@ -705,8 +656,6 @@ function WorkItemsTable({
             <th className="px-3 py-2">Ref</th>
             <th className="px-3 py-2">Description</th>
             <th className="px-3 py-2 text-right">Qty</th>
-            <th className="px-3 py-2 text-right">Unit price</th>
-            <th className="px-3 py-2 text-right">Total</th>
             <th className="px-3 py-2">Status</th>
             <th className="px-3 py-2">Planned end</th>
             <th className="px-3 py-2"></th>
@@ -810,28 +759,6 @@ function WorkItemRowItem({
       </td>
       <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px] text-slate-700">
         {item.qty ? `${trimQty(item.qty)}${item.unit ? ` ${item.unit}` : ""}` : "—"}
-      </td>
-      <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px] text-slate-700">
-        {item.unitPriceAmount && item.unitPriceCurrency
-          ? fmt.currency(item.unitPriceAmount, item.unitPriceCurrency)
-          : "—"}
-      </td>
-      <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px] font-medium text-blueprint-900">
-        {item.totalAmount && item.totalCurrency
-          ? fmt.currency(item.totalAmount, item.totalCurrency)
-          : "—"}
-        {item.clientMarkupPct && parseFloat(item.clientMarkupPct) > 0 && (
-          <span
-            className="ml-2 inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"
-            title={
-              item.totalAmount && item.totalCurrency
-                ? `Client price: ${fmt.currency((parseFloat(item.totalAmount) * (1 + parseFloat(item.clientMarkupPct) / 100)).toFixed(2), item.totalCurrency)}`
-                : undefined
-            }
-          >
-            +{trimQty(item.clientMarkupPct)}%
-          </span>
-        )}
       </td>
       <td className="px-3 py-2">
         <span
@@ -1171,6 +1098,224 @@ const STATUS_BAR_STROKE: Record<WorkItemStatus, string> = {
   cancelled: "#fecaca",
 };
 
+// ───────────────────────────────────── calendar view ─────────
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Primary calendar date: planned end (deadline), falling back to start. */
+function planDate(w: WorkItemRow): string | null {
+  return w.plannedEnd ?? w.plannedStart ?? null;
+}
+
+function ymd(year: number, month: number, day: number): string {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/**
+ * Calendar — work items placed on a month grid by their planned date
+ * (deadline; falls back to start). Click a chip to open the editor.
+ * Items with no planned dates list in an "Unscheduled" panel below.
+ * Prev / Today / Next navigate months.
+ *
+ * Deadline-based placement (one cell per item), not multi-day span
+ * bars — a clean "what's due when" read. Spans are a follow-up.
+ */
+function CalendarView({
+  items,
+  onEdit,
+}: {
+  items: WorkItemRow[];
+  onEdit: (w: WorkItemRow) => void;
+}) {
+  const { byDate, unscheduled, firstDate } = useMemo(() => {
+    const byDate = new Map<string, WorkItemRow[]>();
+    const unscheduled: WorkItemRow[] = [];
+    let firstDate: string | null = null;
+    for (const w of items) {
+      const d = planDate(w);
+      if (!d) {
+        unscheduled.push(w);
+        continue;
+      }
+      const arr = byDate.get(d) ?? [];
+      arr.push(w);
+      byDate.set(d, arr);
+      if (!firstDate || d < firstDate) firstDate = d;
+    }
+    return { byDate, unscheduled, firstDate };
+  }, [items]);
+
+  // Cursor month — initialised to the earliest scheduled item's month,
+  // else the current month. Only the initial value is read.
+  const [cursor, setCursor] = useState(() => {
+    const base = firstDate ?? new Date().toISOString().slice(0, 10);
+    const [ys, ms] = base.split("-");
+    return { year: Number(ys), month: Number(ms) - 1 }; // month 0-indexed
+  });
+
+  // 6-week (42-cell) grid starting on the Sunday on/before the 1st.
+  const cells = useMemo(() => {
+    const first = new Date(cursor.year, cursor.month, 1);
+    const start = new Date(cursor.year, cursor.month, 1 - first.getDay());
+    return Array.from({ length: 42 }, (_, i) => {
+      const dt = new Date(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate() + i,
+      );
+      return {
+        date: ymd(dt.getFullYear(), dt.getMonth(), dt.getDate()),
+        day: dt.getDate(),
+        inMonth: dt.getMonth() === cursor.month,
+      };
+    });
+  }, [cursor]);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const monthLabel = new Date(cursor.year, cursor.month, 1).toLocaleDateString(
+    undefined,
+    { month: "long", year: "numeric" },
+  );
+
+  function shiftMonth(delta: number) {
+    setCursor((c) => {
+      const dt = new Date(c.year, c.month + delta, 1);
+      return { year: dt.getFullYear(), month: dt.getMonth() };
+    });
+  }
+  function goToday() {
+    const n = new Date();
+    setCursor({ year: n.getFullYear(), month: n.getMonth() });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-blueprint-900">
+          {monthLabel}
+        </h3>
+        <div className="inline-flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => shiftMonth(-1)}
+            className="rounded-md border border-paper-200 px-2 py-1 text-xs text-slate-600 hover:bg-paper-50"
+            aria-label="Previous month"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={goToday}
+            className="rounded-md border border-paper-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-paper-50"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={() => shiftMonth(1)}
+            className="rounded-md border border-paper-200 px-2 py-1 text-xs text-slate-600 hover:bg-paper-50"
+            aria-label="Next month"
+          >
+            ›
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
+        <div className="grid grid-cols-7 border-b border-paper-200 bg-paper-50">
+          {WEEKDAY_LABELS.map((d) => (
+            <div
+              key={d}
+              className="px-2 py-1.5 text-center text-[10px] font-medium uppercase tracking-wider text-slate-500"
+            >
+              {d}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {cells.map((cell) => {
+            const dayItems = byDate.get(cell.date) ?? [];
+            const isToday = cell.date === todayStr;
+            return (
+              <div
+                key={cell.date}
+                className={`min-h-[96px] border-b border-r border-paper-100 p-1 ${
+                  cell.inMonth ? "bg-white" : "bg-paper-50/40"
+                }`}
+              >
+                <div className="mb-1 flex justify-end">
+                  <span
+                    className={`inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[11px] ${
+                      isToday
+                        ? "bg-safety-700 font-semibold text-white"
+                        : cell.inMonth
+                          ? "text-slate-600"
+                          : "text-slate-300"
+                    }`}
+                  >
+                    {cell.day}
+                  </span>
+                </div>
+                <div className="space-y-0.5">
+                  {dayItems.slice(0, 3).map((w) => (
+                    <button
+                      key={w.id}
+                      type="button"
+                      onClick={() => onEdit(w)}
+                      title={`${w.ref ? `${w.ref} · ` : ""}${w.description}`}
+                      className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] ring-1 ring-inset ${STATUS_PILL_CLS[w.status]}`}
+                    >
+                      {w.ref ? `${w.ref} · ` : ""}
+                      {w.description}
+                    </button>
+                  ))}
+                  {dayItems.length > 3 && (
+                    <div className="px-1 text-[9px] text-slate-400">
+                      +{dayItems.length - 3} more
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {unscheduled.length > 0 && (
+        <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
+          <div className="border-b border-paper-200 bg-paper-50 px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
+            Unscheduled · {unscheduled.length} item
+            {unscheduled.length === 1 ? "" : "s"} — no planned dates
+          </div>
+          <ul className="divide-y divide-paper-200 text-sm">
+            {unscheduled.map((w) => (
+              <li key={w.id} className="flex items-baseline gap-2 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => onEdit(w)}
+                  className="text-left text-blueprint-900 hover:underline"
+                >
+                  {w.ref && (
+                    <span className="mr-2 font-mono text-[11px] text-slate-500">
+                      {w.ref}
+                    </span>
+                  )}
+                  {w.description}
+                </button>
+                <span
+                  className={`ml-auto inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide ring-1 ring-inset ${STATUS_PILL_CLS[w.status]}`}
+                >
+                  {WORK_ITEM_STATUS_LABELS[w.status].toLowerCase()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ───────────────────────────────────── work item form ────────
 
 function WorkItemForm({
@@ -1201,19 +1346,6 @@ function WorkItemForm({
   );
   const [qty, setQty] = useState(existing?.qty ?? "");
   const [unit, setUnit] = useState(existing?.unit ?? "");
-  const [unitPriceAmount, setUnitPriceAmount] = useState(
-    existing?.unitPriceAmount ?? "",
-  );
-  const [unitPriceCurrency, setUnitPriceCurrency] = useState(
-    existing?.unitPriceCurrency ?? "MXN",
-  );
-  const [totalAmount, setTotalAmount] = useState(existing?.totalAmount ?? "");
-  const [totalCurrency, setTotalCurrency] = useState(
-    existing?.totalCurrency ?? existing?.unitPriceCurrency ?? "MXN",
-  );
-  const [clientMarkupPct, setClientMarkupPct] = useState(
-    existing?.clientMarkupPct ?? "",
-  );
   const [status, setStatus] = useState<WorkItemStatus>(
     existing?.status ?? "specified",
   );
@@ -1241,18 +1373,6 @@ function WorkItemForm({
   });
   const submitting = create.isPending || update.isPending;
 
-  // Auto-compute total from qty × unit_price when both present and
-  // total hasn't been manually overridden. Only fires on blur to
-  // avoid fighting the user mid-typing.
-  function autoTotal() {
-    const q = parseFloat(qty);
-    const u = parseFloat(unitPriceAmount);
-    if (!isFinite(q) || !isFinite(u)) return;
-    if (totalAmount.trim()) return; // user has set their own
-    setTotalAmount((q * u).toFixed(2));
-    if (!totalCurrency) setTotalCurrency(unitPriceCurrency);
-  }
-
   function toggleRoom(id: string) {
     setRoomIds((prev) =>
       prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id],
@@ -1263,19 +1383,6 @@ function WorkItemForm({
     e.preventDefault();
     setError(null);
 
-    const up = unitPriceAmount.trim();
-    const upc = unitPriceCurrency.trim();
-    const tot = totalAmount.trim();
-    const totc = totalCurrency.trim();
-    if ((up && !upc) || (!up && upc)) {
-      setError("Unit price + currency must be set together.");
-      return;
-    }
-    if ((tot && !totc) || (!tot && totc)) {
-      setError("Total + currency must be set together.");
-      return;
-    }
-
     const base = {
       description: description.trim(),
       trade: trade.trim() || undefined,
@@ -1284,11 +1391,6 @@ function WorkItemForm({
       roomIds,
       qty: qty.trim() || undefined,
       unit: unit.trim() || undefined,
-      unitPriceAmount: up || undefined,
-      unitPriceCurrency: up ? upc : undefined,
-      totalAmount: tot || undefined,
-      totalCurrency: tot ? totc : undefined,
-      clientMarkupPct: clientMarkupPct.trim() || undefined,
       status,
       plannedStart: plannedStart || undefined,
       plannedEnd: plannedEnd || undefined,
@@ -1399,7 +1501,6 @@ function WorkItemForm({
             <input
               value={qty}
               onChange={(e) => setQty(e.target.value)}
-              onBlur={autoTotal}
               className={`${inputCls} !w-auto flex-1`}
               placeholder="1, 24, 12.5"
               inputMode="decimal"
@@ -1411,52 +1512,6 @@ function WorkItemForm({
               placeholder="ea, m², ml"
             />
           </div>
-        </Field>
-        <Field label="Unit price">
-          <div className="flex gap-2">
-            <input
-              value={unitPriceAmount}
-              onChange={(e) => setUnitPriceAmount(e.target.value)}
-              onBlur={autoTotal}
-              className={`${inputCls} !w-auto flex-1`}
-              placeholder="1250.00"
-              inputMode="decimal"
-            />
-            <input
-              value={unitPriceCurrency}
-              onChange={(e) =>
-                setUnitPriceCurrency(e.target.value.toUpperCase())
-              }
-              className={`${inputCls} !w-24 uppercase text-center tracking-wider`}
-              maxLength={3}
-            />
-          </div>
-        </Field>
-        <Field label="Total">
-          <div className="flex gap-2">
-            <input
-              value={totalAmount}
-              onChange={(e) => setTotalAmount(e.target.value)}
-              className={`${inputCls} !w-auto flex-1`}
-              placeholder="auto from qty × unit price"
-              inputMode="decimal"
-            />
-            <input
-              value={totalCurrency}
-              onChange={(e) => setTotalCurrency(e.target.value.toUpperCase())}
-              className={`${inputCls} !w-24 uppercase text-center tracking-wider`}
-              maxLength={3}
-            />
-          </div>
-        </Field>
-        <Field label="Client markup %">
-          <input
-            value={clientMarkupPct}
-            onChange={(e) => setClientMarkupPct(e.target.value)}
-            className={inputCls}
-            placeholder="20"
-            inputMode="decimal"
-          />
         </Field>
         <Field label="Planned start">
           <input
