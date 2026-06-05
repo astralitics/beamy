@@ -232,16 +232,26 @@ function InvitationItem({
 
 // ────────────────────── invite modal ──────────────────────
 
+/**
+ * Two-state invite modal, mirroring petfactory's NewInviteModal → "Invite
+ * ready" flow: fill the form, create, then immediately surface the shareable
+ * link with a Copy button (instead of silently closing). The invitee joins by
+ * signing in with the invited email — the email-whitelist gate (`me.authorize`)
+ * auto-provisions them, so the link just routes them to sign-in.
+ */
+type CreatedInvite = { email: string; role: InviteRole; token: string };
+
 function InviteModal({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<InviteRole>("member");
   const [error, setError] = useState<string | null>(null);
+  const [created, setCreated] = useState<CreatedInvite | null>(null);
 
   const utils = trpc.useUtils();
   const invite = trpc.members.invite.useMutation({
-    onSuccess: () => {
+    onSuccess: (row) => {
       utils.members.listInvitations.invalidate();
-      onClose();
+      setCreated({ email: row.email, role: row.role, token: row.token });
     },
     onError: (err) => setError(err.message),
   });
@@ -257,58 +267,135 @@ function InviteModal({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
       onClick={onClose}
     >
-      <form
-        onSubmit={onSubmit}
+      <div
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
       >
-        <h2 className="text-lg font-semibold tracking-tight">Invite member</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          The invitee gets a unique link valid for 7 days. (Email delivery
-          lands once email integration ships — for now copy the link from the
-          pending list and share it manually.)
-        </p>
-        <div className="mt-4 space-y-3">
-          <Field label="Email *">
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputCls}
-              autoFocus
-              placeholder="teammate@example.com"
-            />
-          </Field>
-          <Field label="Role">
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as InviteRole)}
-              className={selectCls}
-            >
-              <option value="member">Member</option>
-              <option value="admin">Admin</option>
-            </select>
-          </Field>
-        </div>
-        {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={invite.isPending}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            {invite.isPending ? "Sending…" : "Send invite"}
-          </button>
-        </div>
-      </form>
+        {created ? (
+          <>
+            <h2 className="text-lg font-semibold tracking-tight">Invite ready</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              <span className="font-medium text-slate-900">{created.email}</span>{" "}
+              joins as {ROLE_LABELS[created.role]} the moment they sign in with
+              that email — Google or email/password. Send them this link:
+            </p>
+            <div className="mt-4">
+              <CopyField
+                label="Invite link"
+                value={`${window.location.origin}/invite/${created.token}`}
+              />
+            </div>
+            <p className="mt-3 text-xs text-slate-400">
+              No code to type — they're added automatically once they
+              authenticate with <code>{created.email}</code>. Valid for 7 days.
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCreated(null);
+                  setEmail("");
+                  setRole("member");
+                }}
+                className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
+              >
+                Invite another
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Done
+              </button>
+            </div>
+          </>
+        ) : (
+          <form onSubmit={onSubmit}>
+            <h2 className="text-lg font-semibold tracking-tight">Invite member</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              They join automatically when they sign in with this email — no
+              code to type. You'll get a shareable link next.
+            </p>
+            <div className="mt-4 space-y-3">
+              <Field label="Email *">
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={inputCls}
+                  autoFocus
+                  placeholder="teammate@example.com"
+                />
+              </Field>
+              <Field label="Role">
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as InviteRole)}
+                  className={selectCls}
+                >
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </Field>
+            </div>
+            {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={invite.isPending}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                {invite.isPending ? "Creating…" : "Create invite"}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Read-only field with a Copy button — petfactory's CopyField. */
+function CopyField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+        {label}
+      </label>
+      <div className="flex items-stretch gap-2">
+        <input
+          type="text"
+          readOnly
+          value={value}
+          onFocus={(e) => e.target.select()}
+          className="min-w-0 flex-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            void navigator.clipboard.writeText(value);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1400);
+          }}
+          className={`shrink-0 rounded-md border px-3 text-xs font-medium transition-colors ${
+            copied
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
     </div>
   );
 }
