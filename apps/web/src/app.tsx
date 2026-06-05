@@ -5,6 +5,7 @@ import { OrgGate } from "./components/org-gate";
 import HomePage from "./pages/home";
 import ClientsPage from "./pages/clients";
 import LoginPage from "./pages/login";
+import RegisterPage from "./pages/register";
 import RedeemInvitePage from "./pages/redeem";
 import ProjectsPage from "./pages/projects";
 import ProjectShell from "./pages/project/shell";
@@ -39,6 +40,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route path="/invite/:token" element={<RedeemInvitePage />} />
       <Route path="/redeem" element={<RedeemInvitePage />} />
       <Route
