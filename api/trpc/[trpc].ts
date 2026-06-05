@@ -1,18 +1,14 @@
-import { handleTrpcRequest } from "@beamy/trpc";
-
 /**
  * Production tRPC API for any Vercel deploy (e.g. beamy-staging).
  *
- * Vercel Node runtime, Web `fetch` handler form. The real logic lives in
- * @beamy/trpc (packages/trpc/src/fetch-handler.ts) so it's shared + typechecked.
+ * The handler is esbuild-bundled into ./_bundle.mjs at build time
+ * (scripts/build-api.mjs) — a self-contained ESM file with @beamy/* inlined.
+ * Importing @beamy/trpc directly here fails on Vercel: the monorepo packages
+ * use extensionless, bundler-style relative imports that Node's native ESM
+ * loader rejects (TS2835 / ERR_MODULE_NOT_FOUND). Bundling sidesteps it.
  *
- * Node runtime — NOT Edge — because @beamy/db opens a TCP postgres connection.
- * Set DATABASE_URL to Supabase's transaction pooler (port 6543); getDb()
- * already passes `prepare: false`, which transaction pooling requires.
- *
- * Dev does not use this file — apps/web/vite.config.ts serves /api/trpc as
- * Vite middleware (with a dev-user fallback this path intentionally omits).
+ * Node runtime (not Edge) — @beamy/db opens a TCP postgres connection;
+ * DATABASE_URL points at Supabase's transaction pooler (6543).
+ * Dev still uses the Vite middleware in apps/web/vite.config.ts.
  */
-export default {
-  fetch: handleTrpcRequest,
-};
+export { default } from "./_bundle.mjs";
