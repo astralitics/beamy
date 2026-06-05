@@ -15,6 +15,9 @@
     "db:migrate": "pnpm --filter @beamy/db migrate",
     "db:seed": "pnpm --filter @beamy/db seed"
   },
+  "dependencies": {
+    "@beamy/trpc": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "typescript": "^5.7.2"

@@ -1,9 +1,11 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import { Sidebar } from "./components/sidebar";
 import { RequireAuth } from "./components/require-auth";
+import { OrgGate } from "./components/org-gate";
 import HomePage from "./pages/home";
 import ClientsPage from "./pages/clients";
 import LoginPage from "./pages/login";
+import RedeemInvitePage from "./pages/redeem";
 import ProjectsPage from "./pages/projects";
 import ProjectShell from "./pages/project/shell";
 import ProjectOverview from "./pages/project/overview";
@@ -37,11 +39,15 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/invite/:token" element={<RedeemInvitePage />} />
+      <Route path="/redeem" element={<RedeemInvitePage />} />
       <Route
         path="/*"
         element={
           <RequireAuth>
-            <AppShell />
+            <OrgGate>
+              <AppShell />
+            </OrgGate>
           </RequireAuth>
         }
       />
