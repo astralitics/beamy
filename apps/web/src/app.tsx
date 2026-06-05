@@ -1,4 +1,7 @@
+import { useEffect, useRef } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "./lib/auth";
 import { Sidebar } from "./components/sidebar";
 import { RequireAuth } from "./components/require-auth";
 import { OrgGate } from "./components/org-gate";
@@ -37,6 +40,21 @@ import SettingsPage from "./pages/settings";
 import VendorsPage from "./pages/vendors";
 
 export default function App() {
+  // Reset the query cache whenever the signed-in user changes. tRPC queries
+  // like `me.authorize` are keyed only by their input (none), not the auth
+  // token — so without this, a sign-out/switch could serve the previous user's
+  // cached authorization.
+  const { session } = useAuth();
+  const qc = useQueryClient();
+  const prevUser = useRef<string | null | undefined>(undefined);
+  const userId = session?.user?.id ?? null;
+  useEffect(() => {
+    if (prevUser.current !== undefined && prevUser.current !== userId) {
+      qc.clear();
+    }
+    prevUser.current = userId;
+  }, [userId, qc]);
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
