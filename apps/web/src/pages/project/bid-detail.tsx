@@ -4,9 +4,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
   BID_FLAG_LABELS,
-  BID_PACKAGE_STATUS_LABELS,
   BID_STATUS_LABELS,
-  type BidPackageStatus,
   type BidStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
@@ -25,15 +23,6 @@ const STATUS_TONE: Record<
   accepted: "success",
   rejected: "alert",
   expired: "muted",
-};
-
-const PACKAGE_TONE: Record<
-  BidPackageStatus,
-  "warn" | "success" | "muted"
-> = {
-  open: "warn",
-  awarded: "success",
-  cancelled: "muted",
 };
 
 export default function ProjectBidDetail() {
@@ -93,7 +82,6 @@ export default function ProjectBidDetail() {
   if (!bid.data) return null;
 
   const b = bid.data;
-  const inPkg = b.package;
   const today = new Date().toISOString().slice(0, 10);
   const validityExpired = b.validUntil && b.validUntil < today;
   const superseded = b.supersededBy;
@@ -157,20 +145,6 @@ export default function ProjectBidDetail() {
               </Pill>
               {validityExpired && b.status !== "accepted" && (
                 <Pill tone="alert">Validity expired</Pill>
-              )}
-              {inPkg && (
-                <Link
-                  to={`/projects/${project.id}/bids?package=${inPkg.id}`}
-                  title={inPkg.scope ?? undefined}
-                  className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200 hover:bg-violet-100"
-                >
-                  ◆ {inPkg.name}
-                </Link>
-              )}
-              {inPkg && (
-                <Pill tone={PACKAGE_TONE[inPkg.status]}>
-                  Package · {BID_PACKAGE_STATUS_LABELS[inPkg.status]}
-                </Pill>
               )}
             </div>
             <p className="mt-4 num text-5xl leading-none text-ink-900">

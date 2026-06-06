@@ -16,6 +16,7 @@ import ProjectOverview from "./pages/project/overview";
 import ProjectBids from "./pages/project/bids";
 import ProjectBidDetail from "./pages/project/bid-detail";
 import ProjectWorkPlan from "./pages/project/work-plan";
+import ProjectWorkItemDetail from "./pages/project/work-item-detail";
 import ProjectAssets from "./pages/project/assets";
 import ProjectAssetDetail from "./pages/project/asset-detail";
 import ProjectFurniture from "./pages/project/furniture";
@@ -95,6 +96,10 @@ function AppShell() {
             {/* `plan` is canonical; `work-plan` kept as alias for old bookmarks. */}
             <Route path="plan" element={<ProjectWorkPlan />} />
             <Route path="work-plan" element={<ProjectWorkPlan />} />
+            <Route
+              path="plan/:workItemId"
+              element={<ProjectWorkItemDetail />}
+            />
             <Route path="rooms" element={<ProjectRooms />} />
             <Route
               path="rooms/:roomId"
