@@ -119,6 +119,33 @@ function readUrlDefaults(search: URLSearchParams): {
   };
 }
 
+/**
+ * Default status for a newly-added work item, chosen so the row is
+ * visible in the current filter — otherwise "Add" appears to do nothing.
+ * The proposal phase shows only "approved", the default "open" view
+ * hides "specified" drafts, etc. A manually-added line is real scope, so
+ * it lands "approved" (or matches an explicit status filter).
+ */
+function defaultStatusForFilter(
+  filter:
+    | WorkItemStatus
+    | "open"
+    | "all"
+    | "scope_active"
+    | "execution_active",
+): WorkItemStatus {
+  switch (filter) {
+    case "execution_active":
+      return "scheduled";
+    case "open":
+    case "all":
+    case "scope_active":
+      return "approved";
+    default:
+      return filter;
+  }
+}
+
 function WorkItemsSection({ projectId }: { projectId: string }) {
   const [searchParams] = useSearchParams();
   const urlDefaults = useMemo(
@@ -338,6 +365,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
         <WorkItemForm
           projectId={projectId}
           mode="create"
+          defaultStatus={defaultStatusForFilter(statusFilter)}
           onClose={() => setAdding(false)}
           rooms={rooms.data ?? []}
           vendors={vendors.data ?? []}
@@ -1326,6 +1354,7 @@ function WorkItemForm({
   rooms,
   vendors,
   allItems,
+  defaultStatus = "specified",
   onClose,
 }: {
   projectId: string;
@@ -1335,6 +1364,7 @@ function WorkItemForm({
   rooms: RoomRow[];
   vendors: VendorRow[];
   allItems: WorkItemRow[];
+  defaultStatus?: WorkItemStatus;
   onClose: () => void;
 }) {
   const [description, setDescription] = useState(existing?.description ?? "");
@@ -1347,7 +1377,7 @@ function WorkItemForm({
   const [qty, setQty] = useState(existing?.qty ?? "");
   const [unit, setUnit] = useState(existing?.unit ?? "");
   const [status, setStatus] = useState<WorkItemStatus>(
-    existing?.status ?? "specified",
+    existing?.status ?? defaultStatus,
   );
   const [plannedStart, setPlannedStart] = useState(existing?.plannedStart ?? "");
   const [plannedEnd, setPlannedEnd] = useState(existing?.plannedEnd ?? "");
