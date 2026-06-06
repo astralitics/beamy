@@ -81,42 +81,65 @@ export const bidCreateInputSchema = z
   });
 export type BidCreateInput = z.infer<typeof bidCreateInputSchema>;
 
+export const bidPatchSchema = z
+  .object({
+    vendorId: z.string().uuid().nullable().optional(),
+    packageId: z.string().uuid().nullable().optional(),
+    trade: z.string().trim().max(80).nullable().optional(),
+    bidNumber: z.string().trim().max(120).nullable().optional(),
+    bidDate: isoDate.nullable().optional(),
+    validUntil: isoDate.nullable().optional(),
+    subtotalAmount: moneyAmount.nullable().optional(),
+    ivaAmount: moneyAmount.nullable().optional(),
+    totalAmount: moneyAmount.nullable().optional(),
+    currency: currencyCode.nullable().optional(),
+    ivaIncluded: z.boolean().optional(),
+    status: bidStatusSchema.optional(),
+    decidedAt: isoDate.nullable().optional(),
+    flags: z.array(flagSlug).max(20).optional(),
+    notes: z.string().trim().max(10000).nullable().optional(),
+  })
+  .superRefine((val, ctx) => {
+    const anyMoney =
+      val.subtotalAmount !== undefined ||
+      val.ivaAmount !== undefined ||
+      val.totalAmount !== undefined;
+    const currencyTouched = val.currency !== undefined;
+    if (anyMoney && currencyTouched && val.currency === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "currency required when any monetary amount is set",
+        path: ["currency"],
+      });
+    }
+  });
+export type BidPatch = z.infer<typeof bidPatchSchema>;
+
 export const bidUpdateInputSchema = z.object({
   id: z.string().uuid(),
-  patch: z
-    .object({
-      vendorId: z.string().uuid().nullable().optional(),
-      packageId: z.string().uuid().nullable().optional(),
-      trade: z.string().trim().max(80).nullable().optional(),
-      bidNumber: z.string().trim().max(120).nullable().optional(),
-      bidDate: isoDate.nullable().optional(),
-      validUntil: isoDate.nullable().optional(),
-      subtotalAmount: moneyAmount.nullable().optional(),
-      ivaAmount: moneyAmount.nullable().optional(),
-      totalAmount: moneyAmount.nullable().optional(),
-      currency: currencyCode.nullable().optional(),
-      ivaIncluded: z.boolean().optional(),
-      status: bidStatusSchema.optional(),
-      decidedAt: isoDate.nullable().optional(),
-      flags: z.array(flagSlug).max(20).optional(),
-      notes: z.string().trim().max(10000).nullable().optional(),
-    })
-    .superRefine((val, ctx) => {
-      const anyMoney =
-        val.subtotalAmount !== undefined ||
-        val.ivaAmount !== undefined ||
-        val.totalAmount !== undefined;
-      const currencyTouched = val.currency !== undefined;
-      if (anyMoney && currencyTouched && val.currency === null) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "currency required when any monetary amount is set",
-          path: ["currency"],
-        });
-      }
-    }),
+  patch: bidPatchSchema,
 });
 export type BidUpdateInput = z.infer<typeof bidUpdateInputSchema>;
+
+/**
+ * Save-as-new-version: snapshot bid `id` (header + its line items) into
+ * a fresh version, applying an optional header `patch`, and retire the
+ * source as read-only history. See bids.saveAsVersion.
+ */
+export const bidSaveAsVersionInputSchema = z.object({
+  id: z.string().uuid(),
+  patch: bidPatchSchema.optional(),
+});
+export type BidSaveAsVersionInput = z.infer<
+  typeof bidSaveAsVersionInputSchema
+>;
+
+/** Approve / reject a quote — sets status + decidedAt, no side effects. */
+export const bidDecideInputSchema = z.object({
+  id: z.string().uuid(),
+  decision: z.enum(["accepted", "rejected"]),
+});
+export type BidDecideInput = z.infer<typeof bidDecideInputSchema>;
 
 export const bidListInputSchema = z.object({
   projectId: z.string().uuid(),

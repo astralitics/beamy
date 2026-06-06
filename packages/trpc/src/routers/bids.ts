@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, ne, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, ne, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   auditLog,
@@ -7,13 +7,16 @@ import {
   getDb,
   projects,
   vendors,
+  workItemRooms,
   workItems,
 } from "@beamy/db";
 import {
   bidAwardInputSchema,
   bidCreateInputSchema,
+  bidDecideInputSchema,
   bidIdInputSchema,
   bidListInputSchema,
+  bidSaveAsVersionInputSchema,
   bidUpdateInputSchema,
 } from "@beamy/shared";
 import { orgScopedProcedure, router } from "../init";
@@ -87,7 +90,24 @@ export const bidsRouter = router({
         .limit(1);
       const row = rows[0];
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
-      return { ...row.bid, vendor: row.vendor, package: row.package };
+
+      // Successor lookup: the version (if any) that supersedes this one.
+      // A bid with a successor is read-only history. `version` and
+      // `supersedesBidId` (the predecessor) ride along on the row.
+      const successor = await db
+        .select({ id: bids.id, version: bids.version })
+        .from(bids)
+        .where(
+          and(eq(bids.supersedesBidId, input.id), eq(bids.orgId, ctx.orgId)),
+        )
+        .limit(1);
+
+      return {
+        ...row.bid,
+        vendor: row.vendor,
+        package: row.package,
+        supersededBy: successor[0] ?? null,
+      };
     }),
 
   create: orgScopedProcedure
@@ -292,6 +312,208 @@ export const bidsRouter = router({
         });
 
         return { ok: true as const };
+      });
+    }),
+
+  /**
+   * Approve / reject a quote. Sets status (accepted | rejected) +
+   * decidedAt. No side effects — does NOT promote line items into the
+   * Plan or touch sibling bids (that's `award`). A plain decision verb.
+   */
+  decide: orgScopedProcedure
+    .input(bidDecideInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        const existing = await tx
+          .select()
+          .from(bids)
+          .where(and(eq(bids.id, input.id), eq(bids.orgId, ctx.orgId)))
+          .limit(1);
+        if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const [updated] = await tx
+          .update(bids)
+          .set({
+            status: input.decision,
+            decidedAt: new Date().toISOString().slice(0, 10),
+            updatedAt: new Date(),
+            updatedBy: ctx.actor,
+          })
+          .where(eq(bids.id, input.id))
+          .returning();
+        if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        await tx.insert(auditLog).values({
+          orgId: ctx.orgId,
+          actor: ctx.actor,
+          action: `bid.${input.decision}`,
+          resourceType: "bid",
+          resourceId: input.id,
+          payload: { decision: input.decision },
+        });
+        return updated;
+      });
+    }),
+
+  /**
+   * Save-as-new-version. Snapshots a bid (header + its line items) into
+   * a fresh version: new bids row (version+1, supersedesBidId = source,
+   * status reset to "comparing"), a clone of every linked work_item
+   * (and its room links), and the source retired to "expired" as
+   * read-only history. Returns the new bid. Only the live (un-
+   * superseded) version can spawn a new one.
+   */
+  saveAsVersion: orgScopedProcedure
+    .input(bidSaveAsVersionInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        const srcRows = await tx
+          .select()
+          .from(bids)
+          .where(and(eq(bids.id, input.id), eq(bids.orgId, ctx.orgId)))
+          .limit(1);
+        const src = srcRows[0];
+        if (!src) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const successor = await tx
+          .select({ id: bids.id })
+          .from(bids)
+          .where(
+            and(eq(bids.supersedesBidId, src.id), eq(bids.orgId, ctx.orgId)),
+          )
+          .limit(1);
+        if (successor[0]) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "This version has already been superseded — open the latest version to revise it.",
+          });
+        }
+
+        const p = input.patch ?? {};
+        await verifyOwnership(tx, ctx.orgId, {
+          vendorId: p.vendorId ?? undefined,
+          packageId: p.packageId ?? undefined,
+        });
+
+        const pick = <K extends keyof typeof src>(
+          key: K,
+          patched: (typeof src)[K] | null | undefined,
+        ): (typeof src)[K] =>
+          patched !== undefined ? (patched as (typeof src)[K]) : src[key];
+
+        const [newBid] = await tx
+          .insert(bids)
+          .values({
+            orgId: ctx.orgId,
+            projectId: src.projectId,
+            vendorId: pick("vendorId", p.vendorId),
+            packageId: pick("packageId", p.packageId),
+            trade: pick("trade", p.trade),
+            bidNumber: pick("bidNumber", p.bidNumber),
+            bidDate: pick("bidDate", p.bidDate),
+            validUntil: pick("validUntil", p.validUntil),
+            subtotalAmount: pick("subtotalAmount", p.subtotalAmount),
+            ivaAmount: pick("ivaAmount", p.ivaAmount),
+            totalAmount: pick("totalAmount", p.totalAmount),
+            currency: pick("currency", p.currency),
+            ivaIncluded:
+              p.ivaIncluded !== undefined ? p.ivaIncluded : src.ivaIncluded,
+            status: "comparing",
+            decidedAt: null,
+            flags: p.flags !== undefined ? p.flags : src.flags,
+            notes: pick("notes", p.notes),
+            version: src.version + 1,
+            supersedesBidId: src.id,
+            createdBy: ctx.actor,
+            updatedBy: ctx.actor,
+          })
+          .returning();
+        if (!newBid) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        // Clone the source bid's line items (work_items) into the new
+        // version as fresh "specified" rows, keeping their room links.
+        const srcLines = await tx
+          .select()
+          .from(workItems)
+          .where(
+            and(eq(workItems.bidId, src.id), eq(workItems.orgId, ctx.orgId)),
+          );
+        const idMap = new Map<string, string>();
+        for (const li of srcLines) {
+          const [cloned] = await tx
+            .insert(workItems)
+            .values({
+              orgId: ctx.orgId,
+              projectId: li.projectId,
+              bidId: newBid.id,
+              vendorId: li.vendorId,
+              trade: li.trade,
+              ref: li.ref,
+              description: li.description,
+              qty: li.qty,
+              unit: li.unit,
+              unitPriceAmount: li.unitPriceAmount,
+              unitPriceCurrency: li.unitPriceCurrency,
+              totalAmount: li.totalAmount,
+              totalCurrency: li.totalCurrency,
+              clientMarkupPct: li.clientMarkupPct,
+              clientUnitPrice: li.clientUnitPrice,
+              clientTotal: li.clientTotal,
+              clientCurrency: li.clientCurrency,
+              status: "specified",
+              plannedStart: li.plannedStart,
+              plannedEnd: li.plannedEnd,
+              notes: li.notes,
+              createdBy: ctx.actor,
+              updatedBy: ctx.actor,
+            })
+            .returning({ id: workItems.id });
+          if (cloned) idMap.set(li.id, cloned.id);
+        }
+
+        if (srcLines.length > 0) {
+          const roomLinks = await tx
+            .select()
+            .from(workItemRooms)
+            .where(
+              inArray(
+                workItemRooms.workItemId,
+                srcLines.map((l) => l.id),
+              ),
+            );
+          const newLinks = roomLinks
+            .map((rl) => {
+              const wi = idMap.get(rl.workItemId);
+              return wi ? { workItemId: wi, roomId: rl.roomId } : null;
+            })
+            .filter((x): x is { workItemId: string; roomId: string } => x !== null);
+          if (newLinks.length > 0) {
+            await tx.insert(workItemRooms).values(newLinks);
+          }
+        }
+
+        // Retire the source as read-only history.
+        await tx
+          .update(bids)
+          .set({
+            status: "expired",
+            updatedAt: new Date(),
+            updatedBy: ctx.actor,
+          })
+          .where(eq(bids.id, src.id));
+
+        await tx.insert(auditLog).values({
+          orgId: ctx.orgId,
+          actor: ctx.actor,
+          action: "bid.versioned",
+          resourceType: "bid",
+          resourceId: newBid.id,
+          payload: { supersedes: src.id, version: newBid.version },
+        });
+        return newBid;
       });
     }),
 
