@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
+  PROJECT_PHASE_LABELS,
+  PROJECT_PHASE_ORDER,
   PROJECT_SECTION_LABELS,
   PROPOSAL_STATUS_LABELS,
   type ProjectSection,
@@ -40,6 +42,8 @@ export default function ProjectOverview() {
 
   return (
     <div className="space-y-16">
+      {phase.data && <PhaseBar data={phase.data} />}
+
       <TodayPanel projectId={project.id} s={s} />
 
       <MoneySection projectId={project.id} s={s} />
@@ -339,6 +343,87 @@ function ProposalsSection({
 }
 
 // ───────────────────────────────────── COMPLETENESS ──────────
+
+// ────────────────────── phase bar ──────────────────────
+
+function PhaseBar({ data }: { data: Phase }) {
+  const { phase, phaseLabel, onHold, archived } = data;
+  const currentIdx = PROJECT_PHASE_ORDER.indexOf(phase);
+
+  return (
+    <div>
+      <ol className="flex items-center">
+        {PROJECT_PHASE_ORDER.map((p, i) => {
+          const done = i < currentIdx;
+          const current = i === currentIdx;
+          const label =
+            current && phaseLabel ? phaseLabel : PROJECT_PHASE_LABELS[p];
+          const isLast = i === PROJECT_PHASE_ORDER.length - 1;
+          return (
+            <li key={p} className="flex flex-1 items-center">
+              <div className="flex items-center gap-2">
+                <PhaseDot done={done} current={current} />
+                <span
+                  className={`whitespace-nowrap text-[12px] ${
+                    current
+                      ? "font-medium text-ink-900"
+                      : done
+                        ? "text-ink-600"
+                        : "text-ink-400"
+                  }`}
+                  title={label}
+                >
+                  {label}
+                </span>
+              </div>
+              {!isLast && (
+                <div
+                  className={`mx-3 h-px flex-1 ${
+                    done ? "bg-accent-300" : "bg-ink-200"
+                  }`}
+                  aria-hidden
+                />
+              )}
+            </li>
+          );
+        })}
+        {(onHold || archived) && (
+          <li className="ml-3 flex items-center gap-1.5">
+            {onHold && <Pill tone="warn">on hold</Pill>}
+            {archived && <Pill tone="neutral">archived</Pill>}
+          </li>
+        )}
+      </ol>
+    </div>
+  );
+}
+
+function PhaseDot({ done, current }: { done: boolean; current: boolean }) {
+  if (done) {
+    return (
+      <span
+        aria-hidden
+        className="inline-flex h-2 w-2 shrink-0 rounded-full bg-accent-500"
+      />
+    );
+  }
+  if (current) {
+    return (
+      <span
+        aria-hidden
+        className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full ring-2 ring-accent-500 ring-offset-2 ring-offset-paper-50"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />
+      </span>
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className="inline-flex h-2 w-2 shrink-0 rounded-full bg-ink-200"
+    />
+  );
+}
 
 function CompletenessSection({ phase }: { phase: Phase }) {
   const sectionOrder: ProjectSection[] = [

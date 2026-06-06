@@ -1,10 +1,6 @@
 import { useState } from "react";
 import { Link, Outlet, useParams } from "react-router-dom";
-import {
-  PROJECT_PHASE_LABELS,
-  PROJECT_PHASE_ORDER,
-  type ProjectStatus,
-} from "@beamy/shared";
+import { type ProjectStatus } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useFormatters, useT } from "../../lib/i18n";
 import { Icon, Pill } from "../../components/ui";
@@ -74,8 +70,6 @@ export default function ProjectShell() {
         fmt={fmt}
         t={t}
       />
-
-      <PhaseBar projectId={p.id} />
 
       <div className="mt-14">
         <Outlet context={{ project: p }} />
@@ -200,86 +194,3 @@ function Fact({
   );
 }
 
-// ────────────────────── phase bar ──────────────────────
-
-function PhaseBar({ projectId }: { projectId: string }) {
-  const q = trpc.projects.phaseAndCompleteness.useQuery({ projectId });
-  if (q.isLoading) return null;
-  if (q.error || !q.data) return null;
-  const { phase, phaseLabel, onHold, archived } = q.data;
-  const currentIdx = PROJECT_PHASE_ORDER.indexOf(phase);
-
-  return (
-    <div className="mt-10">
-      <ol className="flex items-center">
-        {PROJECT_PHASE_ORDER.map((p, i) => {
-          const done = i < currentIdx;
-          const current = i === currentIdx;
-          const label =
-            current && phaseLabel ? phaseLabel : PROJECT_PHASE_LABELS[p];
-          const isLast = i === PROJECT_PHASE_ORDER.length - 1;
-          return (
-            <li key={p} className="flex flex-1 items-center">
-              <div className="flex items-center gap-2">
-                <PhaseDot done={done} current={current} />
-                <span
-                  className={`whitespace-nowrap text-[12px] ${
-                    current
-                      ? "font-medium text-ink-900"
-                      : done
-                        ? "text-ink-600"
-                        : "text-ink-400"
-                  }`}
-                  title={label}
-                >
-                  {label}
-                </span>
-              </div>
-              {!isLast && (
-                <div
-                  className={`mx-3 h-px flex-1 ${
-                    done ? "bg-accent-300" : "bg-ink-200"
-                  }`}
-                  aria-hidden
-                />
-              )}
-            </li>
-          );
-        })}
-        {(onHold || archived) && (
-          <li className="ml-3 flex items-center gap-1.5">
-            {onHold && <Pill tone="warn">on hold</Pill>}
-            {archived && <Pill tone="neutral">archived</Pill>}
-          </li>
-        )}
-      </ol>
-    </div>
-  );
-}
-
-function PhaseDot({ done, current }: { done: boolean; current: boolean }) {
-  if (done) {
-    return (
-      <span
-        aria-hidden
-        className="inline-flex h-2 w-2 shrink-0 rounded-full bg-accent-500"
-      />
-    );
-  }
-  if (current) {
-    return (
-      <span
-        aria-hidden
-        className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full ring-2 ring-accent-500 ring-offset-2 ring-offset-paper-50"
-      >
-        <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />
-      </span>
-    );
-  }
-  return (
-    <span
-      aria-hidden
-      className="inline-flex h-2 w-2 shrink-0 rounded-full bg-ink-200"
-    />
-  );
-}
