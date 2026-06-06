@@ -3,11 +3,13 @@ import {
   boolean,
   date,
   index,
+  integer,
   numeric,
   pgTable,
   text,
   timestamp,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { orgs } from "./orgs";
 import { projects } from "./projects";
@@ -90,6 +92,18 @@ export const bids = pgTable(
       .notNull()
       .default(sql`'{}'::text[]`),
     notes: text("notes"),
+    /**
+     * Revision lineage. `version` is 1 for an original quote and bumps
+     * each time the user "saves as a new version". `supersedesBidId`
+     * points back to the version this one replaced; the replaced bid is
+     * retired (status → expired) and rendered read-only. The live quote
+     * is the version with no successor.
+     */
+    version: integer("version").notNull().default(1),
+    supersedesBidId: uuid("supersedes_bid_id").references(
+      (): AnyPgColumn => bids.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -104,6 +118,7 @@ export const bids = pgTable(
     byVendor: index("bids_by_vendor").on(table.vendorId),
     byOrgStatus: index("bids_by_org_status").on(table.orgId, table.status),
     byPackage: index("bids_by_package").on(table.packageId),
+    bySupersedes: index("bids_by_supersedes").on(table.supersedesBidId),
   }),
 );
 

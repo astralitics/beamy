@@ -148,6 +148,13 @@
       "when": 1778626950263,
       "tag": "0020_public_alex_power",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1780701657344,
+      "tag": "0021_faithful_white_queen",
+      "breakpoints": true
     }
   ]
 }
