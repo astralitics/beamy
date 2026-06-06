@@ -6,7 +6,12 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { Link, useOutletContext, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useOutletContext,
+  useSearchParams,
+} from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
@@ -79,6 +84,33 @@ const STATUS_PILL_CLS: Record<WorkItemStatus, string> = {
 
 type PlanView = "table" | "rooms" | "timeline" | "calendar";
 
+type StatusFilter =
+  | WorkItemStatus
+  | "open"
+  | "all"
+  | "scope_active"
+  | "execution_active";
+
+/**
+ * Status filter options — shared by the table's column-header filter and
+ * the compact bar the non-table views use. Defaults to "all".
+ */
+const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  { value: "open", label: "Open (not done)" },
+  { value: "scope_active", label: "Scope · approved" },
+  { value: "execution_active", label: "Execution" },
+  ...WORK_ITEM_STATUS_FLOW.map((s) => ({
+    value: s as StatusFilter,
+    label: WORK_ITEM_STATUS_LABELS[s],
+  })),
+  { value: "cancelled", label: "Cancelled" },
+];
+
+/** Compact control styling for the table's per-column header filters. */
+const colFilterCls =
+  "w-full rounded border border-paper-200 bg-white px-2 py-1 text-[11px] font-normal normal-case tracking-normal text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+
 type PhaseLens = "proposal" | "execution" | null;
 
 /**
@@ -114,7 +146,7 @@ function readUrlDefaults(search: URLSearchParams): {
     view: ["table", "rooms", "timeline", "calendar"].includes(view)
       ? view
       : "table",
-    statusFilter: "open",
+    statusFilter: "all",
     lens: null,
   };
 }
@@ -152,16 +184,12 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
     () => readUrlDefaults(searchParams),
     [searchParams],
   );
+  const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<WorkItemRow | null>(null);
   const [view, setView] = useState<PlanView>(urlDefaults.view);
-  const [statusFilter, setStatusFilter] = useState<
-    | WorkItemStatus
-    | "open"
-    | "all"
-    | "scope_active"
-    | "execution_active"
-  >(urlDefaults.statusFilter);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    urlDefaults.statusFilter,
+  );
 
   // When the URL changes (user clicks a different sidebar phase link),
   // reset the controls to the new defaults. We only do this on URL
@@ -179,8 +207,6 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
 
   const [tradeFilter, setTradeFilter] = useState<string>("");
   const [roomFilter, setRoomFilter] = useState<string>("");
-  const [vendorFilter, setVendorFilter] = useState<string>("");
-  const [overdueOnly, setOverdueOnly] = useState(false);
   const [search, setSearch] = useState("");
 
   // Multi-status filters. "specified" items are intentionally hidden
@@ -202,8 +228,6 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
     status: statusInput,
     trade: tradeFilter || undefined,
     roomId: roomFilter || undefined,
-    vendorId: vendorFilter || undefined,
-    overdue: overdueOnly || undefined,
     search: search.trim() || undefined,
   });
   const trades = trpc.workItems.listTrades.useQuery({ projectId });
@@ -255,6 +279,11 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
     return m;
   }, [depsByItem, allItemsById]);
 
+  const openDetail = (w: WorkItemRow) =>
+    navigate(`/projects/${projectId}/plan/${w.id}`);
+  const hasActiveFilters =
+    !!search.trim() || !!tradeFilter || !!roomFilter || statusFilter !== "all";
+
   return (
     <div>
       <div className="flex items-start justify-between gap-6">
@@ -266,7 +295,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             Quoted → approved → scheduled → executed → billed.
           </p>
         </div>
-        {!adding && !editing && (
+        {!adding && (
           <div className="flex items-center gap-2">
             <ViewToggle view={view} onChange={setView} />
             <button
@@ -280,39 +309,27 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
         )}
       </div>
 
-      {!adding && !editing && (
+      {/* Compact filter bar — only for the non-table views. The Table
+          carries its own per-column header filters (same state). */}
+      {!adding && view !== "table" && (
         <div className="mt-4 flex flex-wrap gap-2">
           <select
             value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(
-                e.target.value as
-                  | WorkItemStatus
-                  | "open"
-                  | "all"
-                  | "scope_active"
-                  | "execution_active",
-              )
-            }
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
             className={selectCls}
           >
-            <option value="open">Open (not done)</option>
-            <option value="scope_active">Scope · specified+approved</option>
-            <option value="execution_active">Execution · scheduled+in progress</option>
-            <option value="all">All statuses</option>
-            {WORK_ITEM_STATUS_FLOW.map((s) => (
-              <option key={s} value={s}>
-                {WORK_ITEM_STATUS_LABELS[s]}
+            {STATUS_FILTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
-            <option value="cancelled">Cancelled</option>
           </select>
           <select
             value={tradeFilter}
             onChange={(e) => setTradeFilter(e.target.value)}
             className={selectCls}
           >
-            <option value="">All trades</option>
+            <option value="">All types</option>
             {(trades.data ?? []).map((t) => (
               <option key={t} value={t}>
                 {t}
@@ -331,27 +348,6 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
               </option>
             ))}
           </select>
-          <select
-            value={vendorFilter}
-            onChange={(e) => setVendorFilter(e.target.value)}
-            className={selectCls}
-          >
-            <option value="">All vendors</option>
-            {vendors.data?.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-          <label className="inline-flex items-center gap-1.5 rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs text-slate-700">
-            <input
-              type="checkbox"
-              checked={overdueOnly}
-              onChange={(e) => setOverdueOnly(e.target.checked)}
-              className="h-3.5 w-3.5"
-            />
-            Overdue only
-          </label>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -372,63 +368,54 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
           allItems={allItems}
         />
       )}
-      {editing && (
-        <WorkItemForm
-          projectId={projectId}
-          mode="edit"
-          existing={editing}
-          existingDeps={depsByItem.get(editing.id) ?? []}
-          onClose={() => setEditing(null)}
-          rooms={rooms.data ?? []}
-          vendors={vendors.data ?? []}
-          allItems={allItems}
-        />
-      )}
-
       <div className="mt-4">
         {list.isLoading ? (
           <p className="text-xs text-slate-500">Loading…</p>
         ) : list.error ? (
           <p className="text-xs text-rose-700">{list.error.message}</p>
-        ) : filtered.length === 0 ? (
-          <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
-            {search.trim() ||
-            tradeFilter ||
-            roomFilter ||
-            vendorFilter ||
-            overdueOnly ||
-            statusFilter !== "open" ? (
-              "No work items match these filters."
-            ) : (
-              <>
-                No open work items. Click <strong>Add work item</strong> to
-                start sketching the plan — or upload a vendor bid once that
-                lands.
-              </>
-            )}
-          </p>
         ) : view === "rooms" ? (
-          <ScopeByRoom
-            items={filtered}
-            rooms={rooms.data ?? []}
-            blockedByItem={blockedByItem}
-            onEdit={setEditing}
-          />
+          filtered.length === 0 ? (
+            <EmptyPlan hasActiveFilters={hasActiveFilters} />
+          ) : (
+            <ScopeByRoom
+              items={filtered}
+              rooms={rooms.data ?? []}
+              blockedByItem={blockedByItem}
+              onEdit={openDetail}
+            />
+          )
         ) : view === "timeline" ? (
-          <TimelineView
-            items={filtered}
-            depsByItem={depsByItem}
-            blockedByItem={blockedByItem}
-            onEdit={setEditing}
-          />
+          filtered.length === 0 ? (
+            <EmptyPlan hasActiveFilters={hasActiveFilters} />
+          ) : (
+            <TimelineView
+              items={filtered}
+              depsByItem={depsByItem}
+              blockedByItem={blockedByItem}
+              onEdit={openDetail}
+            />
+          )
         ) : view === "calendar" ? (
-          <CalendarView items={filtered} onEdit={setEditing} />
+          filtered.length === 0 ? (
+            <EmptyPlan hasActiveFilters={hasActiveFilters} />
+          ) : (
+            <CalendarView items={filtered} onEdit={openDetail} />
+          )
         ) : (
           <WorkItemsTable
             items={filtered}
-            blockedByItem={blockedByItem}
-            depsByItem={depsByItem}
-            onEdit={setEditing}
+            onRowClick={openDetail}
+            trades={trades.data ?? []}
+            rooms={rooms.data ?? []}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            tradeFilter={tradeFilter}
+            setTradeFilter={setTradeFilter}
+            roomFilter={roomFilter}
+            setRoomFilter={setRoomFilter}
+            search={search}
+            setSearch={setSearch}
+            hasActiveFilters={hasActiveFilters}
           />
         )}
       </div>
@@ -667,128 +654,171 @@ function ScopeByRoomRow({
 
 function WorkItemsTable({
   items,
-  blockedByItem,
-  depsByItem,
-  onEdit,
+  onRowClick,
+  trades,
+  rooms,
+  statusFilter,
+  setStatusFilter,
+  tradeFilter,
+  setTradeFilter,
+  roomFilter,
+  setRoomFilter,
+  search,
+  setSearch,
+  hasActiveFilters,
 }: {
   items: WorkItemRow[];
-  blockedByItem: Map<string, WorkItemRow[]>;
-  depsByItem: Map<string, DepRow[]>;
-  onEdit: (w: WorkItemRow) => void;
+  onRowClick: (w: WorkItemRow) => void;
+  trades: string[];
+  rooms: RoomRow[];
+  statusFilter: StatusFilter;
+  setStatusFilter: (s: StatusFilter) => void;
+  tradeFilter: string;
+  setTradeFilter: (s: string) => void;
+  roomFilter: string;
+  setRoomFilter: (s: string) => void;
+  search: string;
+  setSearch: (s: string) => void;
+  hasActiveFilters: boolean;
 }) {
   return (
     <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
       <table className="w-full text-sm">
-        <thead className="bg-paper-50 text-left">
-          <tr className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-            <th className="px-3 py-2">Ref</th>
-            <th className="px-3 py-2">Description</th>
-            <th className="px-3 py-2 text-right">Qty</th>
-            <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2">Planned end</th>
-            <th className="px-3 py-2"></th>
+        <thead className="bg-paper-50">
+          <tr className="text-left text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">
+            <th className="px-3 pt-2">Ref</th>
+            <th className="px-3 pt-2">Description</th>
+            <th className="px-3 pt-2">Type of work</th>
+            <th className="px-3 pt-2">Rooms</th>
+            <th className="px-3 pt-2">Status</th>
+            <th className="px-3 pt-2">Start</th>
+            <th className="px-3 pt-2">End</th>
+          </tr>
+          <tr className="align-top">
+            <th className="px-3 pb-2 pt-1.5" />
+            <th className="px-3 pb-2 pt-1.5">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search…"
+                className={colFilterCls}
+              />
+            </th>
+            <th className="px-3 pb-2 pt-1.5">
+              <select
+                value={tradeFilter}
+                onChange={(e) => setTradeFilter(e.target.value)}
+                className={colFilterCls}
+              >
+                <option value="">All</option>
+                {trades.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </th>
+            <th className="px-3 pb-2 pt-1.5">
+              <select
+                value={roomFilter}
+                onChange={(e) => setRoomFilter(e.target.value)}
+                className={colFilterCls}
+              >
+                <option value="">All</option>
+                {rooms.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </th>
+            <th className="px-3 pb-2 pt-1.5">
+              <select
+                value={statusFilter}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as StatusFilter)
+                }
+                className={colFilterCls}
+              >
+                {STATUS_FILTER_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </th>
+            <th className="px-3 pb-2 pt-1.5" />
+            <th className="px-3 pb-2 pt-1.5" />
           </tr>
         </thead>
         <tbody className="divide-y divide-paper-200">
-          {items.map((w) => (
-            <WorkItemRowItem
-              key={w.id}
-              item={w}
-              blockedBy={blockedByItem.get(w.id) ?? null}
-              depCount={depsByItem.get(w.id)?.length ?? 0}
-              onEdit={() => onEdit(w)}
-            />
-          ))}
+          {items.length === 0 ? (
+            <tr>
+              <td
+                colSpan={7}
+                className="px-3 py-10 text-center text-xs text-slate-500"
+              >
+                {hasActiveFilters
+                  ? "No work items match these filters."
+                  : "No work items yet. Click Add work item to start."}
+              </td>
+            </tr>
+          ) : (
+            items.map((w) => (
+              <WorkItemRowItem
+                key={w.id}
+                item={w}
+                onClick={() => onRowClick(w)}
+              />
+            ))
+          )}
         </tbody>
       </table>
     </div>
   );
 }
 
+function EmptyPlan({ hasActiveFilters }: { hasActiveFilters: boolean }) {
+  return (
+    <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
+      {hasActiveFilters ? (
+        "No work items match these filters."
+      ) : (
+        <>
+          No work items yet. Click <strong>Add work item</strong> to start
+          sketching the plan — or upload a vendor bid once that lands.
+        </>
+      )}
+    </p>
+  );
+}
+
 function WorkItemRowItem({
   item,
-  blockedBy,
-  depCount,
-  onEdit,
+  onClick,
 }: {
   item: WorkItemRow;
-  blockedBy: WorkItemRow[] | null;
-  depCount: number;
-  onEdit: () => void;
+  onClick: () => void;
 }) {
   const fmt = useFormatters();
-  const utils = trpc.useUtils();
-  const remove = trpc.workItems.remove.useMutation({
-    onSuccess: () =>
-      utils.workItems.list.invalidate({ projectId: item.projectId }),
-  });
-  const transition = trpc.workItems.transition.useMutation({
-    onSuccess: () =>
-      utils.workItems.list.invalidate({ projectId: item.projectId }),
-  });
-
-  const advanceTo = nextStatus(item.status);
-  const isOverdue =
-    item.plannedEnd != null &&
-    item.status !== "done" &&
-    item.status !== "accepted" &&
-    item.status !== "cancelled" &&
-    item.plannedEnd < new Date().toISOString().slice(0, 10);
-
   return (
-    <tr className="align-top">
-      <td className="px-3 py-2 font-mono text-[11px] text-slate-500">
+    <tr
+      onClick={onClick}
+      className="cursor-pointer align-top transition-colors hover:bg-paper-50"
+    >
+      <td className="px-3 py-2.5 font-mono text-[11px] text-slate-500">
         {item.ref ?? "—"}
       </td>
-      <td className="px-3 py-2">
-        <div className="font-medium text-blueprint-900">{item.description}</div>
-        <div className="mt-1 flex flex-wrap gap-1.5">
-          {item.trade && (
-            <span className="rounded-full bg-paper-100 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
-              {item.trade}
-            </span>
-          )}
-          {item.rooms.map((r) => (
-            <span
-              key={r.id}
-              className="rounded-full bg-blueprint-50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-blueprint-700 ring-1 ring-inset ring-blueprint-100"
-            >
-              {r.name}
-            </span>
-          ))}
-          {blockedBy && blockedBy.length > 0 && <BlockedPill blockers={blockedBy} />}
-          {depCount > 0 && !blockedBy?.length && (
-            <span
-              className="rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-slate-200"
-              title={`Has ${depCount} dependency${depCount === 1 ? "" : "ies"}`}
-            >
-              {depCount} dep{depCount === 1 ? "" : "s"}
-            </span>
-          )}
-          {item.bid && (
-            <Link
-              to={`/projects/${item.projectId}/bids/${item.bid.id}`}
-              title={
-                item.bid.bidNumber
-                  ? `Bid #${item.bid.bidNumber}`
-                  : "Source bid"
-              }
-              className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200 hover:bg-violet-100"
-            >
-              ↗ {item.vendor?.name ?? "Bid"}
-            </Link>
-          )}
-          {!item.bid && item.vendor && (
-            <span className="font-mono text-[9px] uppercase tracking-wide text-slate-400">
-              · {item.vendor.name}
-            </span>
-          )}
-        </div>
+      <td className="px-3 py-2.5 font-medium text-blueprint-900">
+        {item.description}
       </td>
-      <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px] text-slate-700">
-        {item.qty ? `${trimQty(item.qty)}${item.unit ? ` ${item.unit}` : ""}` : "—"}
+      <td className="px-3 py-2.5 text-[13px] text-slate-600">
+        {item.trade ?? "—"}
       </td>
-      <td className="px-3 py-2">
+      <td className="px-3 py-2.5 text-[13px] text-slate-600">
+        {item.rooms.length > 0 ? item.rooms.map((r) => r.name).join(", ") : "—"}
+      </td>
+      <td className="px-3 py-2.5">
         <span
           className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[item.status]}`}
         >
@@ -796,61 +826,17 @@ function WorkItemRowItem({
           {WORK_ITEM_STATUS_LABELS[item.status].toLowerCase()}
         </span>
       </td>
-      <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px]">
-        {item.plannedEnd ? (
-          <span className={isOverdue ? "text-rose-700" : "text-slate-600"}>
-            {fmt.date(item.plannedEnd)}
-            {isOverdue && (
-              <span className="ml-1 rounded-sm bg-rose-50 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-rose-700 ring-1 ring-inset ring-rose-200">
-                overdue
-              </span>
-            )}
-          </span>
-        ) : (
-          <span className="text-slate-400">—</span>
-        )}
+      <td className="whitespace-nowrap px-3 py-2.5 text-[12px] text-slate-600">
+        {item.plannedStart ? fmt.date(item.plannedStart) : "—"}
       </td>
-      <td className="whitespace-nowrap px-3 py-2 text-right">
-        <div className="flex justify-end gap-2">
-          {advanceTo && (
-            <button
-              type="button"
-              onClick={() => transition.mutate({ id: item.id, to: advanceTo })}
-              disabled={transition.isPending}
-              className="rounded-md border border-paper-200 px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:bg-paper-50 disabled:opacity-50"
-              title={`Mark as ${WORK_ITEM_STATUS_LABELS[advanceTo]}`}
-            >
-              → {WORK_ITEM_STATUS_LABELS[advanceTo]}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onEdit}
-            className="text-xs text-slate-500 hover:text-slate-900"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (
-                confirm(`Permanently remove "${item.description.slice(0, 40)}"?`)
-              ) {
-                remove.mutate({ id: item.id });
-              }
-            }}
-            disabled={remove.isPending}
-            className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
-          >
-            {remove.isPending ? "…" : "Delete"}
-          </button>
-        </div>
+      <td className="whitespace-nowrap px-3 py-2.5 text-[12px] text-slate-600">
+        {item.plannedEnd ? fmt.date(item.plannedEnd) : "—"}
       </td>
     </tr>
   );
 }
 
-function nextStatus(status: WorkItemStatus): WorkItemStatus | null {
+export function nextStatus(status: WorkItemStatus): WorkItemStatus | null {
   const idx = WORK_ITEM_STATUS_FLOW.indexOf(status);
   if (idx < 0 || idx === WORK_ITEM_STATUS_FLOW.length - 1) return null;
   return WORK_ITEM_STATUS_FLOW[idx + 1] ?? null;
@@ -1346,7 +1332,7 @@ function CalendarView({
 
 // ───────────────────────────────────── work item form ────────
 
-function WorkItemForm({
+export function WorkItemForm({
   projectId,
   mode,
   existing,
@@ -1397,6 +1383,7 @@ function WorkItemForm({
     onSuccess: () => {
       utils.workItems.list.invalidate({ projectId });
       utils.workItems.listTrades.invalidate({ projectId });
+      if (existing) utils.workItems.get.invalidate({ id: existing.id });
       onClose();
     },
     onError: (err) => setError(err.message),
