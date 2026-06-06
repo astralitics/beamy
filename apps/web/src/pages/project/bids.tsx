@@ -4,32 +4,12 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
   BID_FLAG_LABELS,
-  BID_PACKAGE_STATUS_LABELS,
   BID_STATUS_LABELS,
-  type BidPackageStatus,
   type BidStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useFormatters } from "../../lib/i18n";
-import {
-  Button,
-  Field as UIField,
-  Icon,
-  Input,
-  Modal,
-  Pill,
-  Select as UISelect,
-  Textarea,
-} from "../../components/ui";
-
-type PackageRow =
-  inferRouterOutputs<AppRouter>["bidPackages"]["list"][number];
-
-const PACKAGE_TONE: Record<BidPackageStatus, "warn" | "success" | "muted"> = {
-  open: "warn",
-  awarded: "success",
-  cancelled: "muted",
-};
+import { Button, Icon, Pill } from "../../components/ui";
 
 const STATUS_TONE: Record<
   BidStatus,
@@ -58,6 +38,10 @@ const KNOWN_FLAGS: Array<{ slug: string; label: string }> = Object.entries(
   BID_FLAG_LABELS,
 ).map(([slug, label]) => ({ slug, label }));
 
+/** Compact control styling for the table's per-column header filters. */
+const colFilterCls =
+  "w-full rounded border border-ink-200 bg-white px-2 py-1 text-[12px] text-ink-700 focus:border-ink-400 focus:outline-none focus:ring-1 focus:ring-ink-400";
+
 /**
  * Bids tab — inbound subcontractor quotes.
  *
@@ -72,15 +56,10 @@ export default function ProjectBids() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<BidRow | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [packageModal, setPackageModal] = useState<
-    | { mode: "closed" }
-    | { mode: "create" }
-    | { mode: "edit"; pkg: PackageRow }
-  >({ mode: "closed" });
   const [statusFilter, setStatusFilter] = useState<BidStatus | "open" | "all">(
     "open",
   );
-  const [vendorFilter, setVendorFilter] = useState<string>("");
+  const [tradeFilter, setTradeFilter] = useState<string>("");
   const [search, setSearch] = useState("");
   const list = trpc.bids.list.useQuery({
     projectId: project.id,
@@ -88,9 +67,7 @@ export default function ProjectBids() {
       statusFilter === "open" || statusFilter === "all"
         ? undefined
         : statusFilter,
-    vendorId: vendorFilter || undefined,
   });
-  const packages = trpc.bidPackages.list.useQuery({ projectId: project.id });
   const vendors = trpc.vendors.list.useQuery({});
 
   // Detail page links here with ?edit=<bidId> to open the edit form.
@@ -104,18 +81,12 @@ export default function ProjectBids() {
     setSearchParams(searchParams, { replace: true });
   }, [editParam, list.data, searchParams, setSearchParams]);
 
-  // Derive the vendor set actually used by bids on this project — that's
-  // a more useful filter than every vendor in the org.
-  const projectVendors = useMemo(() => {
-    const seen = new Map<string, { id: string; name: string }>();
-    for (const b of list.data ?? []) {
-      if (b.vendor && !seen.has(b.vendor.id)) {
-        seen.set(b.vendor.id, { id: b.vendor.id, name: b.vendor.name });
-      }
-    }
-    return Array.from(seen.values()).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
+  // Distinct trades actually used by bids on this project — powers the
+  // Type-of-work column filter.
+  const projectTrades = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of list.data ?? []) if (b.trade) set.add(b.trade);
+    return Array.from(set).sort();
   }, [list.data]);
 
   const filtered = useMemo(() => {
@@ -125,6 +96,7 @@ export default function ProjectBids() {
         (b) => b.status === "received" || b.status === "comparing",
       );
     }
+    if (tradeFilter) rows = rows.filter((b) => b.trade === tradeFilter);
     const s = search.trim().toLowerCase();
     if (s) {
       rows = rows.filter((b) => {
@@ -136,7 +108,10 @@ export default function ProjectBids() {
       });
     }
     return rows;
-  }, [list.data, statusFilter, search]);
+  }, [list.data, statusFilter, tradeFilter, search]);
+
+  const hasActiveFilters =
+    !!search.trim() || !!tradeFilter || statusFilter !== "open";
 
   const totalsByCurrency = useMemo(() => {
     const m = new Map<string, number>();
@@ -160,77 +135,12 @@ export default function ProjectBids() {
           </p>
         </div>
         {!creating && !editing && (
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => setPackageModal({ mode: "create" })}
-            >
-              <Icon name="plus" className="h-4 w-4" />
-              New package
-            </Button>
-            <Button variant="primary" onClick={() => setCreating(true)}>
-              <Icon name="plus" className="h-4 w-4" />
-              New bid
-            </Button>
-          </div>
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            <Icon name="plus" className="h-4 w-4" />
+            New bid
+          </Button>
         )}
       </div>
-
-      {!creating && !editing && packages.data && packages.data.length > 0 && (
-        <PackagesStrip
-          packages={packages.data}
-          bids={list.data ?? []}
-          onEdit={(pkg) => setPackageModal({ mode: "edit", pkg })}
-        />
-      )}
-
-      {!creating && !editing && (
-        <div className="mt-6 flex flex-wrap items-center gap-2">
-          <div className="w-56">
-            <UISelect
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(
-                  e.target.value as BidStatus | "open" | "all",
-                )
-              }
-            >
-              <option value="open">Open (received + comparing)</option>
-              <option value="all">All statuses</option>
-              {(Object.keys(BID_STATUS_LABELS) as BidStatus[]).map((s) => (
-                <option key={s} value={s}>
-                  {BID_STATUS_LABELS[s]}
-                </option>
-              ))}
-            </UISelect>
-          </div>
-          <div className="w-56">
-            <UISelect
-              value={vendorFilter}
-              onChange={(e) => setVendorFilter(e.target.value)}
-            >
-              <option value="">All vendors</option>
-              {projectVendors.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </UISelect>
-          </div>
-          <div className="relative min-w-[240px] flex-1">
-            <Icon
-              name="search"
-              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
-            />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search bid #, vendor, trade, notes"
-              className="pl-10"
-            />
-          </div>
-        </div>
-      )}
 
       {creating && (
         <BidForm
@@ -253,52 +163,101 @@ export default function ProjectBids() {
       )}
 
       {!creating && !editing && (
-      <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
-        {list.isLoading ? (
-          <p className="px-6 py-8 text-sm text-ink-500">Loading…</p>
-        ) : list.error ? (
-          <p className="px-6 py-8 text-sm text-rose-700">{list.error.message}</p>
-        ) : filtered.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <p className="font-display text-xl text-ink-900">
-              {search.trim() || vendorFilter
-                ? "No bids match these filters."
-                : statusFilter === "open"
-                  ? "No open bids."
-                  : "No bids yet."}
-            </p>
-            {!search.trim() && !vendorFilter && statusFilter === "open" && (
-              <p className="mt-2 text-[13px] text-ink-500">
-                Click <strong>New bid</strong> when a vendor sends a quote.
-              </p>
-            )}
-          </div>
-        ) : (
+        <div className="mt-6 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
           <table className="w-full text-[14px]">
             <thead className="border-b border-ink-100 bg-paper-50">
               <tr className="text-left">
                 <Th align="right" />
                 <Th>Vendor</Th>
                 <Th>Trade</Th>
-                <Th>Package</Th>
                 <Th>Status</Th>
                 <Th align="right">Total</Th>
                 <Th>Bid date</Th>
                 <Th align="right" />
               </tr>
+              <tr className="text-left">
+                <th className="px-5 pb-3" />
+                <th className="px-5 pb-3">
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search vendor, #, notes…"
+                    className={colFilterCls}
+                  />
+                </th>
+                <th className="px-5 pb-3">
+                  <select
+                    value={tradeFilter}
+                    onChange={(e) => setTradeFilter(e.target.value)}
+                    className={colFilterCls}
+                  >
+                    <option value="">All</option>
+                    {projectTrades.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </th>
+                <th className="px-5 pb-3">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) =>
+                      setStatusFilter(e.target.value as BidStatus | "open" | "all")
+                    }
+                    className={colFilterCls}
+                  >
+                    <option value="open">Open</option>
+                    <option value="all">All statuses</option>
+                    {(Object.keys(BID_STATUS_LABELS) as BidStatus[]).map((s) => (
+                      <option key={s} value={s}>
+                        {BID_STATUS_LABELS[s]}
+                      </option>
+                    ))}
+                  </select>
+                </th>
+                <th className="px-5 pb-3" />
+                <th className="px-5 pb-3" />
+                <th className="px-5 pb-3" />
+              </tr>
             </thead>
             <tbody>
-              {filtered.map((b) => (
-                <BidTableRow
-                  key={b.id}
-                  bid={b}
-                  projectId={project.id}
-                />
-              ))}
+              {list.isLoading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-sm text-ink-500">
+                    Loading…
+                  </td>
+                </tr>
+              ) : list.error ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-sm text-rose-700">
+                    {list.error.message}
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center">
+                    <p className="font-display text-xl text-ink-900">
+                      {hasActiveFilters
+                        ? "No bids match these filters."
+                        : "No bids yet."}
+                    </p>
+                    {!hasActiveFilters && (
+                      <p className="mt-2 text-[13px] text-ink-500">
+                        Click <strong>New bid</strong> when a vendor sends a
+                        quote.
+                      </p>
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((b) => (
+                  <BidTableRow key={b.id} bid={b} projectId={project.id} />
+                ))
+              )}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
       )}
 
       {!creating && !editing && filtered.length > 0 && totalsByCurrency.size > 0 && (
@@ -309,277 +268,7 @@ export default function ProjectBids() {
           ))}
         </div>
       )}
-
-      {packageModal.mode !== "closed" && (
-        <PackageFormModal
-          projectId={project.id}
-          mode={packageModal.mode}
-          existing={
-            packageModal.mode === "edit" ? packageModal.pkg : undefined
-          }
-          onClose={() => setPackageModal({ mode: "closed" })}
-        />
-      )}
     </div>
-  );
-}
-
-// ───────────────────────────────────── Packages strip ─────────
-
-function PackagesStrip({
-  packages,
-  bids,
-  onEdit,
-}: {
-  packages: PackageRow[];
-  bids: BidRow[];
-  onEdit: (pkg: PackageRow) => void;
-}) {
-  const fmt = useFormatters();
-  // Derive per-package bid count + totals from the bids list we already
-  // have. Avoids a correlated subquery on the server.
-  const aggByPkg = useMemo(() => {
-    const map = new Map<
-      string,
-      { count: number; totals: Map<string, number> }
-    >();
-    for (const b of bids) {
-      if (!b.packageId) continue;
-      const agg = map.get(b.packageId) ?? {
-        count: 0,
-        totals: new Map<string, number>(),
-      };
-      agg.count += 1;
-      if (b.totalAmount && b.currency) {
-        agg.totals.set(
-          b.currency,
-          (agg.totals.get(b.currency) ?? 0) + parseFloat(b.totalAmount),
-        );
-      }
-      map.set(b.packageId, agg);
-    }
-    return map;
-  }, [bids]);
-
-  return (
-    <section className="mt-6">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-        Packages
-      </h3>
-      <ul className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {packages.map((p) => {
-          const agg = aggByPkg.get(p.id);
-          const count = agg?.count ?? 0;
-          const totalsStr = agg
-            ? Array.from(agg.totals.entries())
-                .map(([c, a]) => fmt.currency(a.toFixed(2), c))
-                .join(" · ")
-            : null;
-          return (
-            <li key={p.id}>
-              <button
-                type="button"
-                onClick={() => onEdit(p)}
-                className="block w-full rounded-xl border border-ink-200/70 bg-white px-4 py-3 text-left transition-colors hover:border-ink-300 hover:bg-paper-50"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="truncate text-[14px] font-medium text-ink-900">
-                    {p.name}
-                  </p>
-                  <Pill tone={PACKAGE_TONE[p.status]} dot>
-                    {BID_PACKAGE_STATUS_LABELS[p.status]}
-                  </Pill>
-                </div>
-                {p.scope && (
-                  <p className="mt-1 line-clamp-2 text-[13px] text-ink-500">
-                    {p.scope}
-                  </p>
-                )}
-                <div className="mt-2.5 flex items-center justify-between gap-2 text-[12px] text-ink-500">
-                  <span>
-                    {count} {count === 1 ? "bid" : "bids"}
-                  </span>
-                  {totalsStr && (
-                    <span className="tnum text-ink-700">{totalsStr}</span>
-                  )}
-                </div>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
-
-// ───────────────────────────────────── Package modal ───────────
-
-function PackageFormModal({
-  projectId,
-  mode,
-  existing,
-  onClose,
-}: {
-  projectId: string;
-  mode: "create" | "edit";
-  existing?: PackageRow;
-  onClose: () => void;
-}) {
-  const isEdit = mode === "edit";
-  const [name, setName] = useState(existing?.name ?? "");
-  const [scope, setScope] = useState(existing?.scope ?? "");
-  const [status, setStatus] = useState<BidPackageStatus>(
-    existing?.status ?? "open",
-  );
-  const [notes, setNotes] = useState(existing?.notes ?? "");
-  const [error, setError] = useState<string | null>(null);
-
-  const utils = trpc.useUtils();
-  const create = trpc.bidPackages.create.useMutation({
-    onSuccess: () => {
-      utils.bidPackages.list.invalidate({ projectId });
-      onClose();
-    },
-    onError: (err) => setError(err.message),
-  });
-  const update = trpc.bidPackages.update.useMutation({
-    onSuccess: () => {
-      utils.bidPackages.list.invalidate({ projectId });
-      onClose();
-    },
-    onError: (err) => setError(err.message),
-  });
-  const remove = trpc.bidPackages.remove.useMutation({
-    onSuccess: () => {
-      utils.bidPackages.list.invalidate({ projectId });
-      utils.bids.list.invalidate({ projectId });
-      onClose();
-    },
-    onError: (err) => setError(err.message),
-  });
-  const submitting = create.isPending || update.isPending;
-
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (isEdit && existing) {
-      update.mutate({
-        id: existing.id,
-        patch: {
-          name: name.trim(),
-          scope: scope.trim() || null,
-          status,
-          notes: notes.trim() || null,
-        },
-      });
-    } else {
-      create.mutate({
-        projectId,
-        name: name.trim(),
-        scope: scope.trim() || undefined,
-        notes: notes.trim() || undefined,
-      });
-    }
-  }
-
-  return (
-    <Modal
-      title={isEdit && existing ? `Edit ${existing.name}` : "New bid package"}
-      subtitle={
-        isEdit
-          ? undefined
-          : "Group competing bids for one piece of work. You can add bids to it from the bid form."
-      }
-      onClose={onClose}
-      footer={
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-rose-600">{error}</p>
-          <div className="flex gap-2">
-            {isEdit && existing && (
-              <Button
-                type="button"
-                variant="danger"
-                onClick={() => {
-                  if (
-                    confirm(
-                      `Delete package "${existing.name}"? Bids in it become loose (not deleted).`,
-                    )
-                  ) {
-                    remove.mutate({ id: existing.id });
-                  }
-                }}
-              >
-                Delete
-              </Button>
-            )}
-            <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              form="bid-package-form"
-              variant="primary"
-              disabled={submitting}
-            >
-              {submitting
-                ? "Saving…"
-                : isEdit
-                  ? "Save changes"
-                  : "Create package"}
-            </Button>
-          </div>
-        </div>
-      }
-    >
-      <form
-        id="bid-package-form"
-        onSubmit={onSubmit}
-        className="grid gap-5"
-      >
-        <UIField label="Name" required>
-          <Input
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-            placeholder='Paint — primary bedroom + bath'
-          />
-        </UIField>
-        <UIField label="Scope" hint="Optional">
-          <Textarea
-            value={scope}
-            onChange={(e) => setScope(e.target.value)}
-            rows={2}
-            placeholder="What this package is for — rooms, deliverables, exclusions."
-          />
-        </UIField>
-        {isEdit && (
-          <UIField label="Status">
-            <UISelect
-              value={status}
-              onChange={(e) =>
-                setStatus(e.target.value as BidPackageStatus)
-              }
-            >
-              {(
-                Object.keys(BID_PACKAGE_STATUS_LABELS) as BidPackageStatus[]
-              ).map((s) => (
-                <option key={s} value={s}>
-                  {BID_PACKAGE_STATUS_LABELS[s]}
-                </option>
-              ))}
-            </UISelect>
-          </UIField>
-        )}
-        <UIField label="Notes">
-          <Textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-          />
-        </UIField>
-      </form>
-    </Modal>
   );
 }
 
@@ -594,17 +283,6 @@ function BidTableRow({
 }) {
   const fmt = useFormatters();
   const [expanded, setExpanded] = useState(false);
-  const utils = trpc.useUtils();
-  const award = trpc.bids.award.useMutation({
-    onSuccess: () => {
-      utils.bids.list.invalidate({ projectId: bid.projectId });
-      utils.bidPackages.list.invalidate({ projectId: bid.projectId });
-      utils.projects.overviewStats.invalidate({ projectId: bid.projectId });
-      utils.projects.phaseAndCompleteness.invalidate({
-        projectId: bid.projectId,
-      });
-    },
-  });
   // Only fetch line items when the user expands the row — saves a roundtrip
   // per collapsed row. Cached afterward via tRPC.
   const lines = trpc.workItems.list.useQuery(
@@ -614,9 +292,6 @@ function BidTableRow({
 
   const today = new Date().toISOString().slice(0, 10);
   const validityExpired = bid.validUntil && bid.validUntil < today;
-  const inPkg = bid.package;
-  const canAward =
-    inPkg && inPkg.status === "open" && bid.status !== "accepted";
 
   return (
     <>
@@ -653,18 +328,6 @@ function BidTableRow({
         </Td>
         <Td className="text-ink-600">{bid.trade ?? "—"}</Td>
         <Td>
-          {inPkg ? (
-            <span
-              className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200"
-              title={inPkg.scope ?? undefined}
-            >
-              ◆ {inPkg.name}
-            </span>
-          ) : (
-            <span className="text-ink-400">—</span>
-          )}
-        </Td>
-        <Td>
           <div className="flex flex-wrap items-center gap-1.5">
             <Pill tone={STATUS_TONE[bid.status]} dot>
               {BID_STATUS_LABELS[bid.status]}
@@ -683,40 +346,17 @@ function BidTableRow({
           {bid.bidDate ? fmt.date(bid.bidDate) : "—"}
         </Td>
         <Td align="right">
-          <div className="flex items-center justify-end gap-2">
-            {canAward && (
-              <button
-                type="button"
-                onClick={() => {
-                  const siblingMsg = inPkg
-                    ? ` Other bids in "${inPkg.name}" will be marked rejected.`
-                    : "";
-                  if (
-                    confirm(
-                      `Award this bid to ${bid.vendor?.name ?? "this vendor"}?${siblingMsg}`,
-                    )
-                  ) {
-                    award.mutate({ id: bid.id });
-                  }
-                }}
-                disabled={award.isPending}
-                className="inline-flex h-7 items-center gap-1 rounded-md bg-emerald-600 px-2.5 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {award.isPending ? "Awarding…" : "Award"}
-              </button>
-            )}
-            <Link
-              to={`/projects/${projectId}/bids/${bid.id}`}
-              className="text-[12px] text-ink-500 hover:text-ink-900"
-            >
-              Open →
-            </Link>
-          </div>
+          <Link
+            to={`/projects/${projectId}/bids/${bid.id}`}
+            className="text-[12px] text-ink-500 hover:text-ink-900"
+          >
+            Open →
+          </Link>
         </Td>
       </tr>
       {expanded && (
         <tr className="border-b border-ink-100 bg-paper-50/60">
-          <td colSpan={8} className="px-5 pb-4 pt-1">
+          <td colSpan={7} className="px-5 pb-4 pt-1">
             <BidLineItems
               projectId={projectId}
               bidId={bid.id}
@@ -920,9 +560,7 @@ function BidForm({
   defaultCurrency: string;
   onClose: () => void;
 }) {
-  const packagesQ = trpc.bidPackages.list.useQuery({ projectId });
   const [vendorId, setVendorId] = useState(existing?.vendorId ?? "");
-  const [packageId, setPackageId] = useState(existing?.packageId ?? "");
   const [trade, setTrade] = useState(existing?.trade ?? "");
   const [bidNumber, setBidNumber] = useState(existing?.bidNumber ?? "");
   const [bidDate, setBidDate] = useState(existing?.bidDate ?? "");
@@ -978,7 +616,6 @@ function BidForm({
     }
     const base = {
       vendorId: vendorId || undefined,
-      packageId: packageId || undefined,
       trade: trade.trim() || undefined,
       bidNumber: bidNumber.trim() || undefined,
       bidDate: bidDate || undefined,
@@ -1039,22 +676,6 @@ function BidForm({
             className={inputCls}
             placeholder="C-3636 / COTIZACION 10321-1"
           />
-        </Field>
-
-        <Field label="Package" wide>
-          <select
-            value={packageId}
-            onChange={(e) => setPackageId(e.target.value)}
-            className={selectCls}
-          >
-            <option value="">— None (loose bid)</option>
-            {packagesQ.data?.map((p) => (
-              <option key={p.id} value={p.id} disabled={p.status !== "open"}>
-                {p.name}
-                {p.status !== "open" ? ` (${p.status})` : ""}
-              </option>
-            ))}
-          </select>
         </Field>
 
         <Field label="Status">
