@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { trpc } from "../lib/trpc";
+import { useT } from "../lib/i18n";
 import { Field, inputCls } from "./login";
 
 /**
@@ -14,6 +15,7 @@ import { Field, inputCls } from "./login";
  * (/invite/:token). Mirrors petfactory's separate register route.
  */
 export default function RegisterPage() {
+  const t = useT();
   const { session, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,11 +32,12 @@ export default function RegisterPage() {
     return (
       <div className="mx-auto max-w-md p-10">
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-          <p className="font-medium">Supabase isn't configured</p>
+          <p className="font-medium">{t("register.supabase.title")}</p>
           <p className="mt-2">
-            Set <code>VITE_SUPABASE_URL</code> and{" "}
-            <code>VITE_SUPABASE_ANON_KEY</code> in <code>.env</code> and restart
-            the dev server.
+            {t("register.supabase.set")} <code>VITE_SUPABASE_URL</code>{" "}
+            {t("register.supabase.and")} <code>VITE_SUPABASE_ANON_KEY</code>{" "}
+            {t("register.supabase.in")} <code>.env</code>{" "}
+            {t("register.supabase.restart")}
           </p>
         </div>
       </div>
@@ -59,7 +62,9 @@ export default function RegisterPage() {
       await utils.invalidate();
       navigate("/", { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(
+        err instanceof Error ? err.message : t("register.error.fallback"),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -74,15 +79,14 @@ export default function RegisterPage() {
         </span>
       </div>
       <h1 className="mt-6 text-xl font-semibold tracking-tight text-slate-900">
-        Create your workspace
+        {t("register.title")}
       </h1>
       <p className="mt-1 text-sm text-slate-600">
-        Set up a new agency workspace — you'll be its owner. Already invited? Use
-        your invite link instead.
+        {t("register.lede")}
       </p>
 
       <form onSubmit={onSubmit} className="mt-6 space-y-3">
-        <Field label="Email">
+        <Field label={t("register.field.email")}>
           <input
             type="email"
             required
@@ -93,7 +97,7 @@ export default function RegisterPage() {
             autoComplete="email"
           />
         </Field>
-        <Field label="Password">
+        <Field label={t("register.field.password")}>
           <input
             type="password"
             required
@@ -104,7 +108,7 @@ export default function RegisterPage() {
             autoComplete="new-password"
           />
         </Field>
-        <Field label="Workspace name (optional)">
+        <Field label={t("register.field.workspace_name")}>
           <input
             value={orgName}
             onChange={(e) => setOrgName(e.target.value)}
@@ -118,14 +122,14 @@ export default function RegisterPage() {
           disabled={submitting}
           className="mt-2 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {submitting ? "Working…" : "Create workspace"}
+          {submitting ? t("register.working") : t("register.create")}
         </button>
       </form>
 
       <p className="mt-8 text-xs text-slate-400">
-        Already have a workspace?{" "}
+        {t("register.have_workspace")}{" "}
         <a href="/login" className="font-medium text-slate-600 hover:text-slate-900">
-          Sign in
+          {t("login.sign_in")}
         </a>
         .
       </p>

@@ -4,18 +4,26 @@ import type { AppRouter } from "@beamy/trpc";
 import type { InviteRole, OrgRole } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
 import { useAuth } from "../lib/auth";
+import { useT } from "../lib/i18n";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type MemberRow = RouterOutputs["members"]["list"][number];
 type InvitationRow = RouterOutputs["members"]["listInvitations"][number];
 
-const ROLE_LABELS: Record<OrgRole, string> = {
-  owner: "Owner",
-  admin: "Admin",
-  member: "Member",
+type TFn = ReturnType<typeof useT>;
+
+const ROLE_LABEL_KEYS: Record<OrgRole, "settings.role.owner" | "settings.role.admin" | "settings.role.member"> = {
+  owner: "settings.role.owner",
+  admin: "settings.role.admin",
+  member: "settings.role.member",
 };
 
+function roleLabel(t: TFn, role: OrgRole): string {
+  return t(ROLE_LABEL_KEYS[role]);
+}
+
 export default function SettingsPage() {
+  const t = useT();
   const me = trpc.me.whoami.useQuery();
   const members = trpc.members.list.useQuery();
   const invites = trpc.members.listInvitations.useQuery();
@@ -29,20 +37,24 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-4xl p-10">
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Members</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {t("settings.title")}
+          </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Manage who's in {me.data?.org.name ?? "the workspace"}. Invitations
-            expire after 7 days.
+            {t("settings.lede", {
+              org: me.data?.org.name ?? t("settings.the_workspace"),
+            })}
           </p>
           {auth.session?.user?.email && (
             <p className="mt-2 text-xs text-slate-500">
-              Signed in as <code>{auth.session.user.email}</code> ·{" "}
+              {t("settings.signed_in_as")}{" "}
+              <code>{auth.session.user.email}</code> ·{" "}
               <button
                 type="button"
                 onClick={() => auth.signOut()}
                 className="text-rose-600 hover:text-rose-800"
               >
-                Sign out
+                {t("settings.sign_out")}
               </button>
             </p>
           )}
@@ -52,18 +64,18 @@ export default function SettingsPage() {
             onClick={() => setInviting(true)}
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
           >
-            Invite member
+            {t("settings.invite_member")}
           </button>
         )}
       </div>
 
-      <Section title="Pending invitations">
+      <Section title={t("settings.pending_invitations")}>
         {invites.isLoading ? (
-          <RowEmpty>Loading…</RowEmpty>
+          <RowEmpty>{t("common.loading")}</RowEmpty>
         ) : invites.error ? (
           <RowEmpty error>{invites.error.message}</RowEmpty>
         ) : !invites.data || invites.data.length === 0 ? (
-          <RowEmpty>No pending invitations.</RowEmpty>
+          <RowEmpty>{t("settings.no_pending_invitations")}</RowEmpty>
         ) : (
           <div className="divide-y divide-slate-100">
             {invites.data.map((inv) => (
@@ -77,13 +89,13 @@ export default function SettingsPage() {
         )}
       </Section>
 
-      <Section title="Active members">
+      <Section title={t("settings.active_members")}>
         {members.isLoading ? (
-          <RowEmpty>Loading…</RowEmpty>
+          <RowEmpty>{t("common.loading")}</RowEmpty>
         ) : members.error ? (
           <RowEmpty error>{members.error.message}</RowEmpty>
         ) : !members.data || members.data.length === 0 ? (
-          <RowEmpty>No members.</RowEmpty>
+          <RowEmpty>{t("settings.no_members")}</RowEmpty>
         ) : (
           <div className="divide-y divide-slate-100">
             {members.data.map((m) => (
@@ -140,6 +152,7 @@ function RowEmpty({
 }
 
 function RolePill({ role }: { role: OrgRole | InviteRole }) {
+  const t = useT();
   const cls: Record<OrgRole, string> = {
     owner: "bg-violet-100 text-violet-800",
     admin: "bg-sky-100 text-sky-800",
@@ -149,12 +162,13 @@ function RolePill({ role }: { role: OrgRole | InviteRole }) {
     <span
       className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${cls[role as OrgRole]}`}
     >
-      {ROLE_LABELS[role as OrgRole]}
+      {roleLabel(t, role as OrgRole)}
     </span>
   );
 }
 
 function MemberItem({ member, isMe }: { member: MemberRow; isMe: boolean }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-3 px-4 py-3 text-sm">
       <div className="min-w-0 flex-1">
@@ -163,11 +177,15 @@ function MemberItem({ member, isMe }: { member: MemberRow; isMe: boolean }) {
             {member.userId.slice(0, 8)}…{member.userId.slice(-4)}
           </span>
           {isMe && (
-            <span className="text-xs font-medium text-slate-500">(you)</span>
+            <span className="text-xs font-medium text-slate-500">
+              {t("settings.you")}
+            </span>
           )}
         </div>
         <div className="mt-0.5 text-xs text-slate-500">
-          joined {new Date(member.joinedAt).toLocaleDateString()}
+          {t("settings.joined", {
+            date: new Date(member.joinedAt).toLocaleDateString(),
+          })}
         </div>
       </div>
       <RolePill role={member.role} />
@@ -182,6 +200,7 @@ function InvitationItem({
   invitation: InvitationRow;
   canRevoke: boolean;
 }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const utils = trpc.useUtils();
   const revoke = trpc.members.revokeInvitation.useMutation({
@@ -204,26 +223,28 @@ function InvitationItem({
           <RolePill role={invitation.role} />
         </div>
         <div className="mt-0.5 text-xs text-slate-500">
-          expires {new Date(invitation.expiresAt).toLocaleDateString()}
+          {t("settings.expires", {
+            date: new Date(invitation.expiresAt).toLocaleDateString(),
+          })}
         </div>
       </div>
       <button
         onClick={handleCopy}
         className="rounded-md border border-slate-200 px-3 py-1 text-xs hover:bg-slate-50"
       >
-        {copied ? "Copied!" : "Copy invite link"}
+        {copied ? t("settings.copied_excl") : t("settings.copy_invite_link")}
       </button>
       {canRevoke && (
         <button
           onClick={() => {
-            if (confirm(`Revoke invitation to ${invitation.email}?`)) {
+            if (confirm(t("settings.revoke_confirm", { email: invitation.email }))) {
               revoke.mutate({ id: invitation.id });
             }
           }}
           disabled={revoke.isPending}
           className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
         >
-          {revoke.isPending ? "…" : "Revoke"}
+          {revoke.isPending ? "…" : t("settings.revoke")}
         </button>
       )}
     </div>
@@ -242,6 +263,7 @@ function InvitationItem({
 type CreatedInvite = { email: string; role: InviteRole; token: string };
 
 function InviteModal({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<InviteRole>("member");
   const [error, setError] = useState<string | null>(null);
@@ -273,21 +295,24 @@ function InviteModal({ onClose }: { onClose: () => void }) {
       >
         {created ? (
           <>
-            <h2 className="text-lg font-semibold tracking-tight">Invite ready</h2>
+            <h2 className="text-lg font-semibold tracking-tight">
+              {t("settings.invite_ready")}
+            </h2>
             <p className="mt-1 text-sm text-slate-600">
               <span className="font-medium text-slate-900">{created.email}</span>{" "}
-              joins as {ROLE_LABELS[created.role]} the moment they sign in with
-              that email — Google or email/password. Send them this link:
+              {t("settings.invite_ready_body", {
+                role: roleLabel(t, created.role),
+              })}
             </p>
             <div className="mt-4">
               <CopyField
-                label="Invite link"
+                label={t("settings.invite_link")}
                 value={`${window.location.origin}/invite/${created.token}`}
               />
             </div>
             <p className="mt-3 text-xs text-slate-400">
-              No code to type — they're added automatically once they
-              authenticate with <code>{created.email}</code>. Valid for 7 days.
+              {t("settings.invite_ready_hint_prefix")}{" "}
+              <code>{created.email}</code>. {t("settings.invite_ready_hint_suffix")}
             </p>
             <div className="mt-6 flex justify-end gap-2">
               <button
@@ -299,26 +324,27 @@ function InviteModal({ onClose }: { onClose: () => void }) {
                 }}
                 className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
               >
-                Invite another
+                {t("settings.invite_another")}
               </button>
               <button
                 type="button"
                 onClick={onClose}
                 className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
               >
-                Done
+                {t("settings.done")}
               </button>
             </div>
           </>
         ) : (
           <form onSubmit={onSubmit}>
-            <h2 className="text-lg font-semibold tracking-tight">Invite member</h2>
+            <h2 className="text-lg font-semibold tracking-tight">
+              {t("settings.invite_member")}
+            </h2>
             <p className="mt-1 text-sm text-slate-600">
-              They join automatically when they sign in with this email — no
-              code to type. You'll get a shareable link next.
+              {t("settings.invite_form_body")}
             </p>
             <div className="mt-4 space-y-3">
-              <Field label="Email *">
+              <Field label={t("settings.field.email_req")}>
                 <input
                   type="email"
                   required
@@ -329,14 +355,14 @@ function InviteModal({ onClose }: { onClose: () => void }) {
                   placeholder="teammate@example.com"
                 />
               </Field>
-              <Field label="Role">
+              <Field label={t("settings.field.role")}>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value as InviteRole)}
                   className={selectCls}
                 >
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
+                  <option value="member">{t("settings.role.member")}</option>
+                  <option value="admin">{t("settings.role.admin")}</option>
                 </select>
               </Field>
             </div>
@@ -347,14 +373,14 @@ function InviteModal({ onClose }: { onClose: () => void }) {
                 onClick={onClose}
                 className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 type="submit"
                 disabled={invite.isPending}
                 className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
               >
-                {invite.isPending ? "Creating…" : "Create invite"}
+                {invite.isPending ? t("settings.creating") : t("settings.create_invite")}
               </button>
             </div>
           </form>
@@ -366,6 +392,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
 
 /** Read-only field with a Copy button — petfactory's CopyField. */
 function CopyField({ label, value }: { label: string; value: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <div>
@@ -393,7 +420,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
               : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
           }`}
         >
-          {copied ? "Copied" : "Copy"}
+          {copied ? t("settings.copied") : t("settings.copy")}
         </button>
       </div>
     </div>

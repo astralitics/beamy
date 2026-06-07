@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { supabaseConfigured } from "../lib/supabase";
 import { trpc } from "../lib/trpc";
+import { useT } from "../lib/i18n";
 import {
   clearPendingInvite,
   readPendingInvite,
@@ -24,6 +25,7 @@ import {
  *  - logged in, no token → "you're not in a workspace yet" dead-end + sign out.
  */
 export default function RedeemInvitePage() {
+  const t = useT();
   const { session, loading: authLoading, signOut } = useAuth();
   const params = useParams();
   const navigate = useNavigate();
@@ -87,11 +89,10 @@ export default function RedeemInvitePage() {
     return (
       <Shell email={email} onSignOut={() => void signOut()}>
         <h1 className="text-xl font-semibold tracking-tight text-slate-900">
-          No workspace yet
+          {t("redeem.no_workspace.title")}
         </h1>
         <p className="mt-2 text-sm text-slate-600">
-          You're signed in but don't belong to a workspace yet. Open the invite
-          link your admin shared with you, or ask them to send a new one.
+          {t("redeem.no_workspace.body")}
         </p>
       </Shell>
     );
@@ -101,14 +102,14 @@ export default function RedeemInvitePage() {
   if (peek.data && !peek.data.valid) {
     const reason =
       peek.data.reason === "used"
-        ? "That invite has already been used."
+        ? t("redeem.reason.used")
         : peek.data.reason === "expired"
-          ? "That invite has expired. Ask your admin for a new one."
-          : "We didn't recognize that invite link.";
+          ? t("redeem.reason.expired")
+          : t("redeem.reason.not_found");
     return (
       <Shell email={email} onSignOut={() => void signOut()}>
         <h1 className="text-xl font-semibold tracking-tight text-slate-900">
-          Invite unavailable
+          {t("redeem.unavailable.title")}
         </h1>
         <p className="mt-2 text-sm text-slate-600">{reason}</p>
       </Shell>
@@ -122,26 +123,15 @@ export default function RedeemInvitePage() {
     <Shell
       email={email}
       onSignOut={() => void signOut()}
-      signOutLabel="Use a different account"
+      signOutLabel={t("redeem.use_different_account")}
     >
       <h1 className="text-xl font-semibold tracking-tight text-slate-900">
-        Accept invitation
+        {t("redeem.accept")}
       </h1>
       <p className="mt-2 text-sm text-slate-600">
-        {orgName ? (
-          <>
-            You've been invited to join <strong>{orgName}</strong>
-            {role ? (
-              <>
-                {" "}
-                as <strong>{role}</strong>
-              </>
-            ) : null}
-            .
-          </>
-        ) : (
-          <>Loading your invitation…</>
-        )}
+        {orgName
+          ? t("redeem.invited_as", { org: orgName, role: role ?? "" })
+          : t("redeem.loading_invitation")}
       </p>
       {error && (
         <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
@@ -157,7 +147,7 @@ export default function RedeemInvitePage() {
         }}
         className="mt-5 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
       >
-        {accept.isPending ? "Joining…" : "Accept invitation"}
+        {accept.isPending ? t("redeem.joining") : t("redeem.accept")}
       </button>
     </Shell>
   );
@@ -167,13 +157,14 @@ function Shell({
   children,
   email,
   onSignOut,
-  signOutLabel = "Sign out",
+  signOutLabel,
 }: {
   children: React.ReactNode;
   email: string | null;
   onSignOut: () => void;
   signOutLabel?: string;
 }) {
+  const t = useT();
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col justify-center p-10">
       <div className="flex items-center gap-2">
@@ -186,14 +177,16 @@ function Shell({
         {children}
         <div className="mt-6 border-t border-slate-100 pt-4">
           {email && (
-            <p className="text-xs text-slate-400">Signed in as {email}</p>
+            <p className="text-xs text-slate-400">
+              {t("redeem.signed_in_as", { email })}
+            </p>
           )}
           <button
             type="button"
             onClick={onSignOut}
             className="mt-1 text-xs font-medium text-slate-500 hover:text-slate-800"
           >
-            {signOutLabel}
+            {signOutLabel ?? t("redeem.sign_out")}
           </button>
         </div>
       </div>

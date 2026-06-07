@@ -6,7 +6,7 @@ import {
   type ProposalStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters, useLabels } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 
@@ -28,6 +28,7 @@ export default function ProjectProposalDetail() {
   const navigate = useNavigate();
   const fmt = useFormatters();
   const L = useLabels();
+  const t = useT();
   const utils = trpc.useUtils();
 
   const proposalQ = trpc.proposals.get.useQuery(
@@ -54,7 +55,7 @@ export default function ProjectProposalDetail() {
 
   if (!proposalId) return null;
   if (proposalQ.isLoading) {
-    return <p className="text-xs text-slate-500">Loading…</p>;
+    return <p className="text-xs text-slate-500">{t("common.loading")}</p>;
   }
   if (proposalQ.error) {
     return <p className="text-xs text-rose-700">{proposalQ.error.message}</p>;
@@ -70,7 +71,7 @@ export default function ProjectProposalDetail() {
         to={`/projects/${project.id}/proposals`}
         className="text-[10px] uppercase tracking-wider text-slate-400 hover:text-blueprint-900"
       >
-        ← Back to proposals
+        {t("proposal.back")}
       </Link>
 
       <div className="mt-3 overflow-hidden rounded-lg border border-paper-200 bg-white shadow-sm">
@@ -78,7 +79,7 @@ export default function ProjectProposalDetail() {
           <p className="text-[10px] uppercase tracking-[0.15em] text-slate-400">
             <span className="text-slate-700">{p.number}</span>
             <span className="mx-2 text-slate-300">|</span>
-            generated {fmt.date(p.createdAt)}
+            {t("proposals.generated_at", { date: fmt.date(p.createdAt) })}
             {p.version > 1 && (
               <>
                 <span className="mx-2 text-slate-300">|</span>v{p.version}
@@ -105,13 +106,13 @@ export default function ProjectProposalDetail() {
         </div>
 
         <div className="grid grid-cols-1 divide-y divide-paper-200 border-t border-paper-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          <Fact label="Total">
+          <Fact label={t("proposal.fact_total")}>
             {p.totalAmount && p.totalCurrency
               ? fmt.currency(p.totalAmount, p.totalCurrency)
               : "—"}
           </Fact>
-          <Fact label="Sent">{p.sentAt ? fmt.date(p.sentAt) : "—"}</Fact>
-          <Fact label="Expires">
+          <Fact label={t("proposal.fact_sent")}>{p.sentAt ? fmt.date(p.sentAt) : "—"}</Fact>
+          <Fact label={t("proposal.fact_expires")}>
             {p.expiresAt ? fmt.date(p.expiresAt) : "—"}
           </Fact>
         </div>
@@ -125,7 +126,7 @@ export default function ProjectProposalDetail() {
             rel="noreferrer"
             className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
           >
-            Open HTML artifact ↗
+            {t("proposal.open_artifact")}
           </a>
         )}
         {advanceTo && (
@@ -135,7 +136,9 @@ export default function ProjectProposalDetail() {
             disabled={transition.isPending}
             className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-paper-50 disabled:opacity-50"
           >
-            Mark {L.proposalStatus(advanceTo).toLowerCase()}
+            {t("proposal.mark_status", {
+              status: L.proposalStatus(advanceTo).toLowerCase(),
+            })}
           </button>
         )}
         {p.status === "sent" && (
@@ -145,20 +148,22 @@ export default function ProjectProposalDetail() {
             disabled={transition.isPending}
             className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-paper-50 disabled:opacity-50"
           >
-            Mark rejected
+            {t("proposal.mark_status", {
+              status: L.proposalStatus("rejected").toLowerCase(),
+            })}
           </button>
         )}
         <button
           type="button"
           onClick={() => {
-            if (confirm(`Permanently delete ${p.number}?`)) {
+            if (confirm(t("proposal.confirm_delete", { number: p.number }))) {
               remove.mutate({ id: p.id });
             }
           }}
           disabled={remove.isPending}
           className="ml-auto text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
         >
-          {remove.isPending ? "…" : "Delete proposal"}
+          {remove.isPending ? "…" : t("proposal.delete")}
         </button>
       </div>
 
@@ -166,18 +171,18 @@ export default function ProjectProposalDetail() {
         <table className="w-full text-sm">
           <thead className="bg-paper-50 text-left">
             <tr className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-              <th className="px-3 py-2">Section</th>
-              <th className="px-3 py-2">Description</th>
-              <th className="px-3 py-2 text-right">Qty</th>
-              <th className="px-3 py-2 text-right">Unit</th>
-              <th className="px-3 py-2 text-right">Total</th>
+              <th className="px-3 py-2">{t("proposal.col.section")}</th>
+              <th className="px-3 py-2">{t("col.description")}</th>
+              <th className="px-3 py-2 text-right">{t("col.qty")}</th>
+              <th className="px-3 py-2 text-right">{t("proposal.col.unit")}</th>
+              <th className="px-3 py-2 text-right">{t("proposal.col.total")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-paper-200">
             {p.lines.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-3 py-4 text-xs text-slate-500">
-                  No lines on this proposal.
+                  {t("proposal.no_lines")}
                 </td>
               </tr>
             ) : (

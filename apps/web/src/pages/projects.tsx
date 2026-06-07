@@ -124,7 +124,7 @@ export default function ProjectsPage() {
 
       <div className="mt-6 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
         {list.isLoading ? (
-          <p className="px-6 py-8 text-sm text-ink-500">Loading…</p>
+          <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="px-6 py-8 text-sm text-rose-700">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
@@ -216,6 +216,7 @@ function ProjectFormModal({
 }) {
   const isEdit = state.mode === "edit";
   const initial = isEdit ? state.project : null;
+  const t = useT();
   const L = useLabels();
 
   const clients = trpc.clients.list.useQuery({ status: "active" });
@@ -266,7 +267,7 @@ function ProjectFormModal({
     const amt = contractAmount.trim();
     const cur = contractCurrency.trim();
     if ((amt && !cur) || (!amt && cur)) {
-      setError("Contract amount and currency must be set together.");
+      setError(t("projects.err_contract_currency"));
       return;
     }
     const payload = {
@@ -289,12 +290,12 @@ function ProjectFormModal({
 
   return (
     <Modal
-      title={isEdit ? `Edit ${state.project.name}` : "New project"}
-      subtitle={
+      title={
         isEdit
-          ? undefined
-          : "Set the basics — you can fill in the rest later."
+          ? t("projects.modal.edit_title", { name: state.project.name })
+          : t("projects.modal.new_title")
       }
+      subtitle={isEdit ? undefined : t("projects.modal.subtitle")}
       onClose={onClose}
       size="lg"
       footer={
@@ -302,7 +303,7 @@ function ProjectFormModal({
           <p className="text-xs text-rose-600">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -310,14 +311,18 @@ function ProjectFormModal({
               variant="primary"
               disabled={submitting}
             >
-              {submitting ? "Saving…" : isEdit ? "Save changes" : "Create project"}
+              {submitting
+                ? t("common.saving")
+                : isEdit
+                  ? t("common.save_changes")
+                  : t("projects.modal.create")}
             </Button>
           </div>
         </div>
       }
     >
       <form id="project-form" onSubmit={onSubmit} className="grid gap-5 sm:grid-cols-2">
-        <Field label="Project name" required wide>
+        <Field label={t("projects.field.name")} required wide>
           <Input
             required
             value={name}
@@ -326,24 +331,24 @@ function ProjectFormModal({
             placeholder="e.g. Anderson Kitchen Renovation"
           />
         </Field>
-        <Field label="Type">
+        <Field label={t("col.type")}>
           <Select
             value={projectType}
             onChange={(e) => setProjectType(e.target.value as ProjectType)}
           >
-            {(Object.keys(PROJECT_TYPE_LABELS) as ProjectType[]).map((t) => (
-              <option key={t} value={t}>
-                {L.projectType(t)}
+            {(Object.keys(PROJECT_TYPE_LABELS) as ProjectType[]).map((pt) => (
+              <option key={pt} value={pt}>
+                {L.projectType(pt)}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Client" hint="Optional">
+        <Field label={t("col.client")} hint={t("common.optional")}>
           <Select
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
           >
-            <option value="">— None</option>
+            <option value="">{t("projects.field.client_none")}</option>
             {clients.data?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -351,14 +356,14 @@ function ProjectFormModal({
             ))}
           </Select>
         </Field>
-        <Field label="Address" wide>
+        <Field label={t("col.address")} wide>
           <Input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             placeholder="123 Main St, Anytown"
           />
         </Field>
-        <Field label="Contract amount" hint="Optional">
+        <Field label={t("projects.field.contract_amount")} hint={t("common.optional")}>
           <MoneyInput
             amount={contractAmount}
             currency={contractCurrency}
@@ -367,21 +372,21 @@ function ProjectFormModal({
             placeholder="125,000.00"
           />
         </Field>
-        <Field label="Start date">
+        <Field label={t("projects.field.start_date")}>
           <Input
             type="date"
             value={startedAt as string}
             onChange={(e) => setStartedAt(e.target.value)}
           />
         </Field>
-        <Field label="Tags" hint="Comma-separated" wide>
+        <Field label={t("projects.field.tags")} hint={t("projects.field.tags_hint")} wide>
           <Input
             value={tagsRaw}
             onChange={(e) => setTagsRaw(e.target.value)}
             placeholder="residential, kitchen, design-build"
           />
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("projects.field.notes")} wide>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}

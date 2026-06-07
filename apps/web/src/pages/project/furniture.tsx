@@ -10,7 +10,7 @@ import {
   type RoomType,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters, useLabels } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -63,21 +63,20 @@ export default function ProjectFurniture() {
   const rooms = trpc.projects.listRooms.useQuery({ projectId: project.id });
   const fmt = useFormatters();
   const L = useLabels();
+  const t = useT();
 
   return (
     <div className="animate-fade">
       <div className="flex items-end justify-between gap-6">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            Furniture
+            {t("furniture.title")}
           </h2>
-          <p className="mt-1 text-sm text-ink-500">
-            Free-standing pieces — sofas, tables, lamps, rugs.
-          </p>
+          <p className="mt-1 text-sm text-ink-500">{t("furniture.lede")}</p>
         </div>
         <Button variant="primary" onClick={() => setModal({ mode: "create" })}>
           <Icon name="plus" className="h-4 w-4" />
-          Add piece
+          {t("furniture.add")}
         </Button>
       </div>
 
@@ -89,7 +88,7 @@ export default function ProjectFurniture() {
               setStatusFilter(e.target.value as FurnitureStatus | "")
             }
           >
-            <option value="">All statuses</option>
+            <option value="">{t("filter.all_statuses")}</option>
             {(Object.keys(FURNITURE_STATUS_LABELS) as FurnitureStatus[]).map(
               (s) => (
                 <option key={s} value={s}>
@@ -106,7 +105,7 @@ export default function ProjectFurniture() {
               setCategoryFilter(e.target.value as FurnitureCategory | "")
             }
           >
-            <option value="">All categories</option>
+            <option value="">{t("filter.all_categories")}</option>
             {(
               Object.keys(FURNITURE_CATEGORY_LABELS) as FurnitureCategory[]
             ).map((c) => (
@@ -121,7 +120,7 @@ export default function ProjectFurniture() {
             value={roomFilter}
             onChange={(e) => setRoomFilter(e.target.value)}
           >
-            <option value="">All rooms</option>
+            <option value="">{t("filter.all_rooms")}</option>
             {rooms.data?.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -137,7 +136,7 @@ export default function ProjectFurniture() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, designer, material"
+            placeholder={t("furniture.search")}
             className="pl-10"
           />
         </div>
@@ -145,15 +144,15 @@ export default function ProjectFurniture() {
 
       <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
         {list.isLoading ? (
-          <p className="px-6 py-8 text-sm text-ink-500">Loading…</p>
+          <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="px-6 py-8 text-sm text-rose-700">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="font-display text-xl text-ink-900">
               {search.trim() || roomFilter || categoryFilter || statusFilter
-                ? "No pieces match these filters."
-                : "No furniture yet."}
+                ? t("furniture.empty_filtered")
+                : t("furniture.empty")}
             </p>
             {!search.trim() &&
               !roomFilter &&
@@ -165,7 +164,7 @@ export default function ProjectFurniture() {
                   className="mt-5"
                 >
                   <Icon name="plus" className="h-4 w-4" />
-                  Add the first piece
+                  {t("furniture.add_first")}
                 </Button>
               )}
           </div>
@@ -173,13 +172,13 @@ export default function ProjectFurniture() {
           <table className="w-full text-[14px]">
             <thead className="border-b border-ink-100 bg-paper-50">
               <tr className="text-left">
-                <Th>Piece</Th>
-                <Th>Category</Th>
-                <Th>Room</Th>
-                <Th align="right">Qty</Th>
-                <Th>Status</Th>
-                <Th>Delivery</Th>
-                <Th align="right">Price</Th>
+                <Th>{t("col.piece")}</Th>
+                <Th>{t("col.category")}</Th>
+                <Th>{t("col.room")}</Th>
+                <Th align="right">{t("col.qty")}</Th>
+                <Th>{t("col.status")}</Th>
+                <Th>{t("col.delivery")}</Th>
+                <Th align="right">{t("col.price")}</Th>
                 <Th />
               </tr>
             </thead>
@@ -230,7 +229,7 @@ export default function ProjectFurniture() {
                   <Td align="right">
                     <Link
                       to={`/projects/${project.id}/furniture/${p.id}`}
-                      aria-label="Open piece"
+                      aria-label={t("furniture.open_piece")}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
                     >
                       <Icon name="chevron-right" className="h-4 w-4" />
@@ -313,6 +312,7 @@ function FurnitureFormModal({
 }) {
   const isEdit = mode === "edit";
   const L = useLabels();
+  const t = useT();
 
   const [name, setName] = useState(existing?.name ?? "");
   const [category, setCategory] = useState<FurnitureCategory>(
@@ -368,12 +368,12 @@ function FurnitureFormModal({
     const amt = purchasePriceAmount.trim();
     const cur = purchasePriceCurrency.trim();
     if ((amt && !cur) || (!amt && cur)) {
-      setError("Purchase price and currency must be set together.");
+      setError(t("furniture.err_price_currency"));
       return;
     }
     const qty = parseInt(quantity, 10);
     if (!Number.isFinite(qty) || qty < 1) {
-      setError("Quantity must be at least 1.");
+      setError(t("furniture.err_quantity_min"));
       return;
     }
     const base = {
@@ -405,8 +405,12 @@ function FurnitureFormModal({
 
   return (
     <Modal
-      title={isEdit && existing ? `Edit ${existing.name}` : "New piece"}
-      subtitle={isEdit ? undefined : "Add a free-standing piece to this project."}
+      title={
+        isEdit && existing
+          ? t("furniture.edit_title", { name: existing.name })
+          : t("furniture.new_title")
+      }
+      subtitle={isEdit ? undefined : t("furniture.new_subtitle")}
       onClose={onClose}
       size="lg"
       footer={
@@ -414,7 +418,7 @@ function FurnitureFormModal({
           <p className="text-xs text-rose-600">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -422,7 +426,11 @@ function FurnitureFormModal({
               variant="primary"
               disabled={submitting}
             >
-              {submitting ? "Saving…" : isEdit ? "Save changes" : "Add piece"}
+              {submitting
+                ? t("common.saving")
+                : isEdit
+                  ? t("common.save_changes")
+                  : t("furniture.add")}
             </Button>
           </div>
         </div>
@@ -433,16 +441,16 @@ function FurnitureFormModal({
         onSubmit={onSubmit}
         className="grid gap-5 sm:grid-cols-2"
       >
-        <Field label="Name" required wide>
+        <Field label={t("col.name")} required wide>
           <Input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoFocus
-            placeholder="e.g. Camaleonda modular sofa"
+            placeholder={t("furniture.ph.name")}
           />
         </Field>
-        <Field label="Category">
+        <Field label={t("col.category")}>
           <Select
             value={category}
             onChange={(e) =>
@@ -458,7 +466,7 @@ function FurnitureFormModal({
             ))}
           </Select>
         </Field>
-        <Field label="Status">
+        <Field label={t("col.status")}>
           <Select
             value={status}
             onChange={(e) => setStatus(e.target.value as FurnitureStatus)}
@@ -472,9 +480,9 @@ function FurnitureFormModal({
             )}
           </Select>
         </Field>
-        <Field label="Room" hint="Optional">
+        <Field label={t("col.room")} hint={t("common.optional")}>
           <Select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
-            <option value="">— None</option>
+            <option value="">{t("furniture.room_none")}</option>
             {rooms.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -485,7 +493,7 @@ function FurnitureFormModal({
             ))}
           </Select>
         </Field>
-        <Field label="Quantity">
+        <Field label={t("furniture.field.quantity")}>
           <Input
             type="number"
             min={1}
@@ -493,63 +501,71 @@ function FurnitureFormModal({
             onChange={(e) => setQuantity(e.target.value)}
           />
         </Field>
-        <Field label="Designer">
+        <Field label={t("furniture.field.designer")}>
           <Input
             value={designer}
             onChange={(e) => setDesigner(e.target.value)}
             placeholder="Mario Bellini"
           />
         </Field>
-        <Field label="Manufacturer">
+        <Field label={t("furniture.field.manufacturer")}>
           <Input
             value={manufacturer}
             onChange={(e) => setManufacturer(e.target.value)}
             placeholder="B&B Italia"
           />
         </Field>
-        <Field label="Model / SKU">
+        <Field label={t("furniture.field.model_sku")}>
           <Input
             value={model}
             onChange={(e) => setModel(e.target.value)}
             placeholder="CAM01"
           />
         </Field>
-        <Field label="Dimensions" hint='e.g. 84"W × 36"D × 28"H' wide>
+        <Field
+          label={t("furniture.field.dimensions")}
+          hint={t("furniture.hint.dimensions")}
+          wide
+        >
           <Input
             value={dimensions}
             onChange={(e) => setDimensions(e.target.value)}
             placeholder='84"W × 36"D × 28"H'
           />
         </Field>
-        <Field label="Material">
+        <Field label={t("furniture.field.material")}>
           <Input
             value={material}
             onChange={(e) => setMaterial(e.target.value)}
-            placeholder="Linen, walnut, brass"
+            placeholder={t("furniture.ph.material")}
           />
         </Field>
-        <Field label="Finish / color">
+        <Field label={t("furniture.field.finish_color")}>
           <Input
             value={finish}
             onChange={(e) => setFinish(e.target.value)}
-            placeholder="Ecru, white oak, matte black"
+            placeholder={t("furniture.ph.finish")}
           />
         </Field>
-        <Field label="Delivery date">
+        <Field label={t("furniture.field.delivery_date")}>
           <Input
             type="date"
             value={deliveryDate}
             onChange={(e) => setDeliveryDate(e.target.value)}
           />
         </Field>
-        <Field label="Warranty expires">
+        <Field label={t("furniture.field.warranty_expires")}>
           <Input
             type="date"
             value={warrantyExpiresAt}
             onChange={(e) => setWarrantyExpiresAt(e.target.value)}
           />
         </Field>
-        <Field label="Purchase price" hint="Optional" wide>
+        <Field
+          label={t("furniture.field.purchase_price")}
+          hint={t("common.optional")}
+          wide
+        >
           <MoneyInput
             amount={purchasePriceAmount}
             currency={purchasePriceCurrency}
@@ -558,7 +574,11 @@ function FurnitureFormModal({
             placeholder="8,500.00"
           />
         </Field>
-        <Field label="Product link" hint="Manufacturer or vendor URL" wide>
+        <Field
+          label={t("furniture.field.product_link")}
+          hint={t("furniture.hint.product_link")}
+          wide
+        >
           <Input
             type="url"
             value={productUrl}
@@ -566,7 +586,7 @@ function FurnitureFormModal({
             placeholder="https://bebitalia.com/…"
           />
         </Field>
-        <Field label="Photo URL" wide>
+        <Field label={t("furniture.field.photo_url")} wide>
           <Input
             type="url"
             value={photoUrl}
@@ -574,12 +594,12 @@ function FurnitureFormModal({
             placeholder="https://…"
           />
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("detail.notes")} wide>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            placeholder="Anything specific — care instructions, swatches, scheme notes."
+            placeholder={t("furniture.ph.notes")}
           />
         </Field>
       </form>

@@ -10,6 +10,7 @@
  * unknown keys.
  */
 import { pagesEn, pagesEs } from "./pages";
+import { pages2En, pages2Es } from "./pages2";
 
 const coreEn = {
   // ── sidebar nav (workspace mode) ──
@@ -288,7 +289,7 @@ const coreEs: Partial<Record<keyof typeof coreEn, string>> = {
   "home.milestone": "Hito 2 — Demo de Recall",
   "home.title": "Beamy está vivo.",
   "home.lede":
-    "M1 completo: clientes, proveedores (+ cumplimiento), servicios, contactos, miembros + invitaciones, i18n, Supabase Auth. M2 en curso — proyectos + espacios; siguen activos, materiales, fotos y búsqueda de recall.",
+    "M1 completo: clientes, proveedores (+ cumplimiento), servicios, contactos, miembros + invitaciones, i18n, Supabase Auth. M2 en curso — proyectos + espacios; siguen: activos, materiales, fotos y búsqueda por recall.",
   "home.jump_in": "Entrar",
   "home.tile.projects": "Proyectos",
   "home.tile.projects.sub": "Trabajos en curso",
@@ -459,10 +460,11 @@ const coreEs: Partial<Record<keyof typeof coreEn, string>> = {
 };
 
 /** Full catalogs = core (this file) + page-level copy (./pages). */
-export const messagesEn = { ...coreEn, ...pagesEn };
+export const messagesEn = { ...coreEn, ...pagesEn, ...pages2En };
 export const messagesEsMx: Partial<Record<keyof typeof messagesEn, string>> = {
   ...coreEs,
   ...pagesEs,
+  ...pages2Es,
 };
 
 export type MessageKey = keyof typeof messagesEn;

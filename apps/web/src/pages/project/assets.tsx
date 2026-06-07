@@ -10,7 +10,7 @@ import {
   type AssetStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters, useLabels } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -59,6 +59,7 @@ export default function ProjectAssets() {
   const rooms = trpc.projects.listRooms.useQuery({ projectId: project.id });
   const fmt = useFormatters();
   const L = useLabels();
+  const t = useT();
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -67,15 +68,15 @@ export default function ProjectAssets() {
       <div className="flex items-end justify-between gap-6">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            Assets
+            {t("assets.title")}
           </h2>
           <p className="mt-1 text-sm text-ink-500">
-            Installed items — model, serial, warranty.
+            {t("assets.lede")}
           </p>
         </div>
         <Button variant="primary" onClick={() => setModal({ mode: "create" })}>
           <Icon name="plus" className="h-4 w-4" />
-          Add asset
+          {t("assets.add")}
         </Button>
       </div>
 
@@ -85,7 +86,7 @@ export default function ProjectAssets() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as AssetStatus | "")}
           >
-            <option value="">All statuses</option>
+            <option value="">{t("filter.all_statuses")}</option>
             {(Object.keys(ASSET_STATUS_LABELS) as AssetStatus[]).map((s) => (
               <option key={s} value={s}>
                 {L.assetStatus(s)}
@@ -100,7 +101,7 @@ export default function ProjectAssets() {
               setCategoryFilter(e.target.value as AssetCategory | "")
             }
           >
-            <option value="">All categories</option>
+            <option value="">{t("filter.all_categories")}</option>
             {(Object.keys(ASSET_CATEGORY_LABELS) as AssetCategory[]).map((c) => (
               <option key={c} value={c}>
                 {L.assetCategory(c)}
@@ -113,7 +114,7 @@ export default function ProjectAssets() {
             value={roomFilter}
             onChange={(e) => setRoomFilter(e.target.value)}
           >
-            <option value="">All rooms</option>
+            <option value="">{t("filter.all_rooms")}</option>
             {rooms.data?.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -129,7 +130,7 @@ export default function ProjectAssets() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, manufacturer, model, serial"
+            placeholder={t("assets.search")}
             className="pl-10"
           />
         </div>
@@ -137,15 +138,15 @@ export default function ProjectAssets() {
 
       <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
         {list.isLoading ? (
-          <p className="px-6 py-8 text-sm text-ink-500">Loading…</p>
+          <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="px-6 py-8 text-sm text-rose-700">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="font-display text-xl text-ink-900">
               {search.trim() || roomFilter || categoryFilter || statusFilter
-                ? "No assets match these filters."
-                : "No assets yet."}
+                ? t("assets.empty_filtered")
+                : t("assets.empty")}
             </p>
             {!search.trim() && !roomFilter && !categoryFilter && !statusFilter && (
               <Button
@@ -154,7 +155,7 @@ export default function ProjectAssets() {
                 className="mt-5"
               >
                 <Icon name="plus" className="h-4 w-4" />
-                Add the first asset
+                {t("assets.add_first")}
               </Button>
             )}
           </div>
@@ -162,13 +163,13 @@ export default function ProjectAssets() {
           <table className="w-full text-[14px]">
             <thead className="border-b border-ink-100 bg-paper-50">
               <tr className="text-left">
-                <Th>Name</Th>
-                <Th>Category</Th>
-                <Th>Room</Th>
-                <Th>Status</Th>
-                <Th>Installed</Th>
-                <Th>Warranty</Th>
-                <Th align="right">Price</Th>
+                <Th>{t("col.name")}</Th>
+                <Th>{t("col.category")}</Th>
+                <Th>{t("col.room")}</Th>
+                <Th>{t("col.status")}</Th>
+                <Th>{t("col.installed")}</Th>
+                <Th>{t("col.warranty")}</Th>
+                <Th align="right">{t("col.price")}</Th>
                 <Th />
               </tr>
             </thead>
@@ -222,7 +223,7 @@ export default function ProjectAssets() {
                           {fmt.date(a.warrantyExpiresAt)}
                           {warrantyExpired && (
                             <span className="ml-1 text-[10px] uppercase tracking-wide">
-                              expired
+                              {t("assets.warranty_expired")}
                             </span>
                           )}
                         </span>
@@ -241,7 +242,7 @@ export default function ProjectAssets() {
                     <Td align="right">
                       <Link
                         to={`/projects/${project.id}/assets/${a.id}`}
-                        aria-label="Open asset"
+                        aria-label={t("assets.open")}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
                       >
                         <Icon name="chevron-right" className="h-4 w-4" />
@@ -325,6 +326,7 @@ function AssetFormModal({
 }) {
   const isEdit = mode === "edit";
   const L = useLabels();
+  const t = useT();
 
   const [name, setName] = useState(existing?.name ?? "");
   const [category, setCategory] = useState<AssetCategory>(
@@ -376,7 +378,7 @@ function AssetFormModal({
     const amt = purchasePriceAmount.trim();
     const cur = purchasePriceCurrency.trim();
     if ((amt && !cur) || (!amt && cur)) {
-      setError("Purchase price and currency must be set together.");
+      setError(t("asset.price_currency_together"));
       return;
     }
     const base = {
@@ -404,8 +406,12 @@ function AssetFormModal({
 
   return (
     <Modal
-      title={isEdit && existing ? `Edit ${existing.name}` : "New asset"}
-      subtitle={isEdit ? undefined : "Add an installed item to this project."}
+      title={
+        isEdit && existing
+          ? t("asset.edit_title", { name: existing.name })
+          : t("asset.new_title")
+      }
+      subtitle={isEdit ? undefined : t("asset.new_subtitle")}
       onClose={onClose}
       size="lg"
       footer={
@@ -413,7 +419,7 @@ function AssetFormModal({
           <p className="text-xs text-rose-600">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -421,14 +427,18 @@ function AssetFormModal({
               variant="primary"
               disabled={submitting}
             >
-              {submitting ? "Saving…" : isEdit ? "Save changes" : "Add asset"}
+              {submitting
+                ? t("common.saving")
+                : isEdit
+                  ? t("common.save_changes")
+                  : t("assets.add")}
             </Button>
           </div>
         </div>
       }
     >
       <form id="asset-form" onSubmit={onSubmit} className="grid gap-5 sm:grid-cols-2">
-        <Field label="Name" required wide>
+        <Field label={t("col.name")} required wide>
           <Input
             required
             value={name}
@@ -437,7 +447,7 @@ function AssetFormModal({
             placeholder="e.g. Sub-Zero PRO 48 Fridge"
           />
         </Field>
-        <Field label="Category">
+        <Field label={t("col.category")}>
           <Select
             value={category}
             onChange={(e) => setCategory(e.target.value as AssetCategory)}
@@ -449,7 +459,7 @@ function AssetFormModal({
             ))}
           </Select>
         </Field>
-        <Field label="Status">
+        <Field label={t("col.status")}>
           <Select
             value={status}
             onChange={(e) => setStatus(e.target.value as AssetStatus)}
@@ -461,9 +471,9 @@ function AssetFormModal({
             ))}
           </Select>
         </Field>
-        <Field label="Room" hint="Optional" wide>
+        <Field label={t("col.room")} hint={t("common.optional")} wide>
           <Select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
-            <option value="">— None</option>
+            <option value="">{t("asset.room_none")}</option>
             {rooms.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -474,42 +484,42 @@ function AssetFormModal({
             ))}
           </Select>
         </Field>
-        <Field label="Manufacturer">
+        <Field label={t("asset.field.manufacturer")}>
           <Input
             value={manufacturer}
             onChange={(e) => setManufacturer(e.target.value)}
             placeholder="Sub-Zero"
           />
         </Field>
-        <Field label="Model">
+        <Field label={t("asset.field.model")}>
           <Input
             value={model}
             onChange={(e) => setModel(e.target.value)}
             placeholder="BI-48S/O"
           />
         </Field>
-        <Field label="Serial number" wide>
+        <Field label={t("asset.field.serial_number")} wide>
           <Input
             value={serialNumber}
             onChange={(e) => setSerialNumber(e.target.value)}
             placeholder="SN-1234567"
           />
         </Field>
-        <Field label="Install date">
+        <Field label={t("asset.field.install_date")}>
           <Input
             type="date"
             value={installDate}
             onChange={(e) => setInstallDate(e.target.value)}
           />
         </Field>
-        <Field label="Warranty expires">
+        <Field label={t("asset.field.warranty_expires")}>
           <Input
             type="date"
             value={warrantyExpiresAt}
             onChange={(e) => setWarrantyExpiresAt(e.target.value)}
           />
         </Field>
-        <Field label="Purchase price" hint="Optional" wide>
+        <Field label={t("asset.field.purchase_price")} hint={t("common.optional")} wide>
           <MoneyInput
             amount={purchasePriceAmount}
             currency={purchasePriceCurrency}
@@ -518,7 +528,7 @@ function AssetFormModal({
             placeholder="12,500.00"
           />
         </Field>
-        <Field label="Product link" hint="Manufacturer or vendor URL" wide>
+        <Field label={t("asset.field.product_link")} hint={t("asset.field.product_link_hint")} wide>
           <Input
             type="url"
             value={productUrl}
@@ -526,7 +536,7 @@ function AssetFormModal({
             placeholder="https://subzero-wolf.com/…"
           />
         </Field>
-        <Field label="Photo URL" wide>
+        <Field label={t("asset.field.photo_url")} wide>
           <Input
             type="url"
             value={photoUrl}
@@ -534,12 +544,12 @@ function AssetFormModal({
             placeholder="https://…"
           />
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("detail.notes")} wide>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            placeholder="Anything specific about this unit."
+            placeholder={t("asset.field.notes_ph")}
           />
         </Field>
       </form>
