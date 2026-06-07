@@ -207,6 +207,8 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
 
   const [tradeFilter, setTradeFilter] = useState<string>("");
   const [roomFilter, setRoomFilter] = useState<string>("");
+  const [vendorFilter, setVendorFilter] = useState<string>("");
+  const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [search, setSearch] = useState("");
 
   // Multi-status filters. "specified" items are intentionally hidden
@@ -228,6 +230,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
     status: statusInput,
     trade: tradeFilter || undefined,
     roomId: roomFilter || undefined,
+    vendorId: vendorFilter || undefined,
     search: search.trim() || undefined,
   });
   const trades = trpc.workItems.listTrades.useQuery({ projectId });
@@ -282,7 +285,19 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
   const openDetail = (w: WorkItemRow) =>
     navigate(`/projects/${projectId}/plan/${w.id}`);
   const hasActiveFilters =
-    !!search.trim() || !!tradeFilter || !!roomFilter || statusFilter !== "all";
+    !!search.trim() ||
+    !!tradeFilter ||
+    !!roomFilter ||
+    !!vendorFilter ||
+    statusFilter !== "all";
+
+  // Grouping (swimlanes / color) applies only to the timeline + calendar.
+  const groupingActive =
+    groupBy !== "none" && (view === "timeline" || view === "calendar");
+  const grouping = useMemo(
+    () => buildGrouping(filtered, groupingActive ? groupBy : "none"),
+    [filtered, groupBy, groupingActive],
+  );
 
   return (
     <div>
@@ -313,6 +328,18 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
           carries its own per-column header filters (same state). */}
       {!adding && view !== "table" && (
         <div className="mt-4 flex flex-wrap gap-2">
+          {(view === "timeline" || view === "calendar") && (
+            <select
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+              className={selectCls}
+              title="Group by"
+            >
+              <option value="none">No grouping</option>
+              <option value="room">Group by room</option>
+              <option value="vendor">Group by vendor</option>
+            </select>
+          )}
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
@@ -345,6 +372,18 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             {rooms.data?.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={vendorFilter}
+            onChange={(e) => setVendorFilter(e.target.value)}
+            className={selectCls}
+          >
+            <option value="">All vendors</option>
+            {vendors.data?.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
               </option>
             ))}
           </select>
@@ -387,6 +426,12 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
         ) : view === "timeline" ? (
           filtered.length === 0 ? (
             <EmptyPlan hasActiveFilters={hasActiveFilters} />
+          ) : groupingActive ? (
+            <GroupedTimeline
+              groups={grouping.groups}
+              blockedByItem={blockedByItem}
+              onEdit={openDetail}
+            />
           ) : (
             <TimelineView
               items={filtered}
@@ -399,7 +444,12 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
           filtered.length === 0 ? (
             <EmptyPlan hasActiveFilters={hasActiveFilters} />
           ) : (
-            <CalendarView items={filtered} onEdit={openDetail} />
+            <CalendarView
+              items={filtered}
+              onEdit={openDetail}
+              colorForItem={groupingActive ? grouping.colorForItem : undefined}
+              legend={groupingActive ? grouping.groups : undefined}
+            />
           )
         ) : (
           <WorkItemsTable
@@ -878,6 +928,86 @@ function BlockedPill({ blockers }: { blockers: WorkItemRow[] }) {
  * view, not a full CPM Gantt. If the firm needs lag calculations or
  * critical-path highlighting that's a follow-up PR.
  */
+// ───────────────────────────────────── grouping ─────────────
+
+type GroupBy = "none" | "room" | "vendor";
+type GroupColor = { dot: string; chip: string };
+type ItemGroup = {
+  key: string;
+  label: string;
+  color: GroupColor;
+  items: WorkItemRow[];
+};
+
+/** Stable palette for group color-coding (calendar chips, lane accents). */
+const GROUP_PALETTE: GroupColor[] = [
+  { dot: "#0284c7", chip: "bg-sky-50 text-sky-800 ring-sky-200" },
+  { dot: "#7c3aed", chip: "bg-violet-50 text-violet-800 ring-violet-200" },
+  { dot: "#059669", chip: "bg-emerald-50 text-emerald-800 ring-emerald-200" },
+  { dot: "#d97706", chip: "bg-amber-50 text-amber-900 ring-amber-200" },
+  { dot: "#db2777", chip: "bg-pink-50 text-pink-800 ring-pink-200" },
+  { dot: "#0d9488", chip: "bg-teal-50 text-teal-800 ring-teal-200" },
+  { dot: "#4f46e5", chip: "bg-indigo-50 text-indigo-800 ring-indigo-200" },
+  { dot: "#ca8a04", chip: "bg-yellow-50 text-yellow-800 ring-yellow-200" },
+];
+const UNGROUPED_COLOR: GroupColor = {
+  dot: "#94a3b8",
+  chip: "bg-slate-50 text-slate-600 ring-slate-200",
+};
+
+/**
+ * Partition work items by room or vendor. Room grouping is many-to-one
+ * (a multi-room item appears in each room's group, like the By-room
+ * view); vendor grouping is one-to-one. Named groups sort by label,
+ * "Unassigned" last, each with a stable palette color. Also returns a
+ * per-item color lookup (by the item's primary group) for the calendar.
+ */
+function buildGrouping(
+  items: WorkItemRow[],
+  by: GroupBy,
+): { groups: ItemGroup[]; colorForItem: (w: WorkItemRow) => GroupColor } {
+  if (by === "none") {
+    return { groups: [], colorForItem: () => UNGROUPED_COLOR };
+  }
+  const map = new Map<string, { label: string; items: WorkItemRow[] }>();
+  const add = (key: string, label: string, w: WorkItemRow) => {
+    const g = map.get(key) ?? { label, items: [] };
+    g.items.push(w);
+    map.set(key, g);
+  };
+  const primaryKey = (w: WorkItemRow): string =>
+    by === "vendor"
+      ? (w.vendor?.id ?? "__none")
+      : (w.rooms[0]?.id ?? "__none");
+  for (const w of items) {
+    if (by === "vendor") {
+      add(w.vendor?.id ?? "__none", w.vendor?.name ?? "Unassigned", w);
+    } else if (w.rooms.length === 0) {
+      add("__none", "Unassigned", w);
+    } else {
+      for (const r of w.rooms) add(r.id, r.name, w);
+    }
+  }
+  const named = [...map.keys()]
+    .filter((k) => k !== "__none")
+    .sort((a, b) => map.get(a)!.label.localeCompare(map.get(b)!.label));
+  const orderedKeys = map.has("__none") ? [...named, "__none"] : named;
+  const colorByKey = new Map<string, GroupColor>();
+  const groups: ItemGroup[] = orderedKeys.map((key, i) => {
+    const color =
+      key === "__none"
+        ? UNGROUPED_COLOR
+        : (GROUP_PALETTE[i % GROUP_PALETTE.length] ?? UNGROUPED_COLOR);
+    colorByKey.set(key, color);
+    const entry = map.get(key)!;
+    return { key, label: entry.label, color, items: entry.items };
+  });
+  return {
+    groups,
+    colorForItem: (w) => colorByKey.get(primaryKey(w)) ?? UNGROUPED_COLOR,
+  };
+}
+
 function TimelineView({
   items,
   depsByItem,
@@ -1112,6 +1242,229 @@ const STATUS_BAR_STROKE: Record<WorkItemStatus, string> = {
   cancelled: "#fecaca",
 };
 
+/**
+ * Grouped timeline — swimlanes. One labeled lane per room/vendor group,
+ * all sharing a single global date axis so dates line up across lanes.
+ * Bars keep their status color; the lane header carries the group color.
+ * Dependency arrows are omitted in grouped mode (rows repeat across
+ * lanes for multi-room items, so cross-lane arrows would be ambiguous).
+ */
+function GroupedTimeline({
+  groups,
+  blockedByItem,
+  onEdit,
+}: {
+  groups: ItemGroup[];
+  blockedByItem: Map<string, WorkItemRow[]>;
+  onEdit: (w: WorkItemRow) => void;
+}) {
+  const ROW_H = 30;
+  const BAR_H = 16;
+  const HEADER_H = 24;
+  const W = 760;
+
+  const bounds = useMemo(() => {
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const g of groups) {
+      for (const w of g.items) {
+        if (!w.plannedStart || !w.plannedEnd) continue;
+        const s = Date.parse(w.plannedStart);
+        const e = Date.parse(w.plannedEnd);
+        if (s < min) min = s;
+        if (e > max) max = e;
+      }
+    }
+    if (!isFinite(min) || !isFinite(max)) return null;
+    const pad = 86400_000;
+    return { min: min - pad, max: max + pad };
+  }, [groups]);
+
+  const xFor = (dateStr: string): number => {
+    if (!bounds) return 0;
+    return ((Date.parse(dateStr) - bounds.min) / (bounds.max - bounds.min)) * W;
+  };
+
+  const ticks = useMemo(() => {
+    if (!bounds) return [];
+    const result: { x: number; label: string }[] = [];
+    const start = new Date(bounds.min);
+    start.setHours(0, 0, 0, 0);
+    for (let t = start.getTime(); t <= bounds.max; t += 7 * 86400_000) {
+      const x = ((t - bounds.min) / (bounds.max - bounds.min)) * W;
+      const d = new Date(t);
+      result.push({ x, label: `${d.getMonth() + 1}/${d.getDate()}` });
+    }
+    return result;
+  }, [bounds]);
+
+  const layout = useMemo(() => {
+    const rows: Array<
+      | { type: "header"; group: ItemGroup; y: number }
+      | { type: "bar"; w: WorkItemRow; y: number }
+    > = [];
+    let y = 26;
+    for (const g of groups) {
+      const dated = g.items.filter((w) => w.plannedStart && w.plannedEnd);
+      if (dated.length === 0) continue;
+      rows.push({ type: "header", group: g, y });
+      y += HEADER_H;
+      for (const w of dated) {
+        rows.push({ type: "bar", w, y });
+        y += ROW_H;
+      }
+      y += 6;
+    }
+    return { rows, height: Math.max(y, 60) };
+  }, [groups]);
+
+  const undatedGroups = groups
+    .map((g) => ({
+      g,
+      undated: g.items.filter((w) => !w.plannedStart || !w.plannedEnd),
+    }))
+    .filter((x) => x.undated.length > 0);
+
+  return (
+    <div className="space-y-4">
+      {bounds && layout.rows.length > 0 && (
+        <div className="overflow-x-auto rounded-md border border-paper-200 bg-white">
+          <svg
+            viewBox={`0 0 ${W} ${layout.height}`}
+            className="block w-full"
+            style={{ minWidth: 600 }}
+          >
+            {ticks.map((t, i) => (
+              <g key={i}>
+                <line
+                  x1={t.x}
+                  x2={t.x}
+                  y1={18}
+                  y2={layout.height}
+                  stroke="#eef1f5"
+                  strokeWidth={1}
+                />
+                <text
+                  x={t.x}
+                  y={12}
+                  fontSize={9}
+                  textAnchor="middle"
+                  fill="#94a3b8"
+                  fontFamily="ui-monospace, monospace"
+                >
+                  {t.label}
+                </text>
+              </g>
+            ))}
+            {layout.rows.map((row, i) => {
+              if (row.type === "header") {
+                return (
+                  <g key={`h-${row.group.key}`}>
+                    <rect
+                      x={0}
+                      y={row.y}
+                      width={W}
+                      height={HEADER_H - 4}
+                      fill="#f8fafc"
+                    />
+                    <circle
+                      cx={6}
+                      cy={row.y + (HEADER_H - 4) / 2}
+                      r={4}
+                      fill={row.group.color.dot}
+                    />
+                    <text
+                      x={16}
+                      y={row.y + (HEADER_H - 4) / 2 + 3}
+                      fontSize={11}
+                      fontWeight={600}
+                      fill="#334155"
+                    >
+                      {row.group.label} · {row.group.items.length}
+                    </text>
+                  </g>
+                );
+              }
+              const w = row.w;
+              const x1 = xFor(w.plannedStart!);
+              const x2 = xFor(w.plannedEnd!);
+              const blocked = blockedByItem.has(w.id);
+              return (
+                <g
+                  key={`b-${w.id}-${i}`}
+                  className="cursor-pointer"
+                  onClick={() => onEdit(w)}
+                >
+                  <rect
+                    x={x1}
+                    y={row.y}
+                    width={Math.max(2, x2 - x1)}
+                    height={BAR_H}
+                    rx={3}
+                    fill={STATUS_BAR_FILL[w.status]}
+                    stroke={blocked ? "#b45309" : STATUS_BAR_STROKE[w.status]}
+                    strokeWidth={blocked ? 1.5 : 1}
+                  />
+                  <text
+                    x={x1 + 4}
+                    y={row.y + BAR_H / 2 + 3}
+                    fontSize={10}
+                    fill="#1e293b"
+                  >
+                    {w.ref ? `${w.ref} · ` : ""}
+                    {w.description.length > 38
+                      ? w.description.slice(0, 38) + "…"
+                      : w.description}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      )}
+
+      {undatedGroups.length > 0 && (
+        <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
+          <div className="border-b border-paper-200 bg-paper-50 px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
+            Undated — no planned dates
+          </div>
+          <div className="divide-y divide-paper-200">
+            {undatedGroups.map(({ g, undated }) => (
+              <div key={g.key} className="px-3 py-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full"
+                    style={{ backgroundColor: g.color.dot }}
+                  />
+                  {g.label}
+                </div>
+                <ul className="mt-1 space-y-0.5">
+                  {undated.map((w) => (
+                    <li key={`${g.key}-${w.id}`}>
+                      <button
+                        type="button"
+                        onClick={() => onEdit(w)}
+                        className="text-left text-[13px] text-blueprint-900 hover:underline"
+                      >
+                        {w.ref && (
+                          <span className="mr-2 font-mono text-[11px] text-slate-500">
+                            {w.ref}
+                          </span>
+                        )}
+                        {w.description}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ───────────────────────────────────── calendar view ─────────
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -1137,9 +1490,13 @@ function ymd(year: number, month: number, day: number): string {
 function CalendarView({
   items,
   onEdit,
+  colorForItem,
+  legend,
 }: {
   items: WorkItemRow[];
   onEdit: (w: WorkItemRow) => void;
+  colorForItem?: (w: WorkItemRow) => GroupColor;
+  legend?: ItemGroup[];
 }) {
   const { byDate, unscheduled, firstDate } = useMemo(() => {
     const byDate = new Map<string, WorkItemRow[]>();
@@ -1235,6 +1592,20 @@ function CalendarView({
         </div>
       </div>
 
+      {legend && legend.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-600">
+          {legend.map((g) => (
+            <span key={g.key} className="inline-flex items-center gap-1.5">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: g.color.dot }}
+              />
+              {g.label}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
         <div className="grid grid-cols-7 border-b border-paper-200 bg-paper-50">
           {WEEKDAY_LABELS.map((d) => (
@@ -1277,7 +1648,7 @@ function CalendarView({
                       type="button"
                       onClick={() => onEdit(w)}
                       title={`${w.ref ? `${w.ref} · ` : ""}${w.description}`}
-                      className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] ring-1 ring-inset ${STATUS_PILL_CLS[w.status]}`}
+                      className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] ring-1 ring-inset ${colorForItem ? colorForItem(w).chip : STATUS_PILL_CLS[w.status]}`}
                     >
                       {w.ref ? `${w.ref} · ` : ""}
                       {w.description}
