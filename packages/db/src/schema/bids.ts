@@ -76,7 +76,7 @@ export const bids = pgTable(
      */
     ivaIncluded: boolean("iva_included").notNull().default(false),
     status: text("status", {
-      enum: ["received", "comparing", "accepted", "rejected", "expired"],
+      enum: ["received", "comparing", "accepted", "completed", "rejected", "expired"],
     })
       .notNull()
       .default("received"),

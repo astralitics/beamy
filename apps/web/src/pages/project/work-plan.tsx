@@ -31,6 +31,7 @@ type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type WorkItemRow = inferRouterOutputs<AppRouter>["workItems"]["list"][number];
 type RoomRow = inferRouterOutputs<AppRouter>["projects"]["listRooms"][number];
 type VendorRow = inferRouterOutputs<AppRouter>["vendors"]["list"][number];
+type BidRow = inferRouterOutputs<AppRouter>["bids"]["list"][number];
 type DepRow =
   inferRouterOutputs<AppRouter>["workItems"]["listDependencies"][number];
 
@@ -236,6 +237,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
   const trades = trpc.workItems.listTrades.useQuery({ projectId });
   const rooms = trpc.projects.listRooms.useQuery({ projectId });
   const vendors = trpc.vendors.list.useQuery({});
+  const bids = trpc.bids.list.useQuery({ projectId });
   const deps = trpc.workItems.listDependencies.useQuery({ projectId });
 
   const filtered = useMemo(() => {
@@ -404,6 +406,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
           onClose={() => setAdding(false)}
           rooms={rooms.data ?? []}
           vendors={vendors.data ?? []}
+          bids={bids.data ?? []}
           allItems={allItems}
         />
       )}
@@ -1737,6 +1740,7 @@ export function WorkItemForm({
   existingDeps,
   rooms,
   vendors,
+  bids,
   allItems,
   defaultStatus = "specified",
   onClose,
@@ -1747,6 +1751,7 @@ export function WorkItemForm({
   existingDeps?: DepRow[];
   rooms: RoomRow[];
   vendors: VendorRow[];
+  bids: BidRow[];
   allItems: WorkItemRow[];
   defaultStatus?: WorkItemStatus;
   onClose: () => void;
@@ -1755,6 +1760,7 @@ export function WorkItemForm({
   const [trade, setTrade] = useState(existing?.trade ?? "");
   const [ref, setRef] = useState(existing?.ref ?? "");
   const [vendorId, setVendorId] = useState(existing?.vendorId ?? "");
+  const [bidId, setBidId] = useState(existing?.bid?.id ?? "");
   const [roomIds, setRoomIds] = useState<string[]>(
     existing?.rooms.map((r) => r.id) ?? [],
   );
@@ -1812,9 +1818,10 @@ export function WorkItemForm({
       notes: notes.trim() || undefined,
     };
     if (mode === "edit" && existing) {
-      update.mutate({ id: existing.id, patch: base });
+      // `null` clears the link in a patch; `undefined` would leave it.
+      update.mutate({ id: existing.id, patch: { ...base, bidId: bidId || null } });
     } else {
-      create.mutate({ projectId, ...base });
+      create.mutate({ projectId, ...base, bidId: bidId || undefined });
     }
   }
 
@@ -1864,6 +1871,26 @@ export function WorkItemForm({
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Source quote">
+          <select
+            value={bidId}
+            onChange={(e) => setBidId(e.target.value)}
+            className={selectCls}
+          >
+            <option value="">— (none)</option>
+            {bids.map((b) => (
+              <option key={b.id} value={b.id}>
+                {[
+                  b.vendor?.name ?? "Quote",
+                  b.bidNumber ? `#${b.bidNumber}` : null,
+                  b.trade,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </option>
             ))}
           </select>

@@ -10,6 +10,7 @@ import {
 import { orgs } from "./orgs";
 import { projects } from "./projects";
 import { vendors } from "./vendors";
+import { bids } from "./bids";
 
 /**
  * bills — money we owe vendors. One row per vendor invoice we receive.
@@ -22,6 +23,10 @@ import { vendors } from "./vendors";
  *     today) — not a stored status. Cleaner than transitioning rows on
  *     a cron.
  *   - QuickBooks sync is deferred; `external_ref` reserved for it (M4).
+ *   - `bid_id` links the payable back to the accepted quote that
+ *     spawned it. Approving a bid auto-creates an open bill here (one
+ *     per bid — idempotent); ON DELETE SET NULL so deleting the quote
+ *     leaves the payable standing as a manual entry.
  */
 export const bills = pgTable(
   "bills",
@@ -34,6 +39,10 @@ export const bills = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     vendorId: uuid("vendor_id").references(() => vendors.id, {
+      onDelete: "set null",
+    }),
+    /** The accepted quote this payable was created from, if any. */
+    bidId: uuid("bid_id").references(() => bids.id, {
       onDelete: "set null",
     }),
     /** Vendor's bill / invoice number on the PDF they sent. */
@@ -64,6 +73,7 @@ export const bills = pgTable(
   (table) => ({
     byProject: index("bills_by_project").on(table.projectId),
     byVendor: index("bills_by_vendor").on(table.vendorId),
+    byBid: index("bills_by_bid").on(table.bidId),
     byOrgStatus: index("bills_by_org_status").on(table.orgId, table.status),
     byOrgDue: index("bills_by_org_due").on(table.orgId, table.dueAt),
   }),

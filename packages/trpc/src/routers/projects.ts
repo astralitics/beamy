@@ -209,7 +209,7 @@ export const projectsRouter = router({
             and(
               bidScope,
               lt(bids.validUntil, today),
-              sql`${bids.status} NOT IN ('accepted', 'rejected', 'expired')`,
+              sql`${bids.status} NOT IN ('accepted', 'completed', 'rejected', 'expired')`,
             ),
           ),
         // Bids in 'comparing' state — waiting on a decision.
@@ -217,14 +217,16 @@ export const projectsRouter = router({
           .select({ count: sql<number>`count(*)::int` })
           .from(bids)
           .where(and(bidScope, eq(bids.status, "comparing"))),
-        // Committed = sum of accepted bid totals, per currency.
+        // Committed = sum of accepted + completed bid totals, per
+        // currency. Completing a quote keeps it counted — the money's
+        // still committed once work is done.
         db
           .select({
             currency: bids.currency,
             total: sql<string>`coalesce(sum(${bids.totalAmount}), 0)::text`,
           })
           .from(bids)
-          .where(and(bidScope, eq(bids.status, "accepted")))
+          .where(and(bidScope, inArray(bids.status, ["accepted", "completed"])))
           .groupBy(bids.currency),
         // Three most recent proposals.
         db
