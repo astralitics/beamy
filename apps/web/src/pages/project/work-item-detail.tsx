@@ -50,6 +50,7 @@ export default function ProjectWorkItemDetail() {
   });
   const rooms = trpc.projects.listRooms.useQuery({ projectId: project.id });
   const vendors = trpc.vendors.list.useQuery({});
+  const bids = trpc.bids.list.useQuery({ projectId: project.id });
 
   const utils = trpc.useUtils();
   const invalidate = () => {
@@ -117,7 +118,7 @@ export default function ProjectWorkItemDetail() {
                   to={`/projects/${project.id}/bids/${w.bid.id}`}
                   className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200 hover:bg-violet-100"
                 >
-                  ↗ Source bid{w.bid.bidNumber ? ` #${w.bid.bidNumber}` : ""}
+                  ↗ Source quote{w.bid.bidNumber ? ` #${w.bid.bidNumber}` : ""}
                 </Link>
               )}
             </div>
@@ -159,6 +160,7 @@ export default function ProjectWorkItemDetail() {
           existingDeps={existingDeps}
           rooms={rooms.data ?? []}
           vendors={vendors.data ?? []}
+          bids={bids.data ?? []}
           allItems={allItems}
           onClose={() => setEditing(false)}
         />
