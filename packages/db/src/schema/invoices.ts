@@ -10,6 +10,7 @@ import {
 import { clients } from "./clients";
 import { orgs } from "./orgs";
 import { projects } from "./projects";
+import { proposals } from "./proposals";
 
 /**
  * invoices — money clients owe us. One row per invoice we issue.
@@ -35,6 +36,14 @@ export const invoices = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     clientId: uuid("client_id").references(() => clients.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * Set when this invoice was auto-created from an accepted proposal
+     * (the AR record). Null for manually-created invoices. ON DELETE
+     * SET NULL so deleting a proposal doesn't wipe its receivable.
+     */
+    proposalId: uuid("proposal_id").references(() => proposals.id, {
       onDelete: "set null",
     }),
     /** Our invoice number (manual in v1; auto-numbering lands at M3). */
@@ -66,6 +75,7 @@ export const invoices = pgTable(
   (table) => ({
     byProject: index("invoices_by_project").on(table.projectId),
     byClient: index("invoices_by_client").on(table.clientId),
+    byProposal: index("invoices_by_proposal").on(table.proposalId),
     byOrgStatus: index("invoices_by_org_status").on(
       table.orgId,
       table.status,
