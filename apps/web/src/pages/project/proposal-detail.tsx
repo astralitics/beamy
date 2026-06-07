@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
@@ -35,7 +36,7 @@ export default function ProjectProposalDetail() {
     { id: proposalId ?? "" },
     { enabled: !!proposalId },
   );
-  const downloadQ = trpc.proposals.getDownloadUrl.useQuery(
+  const htmlQ = trpc.proposals.getHtml.useQuery(
     { id: proposalId ?? "" },
     { enabled: !!proposalId },
   );
@@ -64,6 +65,20 @@ export default function ProjectProposalDetail() {
   if (!p) return null;
 
   const advanceTo = nextStatus(p.status);
+
+  // Totals breakdown from the snapshot. Legacy proposals (no subtotal
+  // column) just show the bottom line via the facts card above.
+  const cur = p.totalCurrency ?? "";
+  const sub = p.subtotalAmount ? parseFloat(p.subtotalAmount) : null;
+  const mPct = p.overallMarkupPct ? parseFloat(p.overallMarkupPct) : 0;
+  const mAmt = sub != null ? sub * (mPct / 100) : 0;
+  const afterMarkup = (sub ?? 0) + mAmt;
+  const dAmt =
+    p.discountAmount != null
+      ? parseFloat(p.discountAmount)
+      : p.discountPct != null
+        ? afterMarkup * (parseFloat(p.discountPct) / 100)
+        : 0;
 
   return (
     <div>
@@ -119,16 +134,6 @@ export default function ProjectProposalDetail() {
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        {downloadQ.data?.url && (
-          <a
-            href={downloadQ.data.url}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
-          >
-            {t("proposal.open_artifact")}
-          </a>
-        )}
         {advanceTo && (
           <button
             type="button"
@@ -153,6 +158,14 @@ export default function ProjectProposalDetail() {
             })}
           </button>
         )}
+        {p.status === "accepted" && (
+          <Link
+            to={`/projects/${project.id}/money?phase=proposal`}
+            className="text-xs font-medium text-emerald-700 hover:text-emerald-800"
+          >
+            {t("proposal.recorded_receivable")} →
+          </Link>
+        )}
         <button
           type="button"
           onClick={() => {
@@ -167,12 +180,22 @@ export default function ProjectProposalDetail() {
         </button>
       </div>
 
+      {htmlQ.isLoading && (
+        <p className="mt-5 text-xs text-slate-500">
+          {t("proposal.preview_loading")}
+        </p>
+      )}
+      {htmlQ.data?.html && (
+        <ClientPreview html={htmlQ.data.html} filename={`${p.number}.html`} />
+      )}
+
       <div className="mt-5 overflow-hidden rounded-md border border-paper-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-paper-50 text-left">
             <tr className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
               <th className="px-3 py-2">{t("proposal.col.section")}</th>
               <th className="px-3 py-2">{t("col.description")}</th>
+              <th className="px-3 py-2">{t("proposal.col.rooms")}</th>
               <th className="px-3 py-2 text-right">{t("col.qty")}</th>
               <th className="px-3 py-2 text-right">{t("proposal.col.unit")}</th>
               <th className="px-3 py-2 text-right">{t("proposal.col.total")}</th>
@@ -181,7 +204,7 @@ export default function ProjectProposalDetail() {
           <tbody className="divide-y divide-paper-200">
             {p.lines.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-xs text-slate-500">
+                <td colSpan={6} className="px-3 py-4 text-xs text-slate-500">
                   {t("proposal.no_lines")}
                 </td>
               </tr>
@@ -193,6 +216,22 @@ export default function ProjectProposalDetail() {
                   </td>
                   <td className="px-3 py-2 text-blueprint-900">
                     {line.displayDescription}
+                  </td>
+                  <td className="px-3 py-2">
+                    {line.roomNames && line.roomNames.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {line.roomNames.map((r, i) => (
+                          <span
+                            key={i}
+                            className="rounded-full bg-blueprint-50 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-blueprint-700 ring-1 ring-inset ring-blueprint-100"
+                          >
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px]">
                     {line.displayQty
@@ -213,6 +252,58 @@ export default function ProjectProposalDetail() {
               ))
             )}
           </tbody>
+          {sub != null && (
+            <tfoot className="bg-paper-50 text-[12px]">
+              <tr className="border-t border-paper-200">
+                <td
+                  colSpan={5}
+                  className="px-3 py-1.5 text-right uppercase tracking-wider text-slate-500"
+                >
+                  {t("proposal.sum_subtotal")}
+                </td>
+                <td className="px-3 py-1.5 text-right font-mono">
+                  {fmt.currency(p.subtotalAmount ?? "0", cur)}
+                </td>
+              </tr>
+              {mPct > 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-3 py-1.5 text-right uppercase tracking-wider text-slate-500"
+                  >
+                    {t("proposal.sum_markup", { pct: mPct })}
+                  </td>
+                  <td className="px-3 py-1.5 text-right font-mono">
+                    {fmt.currency(mAmt.toFixed(2), cur)}
+                  </td>
+                </tr>
+              )}
+              {dAmt > 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-3 py-1.5 text-right uppercase tracking-wider text-slate-500"
+                  >
+                    {t("proposal.sum_discount")}
+                  </td>
+                  <td className="px-3 py-1.5 text-right font-mono">
+                    −{fmt.currency(dAmt.toFixed(2), cur)}
+                  </td>
+                </tr>
+              )}
+              <tr className="border-t border-paper-200 font-semibold text-blueprint-900">
+                <td
+                  colSpan={5}
+                  className="px-3 py-2 text-right uppercase tracking-wider"
+                >
+                  {t("proposal.sum_total")}
+                </td>
+                <td className="px-3 py-2 text-right font-mono">
+                  {p.totalAmount ? fmt.currency(p.totalAmount, cur) : "—"}
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
@@ -243,4 +334,72 @@ function trimQty(qty: string): string {
   if (!isFinite(n)) return qty;
   if (Math.abs(n - Math.round(n)) < 1e-9) return String(Math.round(n));
   return String(parseFloat(n.toFixed(4)));
+}
+
+/**
+ * Client preview — renders the proposal HTML in an iframe (via srcDoc,
+ * so it always renders regardless of how object storage serves the
+ * stored artifact). The grouping toggle lives inside the document.
+ * "Print / Save PDF" drives the iframe's own print; "Download HTML"
+ * hands over the self-contained file to email.
+ */
+function ClientPreview({
+  html,
+  filename,
+}: {
+  html: string;
+  filename: string;
+}) {
+  const t = useT();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  function print() {
+    iframeRef.current?.contentWindow?.print();
+  }
+  function download() {
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="mt-5 overflow-hidden rounded-lg border border-paper-200 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-paper-200 px-4 py-2.5">
+        <div>
+          <p className="text-xs font-medium text-blueprint-900">
+            {t("proposal.preview")}
+          </p>
+          <p className="text-[10px] text-slate-400">
+            {t("proposal.preview_hint")}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={print}
+            className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-paper-50"
+          >
+            {t("proposal.print")}
+          </button>
+          <button
+            type="button"
+            onClick={download}
+            className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-paper-50"
+          >
+            {t("proposal.download_html")}
+          </button>
+        </div>
+      </div>
+      <iframe
+        ref={iframeRef}
+        title={t("proposal.preview")}
+        srcDoc={html}
+        className="h-[720px] w-full border-0 bg-paper-50"
+      />
+    </div>
+  );
 }
