@@ -3,11 +3,10 @@ import { Link, useOutletContext } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  PROPOSAL_STATUS_LABELS,
   type ProposalStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type ProposalRow = inferRouterOutputs<AppRouter>["proposals"]["list"][number];
@@ -26,6 +25,7 @@ type WorkItemRow = inferRouterOutputs<AppRouter>["workItems"]["list"][number];
  */
 export default function ProjectProposals() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
+  const t = useT();
   const [generating, setGenerating] = useState(false);
   const list = trpc.proposals.list.useQuery({ projectId: project.id });
 
@@ -34,10 +34,10 @@ export default function ProjectProposals() {
       <div className="flex items-start justify-between gap-6">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            Proposals
+            {t("proposals.title")}
           </h2>
           <p className="mt-1 text-sm text-ink-500">
-            What you send the client.
+            {t("proposals.lede")}
           </p>
         </div>
         {!generating && (
@@ -46,7 +46,7 @@ export default function ProjectProposals() {
             onClick={() => setGenerating(true)}
             className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
           >
-            Generate new
+            {t("proposals.generate_new")}
           </button>
         )}
       </div>
@@ -61,13 +61,13 @@ export default function ProjectProposals() {
 
       <div className="mt-5 grid gap-2">
         {list.isLoading ? (
-          <p className="text-xs text-slate-500">Loading…</p>
+          <p className="text-xs text-slate-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="text-xs text-rose-700">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
           <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
-            No proposals yet. Click <strong>Generate new</strong> to pick work
-            items and produce the first one.
+            {t("proposals.empty_prefix")} <strong>{t("proposals.generate_new")}</strong>{" "}
+            {t("proposals.empty_suffix")}
           </p>
         ) : (
           list.data.map((p) => (
@@ -97,6 +97,8 @@ function ProposalCard({
   proposal: ProposalRow;
 }) {
   const fmt = useFormatters();
+  const L = useLabels();
+  const t = useT();
   return (
     <Link
       to={`/projects/${projectId}/proposals/${proposal.id}`}
@@ -110,7 +112,7 @@ function ProposalCard({
           className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[proposal.status]}`}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-          {PROPOSAL_STATUS_LABELS[proposal.status]}
+          {L.proposalStatus(proposal.status)}
         </span>
         <span className="text-sm font-medium text-blueprint-900">
           {proposal.title}
@@ -122,13 +124,15 @@ function ProposalCard({
         </span>
       </div>
       <div className="mt-1 flex gap-3 text-[10px] uppercase tracking-wider text-slate-400">
-        <span>generated {fmt.date(proposal.createdAt)}</span>
-        {proposal.sentAt && <span>· sent {fmt.date(proposal.sentAt)}</span>}
+        <span>{t("proposals.generated_at", { date: fmt.date(proposal.createdAt) })}</span>
+        {proposal.sentAt && (
+          <span>· {t("proposals.sent_at", { date: fmt.date(proposal.sentAt) })}</span>
+        )}
         {proposal.decidedAt && (
-          <span>· decided {fmt.date(proposal.decidedAt)}</span>
+          <span>· {t("proposals.decided_at", { date: fmt.date(proposal.decidedAt) })}</span>
         )}
         {proposal.expiresAt && (
-          <span>· expires {fmt.date(proposal.expiresAt)}</span>
+          <span>· {t("proposals.expires_at", { date: fmt.date(proposal.expiresAt) })}</span>
         )}
       </div>
     </Link>
@@ -147,6 +151,7 @@ function GenerateForm({
   onClose: () => void;
 }) {
   const fmt = useFormatters();
+  const t = useT();
   const utils = trpc.useUtils();
   const items = trpc.workItems.list.useQuery({ projectId });
 
@@ -206,15 +211,15 @@ function GenerateForm({
     e.preventDefault();
     setError(null);
     if (selected.size === 0) {
-      setError("Pick at least one work item.");
+      setError(t("proposals.err_pick_one"));
       return;
     }
     if (!title.trim()) {
-      setError("Title is required.");
+      setError(t("proposals.err_title_required"));
       return;
     }
     if (currency.trim().length !== 3) {
-      setError("Currency must be a 3-letter code.");
+      setError(t("proposals.err_currency_code"));
       return;
     }
     generate.mutate({
@@ -233,21 +238,21 @@ function GenerateForm({
       className="mt-4 rounded-md border border-paper-200 bg-white p-4"
     >
       <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
-        New · proposal
+        {t("proposals.form_eyebrow")}
       </p>
 
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
-        <Field label="Title *" wide>
+        <Field label={t("proposals.field_title")} wide>
           <input
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className={inputCls}
             autoFocus
-            placeholder="Rubén Darío 123 — Proposal v1"
+            placeholder={t("proposals.field_title_ph")}
           />
         </Field>
-        <Field label="Currency">
+        <Field label={t("proposals.field_currency")}>
           <input
             value={currency}
             onChange={(e) => setCurrency(e.target.value.toUpperCase())}
@@ -255,7 +260,7 @@ function GenerateForm({
             maxLength={3}
           />
         </Field>
-        <Field label="Expires (optional)">
+        <Field label={t("proposals.field_expires")}>
           <input
             type="date"
             value={expiresAt}
@@ -263,13 +268,13 @@ function GenerateForm({
             className={inputCls}
           />
         </Field>
-        <Field label="Intro (optional)" wide>
+        <Field label={t("proposals.field_intro")} wide>
           <textarea
             rows={3}
             value={introText}
             onChange={(e) => setIntroText(e.target.value)}
             className={inputCls}
-            placeholder="Lead paragraph the client sees at the top of the proposal."
+            placeholder={t("proposals.field_intro_ph")}
           />
         </Field>
       </div>
@@ -277,23 +282,22 @@ function GenerateForm({
       <div className="mt-4 rounded-md border border-paper-200">
         <div className="flex items-center justify-between border-b border-paper-200 px-3 py-2">
           <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-            Work items · pick what goes on the proposal
+            {t("proposals.picker_header")}
           </p>
           <button
             type="button"
             onClick={toggleAll}
             className="text-xs text-slate-500 hover:text-slate-900"
           >
-            {allSelected ? "Deselect all" : "Select all"}
+            {allSelected ? t("proposals.deselect_all") : t("proposals.select_all")}
           </button>
         </div>
         <div className="max-h-72 overflow-y-auto divide-y divide-paper-200">
           {items.isLoading ? (
-            <p className="p-3 text-xs text-slate-500">Loading…</p>
+            <p className="p-3 text-xs text-slate-500">{t("common.loading")}</p>
           ) : allEligible.length === 0 ? (
             <p className="p-3 text-xs text-slate-500">
-              No work items on this project yet — add some on the Plan tab
-              first.
+              {t("proposals.picker_empty")}
             </p>
           ) : (
             allEligible.map((w) => (
@@ -311,8 +315,12 @@ function GenerateForm({
       {selected.size > 0 && (
         <div className="mt-3 flex items-center justify-end gap-4 text-[11px] uppercase tracking-wider text-slate-500">
           <span>
-            {selected.size} item{selected.size === 1 ? "" : "s"} · markup from
-            Plan
+            {t(
+              selected.size === 1
+                ? "proposals.markup_count_one"
+                : "proposals.markup_count_other",
+              { count: selected.size },
+            )}
           </span>
           <span className="text-base text-blueprint-900">
             {fmt.currency(previewTotal.toFixed(2), currency || defaultCurrency)}
@@ -327,14 +335,14 @@ function GenerateForm({
           onClick={onClose}
           className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={generate.isPending}
           className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {generate.isPending ? "Generating…" : "Generate proposal"}
+          {generate.isPending ? t("proposals.generating") : t("proposals.generate_submit")}
         </button>
       </div>
     </form>
@@ -351,6 +359,7 @@ function WorkItemPickerRow({
   onToggle: () => void;
 }) {
   const fmt = useFormatters();
+  const t = useT();
   const qty = item.qty ? parseFloat(item.qty) : null;
   const unit = item.unitPriceAmount ? parseFloat(item.unitPriceAmount) : null;
   const itemMarkup = item.clientMarkupPct
@@ -398,7 +407,7 @@ function WorkItemPickerRow({
         <div className="mt-0.5 text-[10px] uppercase tracking-wider text-slate-400">
           {qty != null ? `${qty}${item.unit ? ` ${item.unit}` : ""}` : "—"}
           {" · "}
-          internal{" "}
+          {t("proposals.internal")}{" "}
           {unit != null ? fmt.currency(unit.toFixed(2), cur) : "—"}
         </div>
       </div>

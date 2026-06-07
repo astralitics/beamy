@@ -3,14 +3,12 @@ import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  ASSET_CATEGORY_LABELS,
   ASSET_EVENT_TYPE_LABELS,
-  ASSET_STATUS_LABELS,
   type AssetEventType,
   type AssetStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -56,6 +54,8 @@ export default function ProjectAssetDetail() {
   const { assetId } = useParams<{ assetId: string }>();
   const navigate = useNavigate();
   const fmt = useFormatters();
+  const L = useLabels();
+  const t = useT();
   const [addingEvent, setAddingEvent] = useState(false);
 
   const asset = trpc.assets.get.useQuery(
@@ -77,7 +77,7 @@ export default function ProjectAssetDetail() {
 
   if (!assetId) return null;
   if (asset.isLoading) {
-    return <p className="text-sm text-ink-500">Loading…</p>;
+    return <p className="text-sm text-ink-500">{t("common.loading")}</p>;
   }
   if (asset.error) {
     return <p className="text-sm text-rose-700">{asset.error.message}</p>;
@@ -101,17 +101,17 @@ export default function ProjectAssetDetail() {
           className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-900"
         >
           <Icon name="chevron-left" className="h-3 w-3" />
-          Assets
+          {t("assets.title")}
         </Link>
 
         <div className="mt-3 flex items-start justify-between gap-6">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
               <Pill tone={STATUS_TONE[a.status]} dot>
-                {ASSET_STATUS_LABELS[a.status]}
+                {L.assetStatus(a.status)}
               </Pill>
               <span className="text-[13px] text-ink-500">
-                {ASSET_CATEGORY_LABELS[a.category]}
+                {L.assetCategory(a.category)}
                 {a.room ? ` · ${a.room.name}` : ""}
               </span>
             </div>
@@ -137,7 +137,7 @@ export default function ProjectAssetDetail() {
                 rel="noreferrer noopener"
                 className="inline-flex h-10 items-center gap-1.5 rounded-md border border-ink-200 bg-white px-4 text-sm font-medium text-ink-800 transition-colors hover:bg-paper-50 hover:border-ink-300"
               >
-                Product page
+                {t("detail.product_page")}
                 <ExternalIcon className="h-3.5 w-3.5" />
               </a>
             )}
@@ -146,18 +146,18 @@ export default function ProjectAssetDetail() {
               onClick={() => setAddingEvent(true)}
             >
               <Icon name="plus" className="h-4 w-4" />
-              Log event
+              {t("detail.log_event")}
             </Button>
           </div>
         </div>
       </header>
 
       <section className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
-        <Fact label="Installed">
+        <Fact label={t("col.installed")}>
           {a.installDate ? fmt.date(a.installDate) : "—"}
         </Fact>
         <Fact
-          label="Warranty"
+          label={t("col.warranty")}
           tone={warrantyExpired ? "alert" : undefined}
         >
           {a.warrantyExpiresAt ? (
@@ -174,8 +174,12 @@ export default function ProjectAssetDetail() {
                   }`}
                 >
                   {warrantyExpired
-                    ? `${Math.abs(warrantyDaysLeft)}d expired`
-                    : `${warrantyDaysLeft}d left`}
+                    ? t("asset.warranty_days_expired", {
+                        days: Math.abs(warrantyDaysLeft),
+                      })
+                    : t("asset.warranty_days_left", {
+                        days: warrantyDaysLeft,
+                      })}
                 </span>
               )}
             </span>
@@ -183,12 +187,12 @@ export default function ProjectAssetDetail() {
             "—"
           )}
         </Fact>
-        <Fact label="Purchase">
+        <Fact label={t("asset.fact.purchase")}>
           {a.purchasePriceAmount && a.purchasePriceCurrency
             ? fmt.currency(a.purchasePriceAmount, a.purchasePriceCurrency)
             : "—"}
         </Fact>
-        <Fact label="Vendor">{a.vendor?.name ?? "—"}</Fact>
+        <Fact label={t("col.vendor")}>{a.vendor?.name ?? "—"}</Fact>
       </section>
 
       {(a.photoUrl || a.notes) && (
@@ -208,7 +212,7 @@ export default function ProjectAssetDetail() {
           {a.notes && (
             <div>
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-                Notes
+                {t("detail.notes")}
               </h3>
               <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink-700">
                 {a.notes}
@@ -220,23 +224,23 @@ export default function ProjectAssetDetail() {
 
       <section>
         <h2 className="font-display text-xl font-normal tracking-tight text-ink-900">
-          Timeline
+          {t("detail.timeline")}
         </h2>
         <p className="mt-1 text-sm text-ink-500">
-          Work done on this asset, in chronological order.
+          {t("detail.timeline_lede.asset")}
         </p>
         <div className="mt-6">
           {events.isLoading ? (
-            <p className="text-sm text-ink-500">Loading…</p>
+            <p className="text-sm text-ink-500">{t("common.loading")}</p>
           ) : events.error ? (
             <p className="text-sm text-rose-700">{events.error.message}</p>
           ) : !events.data || events.data.length === 0 ? (
             <div className="rounded-xl border border-dashed border-ink-200 bg-white px-6 py-10 text-center">
               <p className="text-[15px] text-ink-700">
-                Nothing logged yet.
+                {t("detail.nothing_logged")}
               </p>
               <p className="mt-1 text-sm text-ink-500">
-                Log a service call, repair, or inspection to start the trail.
+                {t("asset.timeline_empty_hint")}
               </p>
               <Button
                 variant="secondary"
@@ -244,7 +248,7 @@ export default function ProjectAssetDetail() {
                 className="mt-4"
               >
                 <Icon name="plus" className="h-4 w-4" />
-                Log first event
+                {t("detail.log_first_event")}
               </Button>
             </div>
           ) : (
@@ -268,13 +272,13 @@ export default function ProjectAssetDetail() {
         <button
           type="button"
           onClick={() => {
-            if (confirm(`Delete asset "${a.name}"? This cannot be undone.`)) {
+            if (confirm(t("asset.delete_confirm", { name: a.name }))) {
               remove.mutate({ id: a.id });
             }
           }}
           className="text-[13px] text-rose-600 hover:text-rose-800"
         >
-          Delete this asset
+          {t("detail.delete_asset")}
         </button>
       </section>
 
@@ -325,6 +329,8 @@ function EventRow({
   onDeleted: () => void;
 }) {
   const fmt = useFormatters();
+  const L = useLabels();
+  const t = useT();
   const remove = trpc.assets.events.remove.useMutation({
     onSuccess: onDeleted,
   });
@@ -340,7 +346,7 @@ function EventRow({
       <div className="flex items-baseline justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <span className="text-[15px] font-medium text-ink-900">
-            {ASSET_EVENT_TYPE_LABELS[event.eventType]}
+            {L.assetEvent(event.eventType)}
           </span>
           <span className="text-[12px] text-ink-400">
             · {fmt.date(event.occurredAt)}
@@ -352,8 +358,8 @@ function EventRow({
             if (
               confirm(
                 trackedBill
-                  ? "Delete this event? The linked bill in project finance will also be removed."
-                  : "Delete this event?",
+                  ? t("asset.event_delete_confirm_billed")
+                  : t("asset.event_delete_confirm"),
               )
             ) {
               remove.mutate({ id: event.id });
@@ -361,7 +367,7 @@ function EventRow({
           }}
           className="text-[12px] text-ink-400 hover:text-rose-600"
         >
-          Remove
+          {t("common.remove")}
         </button>
       </div>
       <p className="mt-1 text-[15px] text-ink-700">{event.summary}</p>
@@ -377,11 +383,11 @@ function EventRow({
           {trackedBill && (
             <Link
               to={`/projects/${projectId}/money`}
-              title="Open in project finance"
+              title={t("asset.open_in_finance")}
               className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200 transition-colors hover:bg-emerald-100"
             >
               <FinanceIcon className="h-3 w-3" />
-              Tracked in finance
+              {t("detail.tracked_in_finance")}
             </Link>
           )}
         </div>
@@ -404,6 +410,8 @@ function EventFormModal({
   assetId: string;
   onClose: () => void;
 }) {
+  const L = useLabels();
+  const t = useT();
   const today = new Date().toISOString().slice(0, 10);
   const [eventType, setEventType] = useState<AssetEventType>("serviced");
   const [occurredAt, setOccurredAt] = useState(today);
@@ -431,7 +439,7 @@ function EventFormModal({
     const amt = costAmount.trim();
     const cur = costCurrency.trim();
     if ((amt && !cur) || (!amt && cur)) {
-      setError("Cost and currency must be set together.");
+      setError(t("asset.cost_currency_together"));
       return;
     }
     create.mutate({
@@ -448,15 +456,15 @@ function EventFormModal({
 
   return (
     <Modal
-      title="Log event"
-      subtitle="Record service, repair, inspection, or a note."
+      title={t("detail.log_event")}
+      subtitle={t("asset.event_subtitle")}
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-rose-600">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -464,14 +472,14 @@ function EventFormModal({
               variant="primary"
               disabled={create.isPending}
             >
-              {create.isPending ? "Saving…" : "Log event"}
+              {create.isPending ? t("common.saving") : t("detail.log_event")}
             </Button>
           </div>
         </div>
       }
     >
       <form id="event-form" onSubmit={onSubmit} className="grid gap-5 sm:grid-cols-2">
-        <Field label="Type">
+        <Field label={t("col.type")}>
           <Select
             value={eventType}
             onChange={(e) => setEventType(e.target.value as AssetEventType)}
@@ -479,13 +487,13 @@ function EventFormModal({
             {(Object.keys(ASSET_EVENT_TYPE_LABELS) as AssetEventType[]).map(
               (t) => (
                 <option key={t} value={t}>
-                  {ASSET_EVENT_TYPE_LABELS[t]}
+                  {L.assetEvent(t)}
                 </option>
               ),
             )}
           </Select>
         </Field>
-        <Field label="Date" required>
+        <Field label={t("asset.field.date")} required>
           <Input
             type="date"
             value={occurredAt}
@@ -493,16 +501,16 @@ function EventFormModal({
             required
           />
         </Field>
-        <Field label="Summary" required wide>
+        <Field label={t("asset.field.summary")} required wide>
           <Input
             required
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
-            placeholder="Replaced water filter; new gasket on door"
+            placeholder={t("asset.field.summary_ph")}
             autoFocus
           />
         </Field>
-        <Field label="Cost" hint="Optional" wide>
+        <Field label={t("asset.field.cost")} hint={t("common.optional")} wide>
           <MoneyInput
             amount={costAmount}
             currency={costCurrency}
@@ -522,21 +530,21 @@ function EventFormModal({
               />
               <span>
                 <span className="block text-[14px] font-medium text-ink-900">
-                  Paid from company account
+                  {t("detail.paid_from_company")}
                 </span>
                 <span className="mt-0.5 block text-[12px] text-ink-500">
-                  Logs a paid bill in the project ledger and links it here. Uncheck if this cost is informational only.
+                  {t("detail.paid_from_company_hint")}
                 </span>
               </span>
             </label>
           </div>
         )}
-        <Field label="Notes" wide>
+        <Field label={t("detail.notes")} wide>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            placeholder="What was done, who did it, what to watch for."
+            placeholder={t("asset.event_notes_ph")}
           />
         </Field>
       </form>

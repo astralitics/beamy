@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { useT } from "../lib/i18n";
+import type { MessageKey } from "../lib/i18n";
 
 /**
  * LoginPage — invite-only, mirroring petfactory's LoginPage.
@@ -17,29 +19,34 @@ import { useAuth } from "../lib/auth";
  */
 type LocationState = { from?: { pathname: string } };
 
-const ERROR_BANNER: Record<string, { tone: "amber" | "rose"; text: string }> = {
-  not_authorized: {
-    tone: "rose",
-    text: "This email isn't in a workspace yet. Ask an admin to send you an invite.",
-  },
-};
+const ERROR_BANNER: Record<string, { tone: "amber" | "rose"; key: MessageKey }> =
+  {
+    not_authorized: {
+      tone: "rose",
+      key: "login.banner.not_authorized",
+    },
+  };
 
-const INVITE_BANNER: Record<string, { tone: "amber" | "rose"; text: string }> = {
+const INVITE_BANNER: Record<
+  string,
+  { tone: "amber" | "rose"; key: MessageKey }
+> = {
   used: {
     tone: "amber",
-    text: "That invite was already used. Ask your admin for a new one.",
+    key: "login.banner.invite_used",
   },
   expired: {
     tone: "amber",
-    text: "That invite has expired. Ask your admin for a new one.",
+    key: "login.banner.invite_expired",
   },
   not_found: {
     tone: "rose",
-    text: "We didn't recognize that invite link.",
+    key: "login.banner.invite_not_found",
   },
 };
 
 export default function LoginPage() {
+  const t = useT();
   const { session, loading } = useAuth();
   const location = useLocation();
   const [params] = useSearchParams();
@@ -64,11 +71,13 @@ export default function LoginPage() {
     return (
       <div className="mx-auto max-w-md p-10">
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-          <p className="font-medium">Supabase isn't configured</p>
+          <p className="font-medium">{t("login.supabase.title")}</p>
           <p className="mt-2">
-            Set <code>VITE_SUPABASE_URL</code> and{" "}
-            <code>VITE_SUPABASE_ANON_KEY</code> in <code>.env</code> (from{" "}
-            <code>supabase status</code>) and restart the dev server.
+            {t("login.supabase.set")} <code>VITE_SUPABASE_URL</code>{" "}
+            {t("login.supabase.and")} <code>VITE_SUPABASE_ANON_KEY</code>{" "}
+            {t("login.supabase.in")} <code>.env</code> (
+            {t("login.supabase.from")} <code>supabase status</code>){" "}
+            {t("login.supabase.restart")}
           </p>
         </div>
       </div>
@@ -87,7 +96,7 @@ export default function LoginPage() {
       if (siErr) throw siErr;
       // Auth state change → session → the redirect above takes over.
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't sign in.");
+      setError(err instanceof Error ? err.message : t("login.error.fallback"));
     } finally {
       setSubmitting(false);
     }
@@ -116,7 +125,7 @@ export default function LoginPage() {
         </span>
       </div>
       <p className="mt-1 text-sm text-slate-600">
-        The operating system for small construction & design agencies.
+        {t("login.tagline")}
       </p>
 
       {banner && (
@@ -127,7 +136,7 @@ export default function LoginPage() {
               : "border-rose-200 bg-rose-50 text-rose-800"
           }`}
         >
-          {banner.text}
+          {t(banner.key)}
         </div>
       )}
 
@@ -138,17 +147,17 @@ export default function LoginPage() {
         className="mt-8 flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
       >
         <GoogleIcon />
-        Continue with Google
+        {t("login.continue_google")}
       </button>
 
       <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
         <span className="h-px flex-1 bg-slate-200" />
-        or use email
+        {t("login.or_use_email")}
         <span className="h-px flex-1 bg-slate-200" />
       </div>
 
       <form onSubmit={onSubmit} className="space-y-3">
-        <Field label="Email">
+        <Field label={t("login.field.email")}>
           <input
             type="email"
             required
@@ -159,7 +168,7 @@ export default function LoginPage() {
             autoComplete="email"
           />
         </Field>
-        <Field label="Password">
+        <Field label={t("login.field.password")}>
           <input
             type="password"
             required
@@ -176,12 +185,12 @@ export default function LoginPage() {
           disabled={submitting}
           className="mt-2 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {submitting ? "Working…" : "Sign in"}
+          {submitting ? t("login.working") : t("login.sign_in")}
         </button>
       </form>
 
       <p className="mt-8 text-xs text-slate-400">
-        First time here? Ask an admin for an invite.
+        {t("login.first_time")}
       </p>
     </div>
   );

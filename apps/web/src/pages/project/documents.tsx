@@ -9,7 +9,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import { MAX_DOCUMENT_BYTES } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useT } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type DocumentRow =
@@ -21,6 +21,7 @@ type DocumentRow =
  * directly to Supabase Storage (no file bytes through tRPC).
  */
 export default function ProjectDocuments() {
+  const t = useT();
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const [search, setSearch] = useState("");
   const list = trpc.documents.list.useQuery({
@@ -33,10 +34,10 @@ export default function ProjectDocuments() {
       <div className="flex items-start justify-between gap-6">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            Documents
+            {t("documents.title")}
           </h2>
           <p className="mt-1 text-sm text-ink-500">
-            Contracts, warranties, photos.
+            {t("documents.lede")}
           </p>
         </div>
         <UploadButton projectId={project.id} />
@@ -46,21 +47,21 @@ export default function ProjectDocuments() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or description…"
+          placeholder={t("documents.search")}
           className="block w-full max-w-md rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
         />
       </div>
 
       <div className="mt-4">
         {list.isLoading ? (
-          <p className="text-xs text-slate-500">Loading…</p>
+          <p className="text-xs text-slate-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="text-xs text-rose-700">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
           <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
             {search.trim()
-              ? "No documents match this search."
-              : "No documents yet. Click Upload to drop the first one in."}
+              ? t("documents.empty_filtered")
+              : t("documents.empty")}
           </p>
         ) : (
           <div className="grid gap-2">
@@ -83,6 +84,7 @@ type UploadState =
   | { phase: "error"; message: string };
 
 function UploadButton({ projectId }: { projectId: string }) {
+  const t = useT();
   const fileRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<UploadState>({ phase: "idle" });
   const utils = trpc.useUtils();
@@ -95,7 +97,9 @@ function UploadButton({ projectId }: { projectId: string }) {
     if (file.size > MAX_DOCUMENT_BYTES) {
       setState({
         phase: "error",
-        message: `File too large (max ${prettyBytes(MAX_DOCUMENT_BYTES)}).`,
+        message: t("documents.error.too_large", {
+          max: prettyBytes(MAX_DOCUMENT_BYTES),
+        }),
       });
       return;
     }
@@ -117,7 +121,10 @@ function UploadButton({ projectId }: { projectId: string }) {
       });
       if (!putRes.ok) {
         throw new Error(
-          `Storage upload failed: ${putRes.status} ${putRes.statusText}`,
+          t("documents.error.storage_failed", {
+            status: putRes.status,
+            statusText: putRes.statusText,
+          }),
         );
       }
 
@@ -147,9 +154,9 @@ function UploadButton({ projectId }: { projectId: string }) {
       >
         {busy
           ? state.phase === "creating"
-            ? "Preparing…"
-            : "Uploading…"
-          : "Upload"}
+            ? t("documents.preparing")
+            : t("documents.uploading")
+          : t("documents.upload")}
       </button>
       {state.phase === "uploading" && (
         <span className="font-mono text-[10px] text-slate-400">
@@ -168,6 +175,7 @@ function UploadButton({ projectId }: { projectId: string }) {
 // ────────────────────── row ──────────────────────
 
 function DocumentRowItem({ doc }: { doc: DocumentRow }) {
+  const t = useT();
   const fmt = useFormatters();
   const utils = trpc.useUtils();
   const remove = trpc.documents.remove.useMutation({
@@ -196,19 +204,19 @@ function DocumentRowItem({ doc }: { doc: DocumentRow }) {
           )}
           {doc.asset && (
             <span className="text-[10px] uppercase tracking-wide text-slate-400">
-              · asset {doc.asset.name}
+              · {t("documents.tag.asset")} {doc.asset.name}
             </span>
           )}
           {doc.material && (
             <span className="text-[10px] uppercase tracking-wide text-slate-400">
-              · material {doc.material.name}
+              · {t("documents.tag.material")} {doc.material.name}
             </span>
           )}
         </div>
         <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] uppercase tracking-wider text-slate-400">
           <span>{prettyBytes(doc.sizeBytes)}</span>
           <span>{doc.mimeType}</span>
-          <span>uploaded {fmt.date(doc.createdAt)}</span>
+          <span>{t("documents.uploaded_at", { date: fmt.date(doc.createdAt) })}</span>
         </div>
         {doc.description && (
           <p className="mt-1 text-xs text-slate-600">{doc.description}</p>
@@ -226,17 +234,18 @@ function DocumentRowItem({ doc }: { doc: DocumentRow }) {
           disabled={downloadMutation.isPending}
           className="text-xs text-slate-600 hover:text-blueprint-900 disabled:opacity-50"
         >
-          {downloadMutation.isPending ? "…" : "Download"}
+          {downloadMutation.isPending ? "…" : t("documents.download")}
         </button>
         <button
           type="button"
           onClick={() => {
-            if (confirm(`Delete ${doc.name}?`)) remove.mutate({ id: doc.id });
+            if (confirm(t("documents.delete_confirm", { name: doc.name })))
+              remove.mutate({ id: doc.id });
           }}
           disabled={remove.isPending}
           className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
         >
-          {remove.isPending ? "…" : "Delete"}
+          {remove.isPending ? "…" : t("documents.delete")}
         </button>
       </div>
     </div>

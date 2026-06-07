@@ -8,13 +8,11 @@ import {
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  CHANGE_ORDER_LINE_KIND_LABELS,
-  CHANGE_ORDER_STATUS_LABELS,
   type ChangeOrderLineKind,
   type ChangeOrderStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 
@@ -43,6 +41,8 @@ export default function ProjectChangeOrderDetail() {
   const { changeOrderId } = useParams<{ changeOrderId: string }>();
   const navigate = useNavigate();
   const fmt = useFormatters();
+  const L = useLabels();
+  const t = useT();
   const utils = trpc.useUtils();
 
   const [decidedBy, setDecidedBy] = useState("");
@@ -71,7 +71,7 @@ export default function ProjectChangeOrderDetail() {
 
   if (!changeOrderId) return null;
   if (coQ.isLoading) {
-    return <p className="text-xs text-slate-500">Loading…</p>;
+    return <p className="text-xs text-slate-500">{t("common.loading")}</p>;
   }
   if (coQ.error) return <p className="text-xs text-rose-700">{coQ.error.message}</p>;
   const co = coQ.data;
@@ -90,7 +90,7 @@ export default function ProjectChangeOrderDetail() {
         to={`/projects/${project.id}/change-orders`}
         className="text-[10px] uppercase tracking-wider text-slate-400 hover:text-blueprint-900"
       >
-        ← Back to change orders
+        {t("co.back")}
       </Link>
 
       <div className="mt-3 overflow-hidden rounded-lg border border-paper-200 bg-white shadow-sm">
@@ -98,13 +98,13 @@ export default function ProjectChangeOrderDetail() {
           <p className="text-[10px] uppercase tracking-[0.15em] text-slate-400">
             <span className="text-slate-700">{co.number}</span>
             <span className="mx-2 text-slate-300">|</span>
-            drafted {fmt.date(co.createdAt)}
+            {t("co.drafted_at", { date: fmt.date(co.createdAt) })}
           </p>
           <span
             className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[co.status]}`}
           >
             <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-            {CHANGE_ORDER_STATUS_LABELS[co.status]}
+            {L.changeOrderStatus(co.status)}
           </span>
         </div>
 
@@ -120,7 +120,7 @@ export default function ProjectChangeOrderDetail() {
         </div>
 
         <div className="grid grid-cols-1 divide-y divide-paper-200 border-t border-paper-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          <Fact label="Net delta">
+          <Fact label={t("co.fact_net_delta")}>
             <span
               className={`${negative ? "text-rose-700" : "text-emerald-700"}`}
             >
@@ -128,13 +128,15 @@ export default function ProjectChangeOrderDetail() {
               {fmt.currency(co.totalDeltaAmount, co.totalDeltaCurrency)}
             </span>
           </Fact>
-          <Fact label="Sent">{co.sentAt ? fmt.date(co.sentAt) : "—"}</Fact>
-          <Fact label="Decided">
+          <Fact label={t("co.fact_sent")}>{co.sentAt ? fmt.date(co.sentAt) : "—"}</Fact>
+          <Fact label={t("co.fact_decided")}>
             {co.decidedAt ? (
               <>
                 {fmt.date(co.decidedAt)}
                 {co.decidedBy && (
-                  <span className="ml-1 text-slate-500">by {co.decidedBy}</span>
+                  <span className="ml-1 text-slate-500">
+                    {t("co.by_actor", { actor: co.decidedBy })}
+                  </span>
                 )}
               </>
             ) : (
@@ -153,7 +155,7 @@ export default function ProjectChangeOrderDetail() {
             disabled={transition.isPending}
             className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
-            Mark sent →
+            {t("co.mark_sent")}
           </button>
         )}
         {canDecide && (
@@ -161,7 +163,7 @@ export default function ProjectChangeOrderDetail() {
             <input
               value={decidedBy}
               onChange={(e) => setDecidedBy(e.target.value)}
-              placeholder="Decided by (client name)"
+              placeholder={t("co.decided_by_ph")}
               className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs"
             />
             <button
@@ -176,7 +178,7 @@ export default function ProjectChangeOrderDetail() {
               disabled={transition.isPending}
               className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
             >
-              Approve & apply
+              {t("co.approve_apply")}
             </button>
             <button
               type="button"
@@ -190,7 +192,7 @@ export default function ProjectChangeOrderDetail() {
               disabled={transition.isPending}
               className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-paper-50 disabled:opacity-50"
             >
-              Reject
+              {t("co.reject")}
             </button>
           </div>
         )}
@@ -198,40 +200,35 @@ export default function ProjectChangeOrderDetail() {
           <button
             type="button"
             onClick={() => {
-              if (
-                confirm(
-                  `Mark ${co.number} as void? This is documentation only and does NOT unwind any work item changes.`,
-                )
-              ) {
+              if (confirm(t("co.confirm_void", { number: co.number }))) {
                 transition.mutate({ id: co.id, to: "void" });
               }
             }}
             disabled={transition.isPending}
             className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-paper-50 disabled:opacity-50"
           >
-            Void
+            {t("co.void")}
           </button>
         )}
         {canDelete && (
           <button
             type="button"
             onClick={() => {
-              if (confirm(`Permanently delete ${co.number}?`)) {
+              if (confirm(t("co.confirm_delete", { number: co.number }))) {
                 remove.mutate({ id: co.id });
               }
             }}
             disabled={remove.isPending}
             className="ml-auto text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
           >
-            {remove.isPending ? "…" : "Delete"}
+            {remove.isPending ? "…" : t("co.delete")}
           </button>
         )}
       </div>
 
       {co.status === "drafted" && (
         <p className="mt-2 text-[10px] text-slate-500">
-          Approval applies line deltas to work items in one transaction.
-          Approved COs can't be deleted — use Void if you need to retract.
+          {t("co.approval_note")}
         </p>
       )}
 
@@ -240,18 +237,18 @@ export default function ProjectChangeOrderDetail() {
         <table className="w-full text-sm">
           <thead className="bg-paper-50 text-left">
             <tr className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-              <th className="px-3 py-2">Kind</th>
-              <th className="px-3 py-2">Description</th>
-              <th className="px-3 py-2 text-right">Qty</th>
-              <th className="px-3 py-2 text-right">Unit</th>
-              <th className="px-3 py-2 text-right">Delta</th>
+              <th className="px-3 py-2">{t("co.col.kind")}</th>
+              <th className="px-3 py-2">{t("col.description")}</th>
+              <th className="px-3 py-2 text-right">{t("col.qty")}</th>
+              <th className="px-3 py-2 text-right">{t("co.col.unit")}</th>
+              <th className="px-3 py-2 text-right">{t("co.col.delta")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-paper-200">
             {co.lines.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-3 py-4 text-xs text-slate-500">
-                  No lines.
+                  {t("co.no_lines")}
                 </td>
               </tr>
             ) : (
@@ -261,7 +258,7 @@ export default function ProjectChangeOrderDetail() {
                     <span
                       className={`inline-flex items-center rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${KIND_PILL_CLS[line.kind]}`}
                     >
-                      {CHANGE_ORDER_LINE_KIND_LABELS[line.kind]}
+                      {L.changeOrderKind(line.kind)}
                     </span>
                   </td>
                   <td className="px-3 py-2">
@@ -272,8 +269,8 @@ export default function ProjectChangeOrderDetail() {
                     ) : (
                       <span className="text-slate-400">
                         {line.kind === "remove"
-                          ? "(removes work item)"
-                          : "(unchanged)"}
+                          ? t("co.line_removes_work_item")
+                          : t("co.line_unchanged")}
                       </span>
                     )}
                     {line.notes && (
@@ -314,7 +311,7 @@ export default function ProjectChangeOrderDetail() {
       {co.notes && (
         <div className="mt-5 rounded-md border border-paper-200 bg-paper-50 p-3">
           <p className="text-[10px] uppercase tracking-wider text-slate-500">
-            Internal notes
+            {t("co.internal_notes")}
           </p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
             {co.notes}

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useT } from "../lib/i18n";
 
 /**
  * Structural type that both `client_contacts` and `vendor_contacts` rows
@@ -42,6 +43,7 @@ export function ContactsSection({
   addPending: boolean;
   updatePending: boolean;
 }) {
+  const t = useT();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ContactLike | null>(null);
 
@@ -49,10 +51,10 @@ export function ContactsSection({
     <div className="border-t border-slate-200 bg-slate-50/50 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold tracking-tight">Contacts</h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Additional points of contact.
-          </p>
+          <h3 className="text-base font-semibold tracking-tight">
+            {t("contacts.title")}
+          </h3>
+          <p className="mt-0.5 text-xs text-slate-500">{t("contacts.lede")}</p>
         </div>
         {!adding && !editing && (
           <button
@@ -60,7 +62,7 @@ export function ContactsSection({
             onClick={() => setAdding(true)}
             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-100"
           >
-            Add contact
+            {t("contacts.add")}
           </button>
         )}
       </div>
@@ -70,7 +72,7 @@ export function ContactsSection({
           onSubmit={(data) => onAdd(data)}
           onCancel={() => setAdding(false)}
           onSuccess={() => setAdding(false)}
-          submitLabel="Add"
+          submitLabel={t("common.add")}
           submitting={addPending}
         />
       )}
@@ -80,16 +82,16 @@ export function ContactsSection({
           onSubmit={(data) => onUpdate(editing.id, data)}
           onCancel={() => setEditing(null)}
           onSuccess={() => setEditing(null)}
-          submitLabel="Save"
+          submitLabel={t("common.save")}
           submitting={updatePending}
         />
       )}
 
       <div className="mt-4 space-y-2">
         {isLoading ? (
-          <p className="text-xs text-slate-500">Loading…</p>
+          <p className="text-xs text-slate-500">{t("common.loading")}</p>
         ) : !contacts || contacts.length === 0 ? (
-          <p className="text-xs text-slate-500">No contacts yet.</p>
+          <p className="text-xs text-slate-500">{t("contacts.empty")}</p>
         ) : (
           contacts.map((c) => (
             <ContactRow
@@ -117,6 +119,7 @@ function ContactRow({
   onRemove: () => void;
   removing: boolean;
 }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
       <div className="min-w-0 flex-1">
@@ -124,7 +127,7 @@ function ContactRow({
           <span className="font-medium text-slate-900">{contact.name}</span>
           {contact.isPrimary && (
             <span className="inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-800">
-              primary
+              {t("contacts.primary")}
             </span>
           )}
           {contact.role && (
@@ -143,17 +146,18 @@ function ContactRow({
         onClick={onEdit}
         className="text-xs text-slate-500 hover:text-slate-900"
       >
-        Edit
+        {t("common.edit")}
       </button>
       <button
         type="button"
         onClick={() => {
-          if (confirm(`Remove ${contact.name}?`)) onRemove();
+          if (confirm(t("contacts.remove_confirm", { name: contact.name })))
+            onRemove();
         }}
         disabled={removing}
         className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
       >
-        {removing ? "…" : "Remove"}
+        {removing ? "…" : t("common.remove")}
       </button>
     </div>
   );
@@ -174,6 +178,7 @@ function ContactForm({
   submitLabel: string;
   submitting: boolean;
 }) {
+  const t = useT();
   const [name, setName] = useState(initial?.name ?? "");
   const [role, setRole] = useState(initial?.role ?? "");
   const [email, setEmail] = useState(initial?.email ?? "");
@@ -205,7 +210,7 @@ function ContactForm({
       className="mt-3 rounded-md border border-slate-200 bg-white p-3"
     >
       <div className="grid gap-2 sm:grid-cols-2">
-        <Field label="Name *">
+        <Field label={t("contacts.field.name")}>
           <input
             required
             value={name}
@@ -214,15 +219,15 @@ function ContactForm({
             autoFocus
           />
         </Field>
-        <Field label="Role">
+        <Field label={t("contacts.field.role")}>
           <input
             value={role}
             onChange={(e) => setRole(e.target.value)}
             className={inputCls}
-            placeholder="Owner / PM / Foreman / Office"
+            placeholder={t("contacts.field.role_ph")}
           />
         </Field>
-        <Field label="Email">
+        <Field label={t("contacts.field.email")}>
           <input
             type="email"
             value={email}
@@ -230,7 +235,7 @@ function ContactForm({
             className={inputCls}
           />
         </Field>
-        <Field label="Phone">
+        <Field label={t("contacts.field.phone")}>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
@@ -244,7 +249,7 @@ function ContactForm({
             onChange={(e) => setIsPrimary(e.target.checked)}
             className="rounded border-slate-300"
           />
-          <span className="text-slate-700">Mark as primary contact</span>
+          <span className="text-slate-700">{t("contacts.mark_primary")}</span>
         </label>
       </div>
       <div className="mt-3 flex justify-end gap-2">
@@ -253,14 +258,14 @@ function ContactForm({
           onClick={onCancel}
           className="rounded-md border border-slate-200 px-3 py-1 text-xs hover:bg-slate-50"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={submitting}
           className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {submitting ? "Saving…" : submitLabel}
+          {submitting ? t("common.saving") : submitLabel}
         </button>
       </div>
     </form>

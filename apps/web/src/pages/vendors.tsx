@@ -7,6 +7,7 @@ import {
   type VendorStatus,
 } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
+import { useT } from "../lib/i18n";
 import { ContactsSection } from "../components/contacts-section";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
@@ -29,6 +30,7 @@ const DOC_TYPE_LABELS: Record<ComplianceDocType, string> = {
 };
 
 export default function VendorsPage() {
+  const t = useT();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [tradeFilter, setTradeFilter] = useState<string>("");
   const [search, setSearch] = useState("");
@@ -44,17 +46,16 @@ export default function VendorsPage() {
     <div className="mx-auto max-w-6xl p-10">
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Vendors</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Subs and suppliers the firm pays. Compliance docs (W-9, COIs,
-            licenses) tracked per vendor with expiration dates.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {t("nav.vendors")}
+          </h1>
+          <p className="mt-1 text-sm text-slate-600">{t("vendors.lede")}</p>
         </div>
         <button
           onClick={() => setModalState({ mode: "create" })}
           className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
         >
-          New Vendor
+          {t("vendors.new")}
         </button>
       </div>
 
@@ -64,16 +65,16 @@ export default function VendorsPage() {
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
           className={selectCls}
         >
-          <option value="active">Active</option>
-          <option value="archived">Archived</option>
-          <option value="all">All</option>
+          <option value="active">{t("vendors.filter.active")}</option>
+          <option value="archived">{t("vendors.filter.archived")}</option>
+          <option value="all">{t("vendors.filter.all")}</option>
         </select>
         <select
           value={tradeFilter}
           onChange={(e) => setTradeFilter(e.target.value)}
           className={selectCls}
         >
-          <option value="">All trades</option>
+          <option value="">{t("vendors.all_trades")}</option>
           {SUGGESTED_TRADES.map((t) => (
             <option key={t} value={t}>
               {t.replace(/_/g, " ")}
@@ -83,35 +84,35 @@ export default function VendorsPage() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, contact, or email…"
+          placeholder={t("vendors.search")}
           className="flex-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
         />
       </div>
 
       <div className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white">
         {list.isLoading ? (
-          <p className="p-6 text-sm text-slate-500">Loading…</p>
+          <p className="p-6 text-sm text-slate-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="p-6 text-sm text-rose-700">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
           <p className="p-6 text-sm text-slate-500">
             {search.trim() || tradeFilter
-              ? "No vendors match these filters."
+              ? t("vendors.empty_filtered")
               : statusFilter === "archived"
-                ? "No archived vendors."
-                : "No vendors yet. Click New Vendor to add one."}
+                ? t("vendors.empty_archived")
+                : t("vendors.empty")}
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <Th>Name</Th>
-                <Th>Trade</Th>
-                <Th>Primary contact</Th>
-                <Th className="w-32">Default rate</Th>
-                <Th className="w-24">Status</Th>
-                <Th className="w-28">Updated</Th>
-                <Th className="w-24 text-right">Actions</Th>
+                <Th>{t("col.name")}</Th>
+                <Th>{t("vendors.col.trade")}</Th>
+                <Th>{t("vendors.col.primary_contact")}</Th>
+                <Th className="w-32">{t("vendors.col.default_rate")}</Th>
+                <Th className="w-24">{t("col.status")}</Th>
+                <Th className="w-28">{t("col.updated")}</Th>
+                <Th className="w-24 text-right">{t("vendors.col.actions")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -200,6 +201,7 @@ function StatusPill({ status }: { status: VendorStatus }) {
 }
 
 function RowActions({ vendor }: { vendor: VendorRow }) {
+  const t = useT();
   const utils = trpc.useUtils();
   const archive = trpc.vendors.archive.useMutation({
     onSuccess: () => utils.vendors.list.invalidate(),
@@ -221,7 +223,11 @@ function RowActions({ vendor }: { vendor: VendorRow }) {
       disabled={pending}
       className="text-xs text-slate-500 hover:text-slate-900 disabled:opacity-50"
     >
-      {pending ? "…" : vendor.status === "active" ? "Archive" : "Restore"}
+      {pending
+        ? "…"
+        : vendor.status === "active"
+          ? t("vendors.archive")
+          : t("vendors.restore")}
     </button>
   );
 }
@@ -235,6 +241,7 @@ function VendorFormModal({
   state: { mode: "create" } | { mode: "edit"; vendor: VendorRow };
   onClose: () => void;
 }) {
+  const t = useT();
   const isEdit = state.mode === "edit";
   const initial = isEdit ? state.vendor : null;
 
@@ -287,7 +294,7 @@ function VendorFormModal({
     const rateAmt = defaultRateAmount.trim();
     const rateCur = defaultRateCurrency.trim();
     if ((rateAmt && !rateCur) || (!rateAmt && rateCur)) {
-      setError("Default rate amount and currency must be set together.");
+      setError(t("vendors.err_rate_pair"));
       return;
     }
     const payload = {
@@ -323,10 +330,12 @@ function VendorFormModal({
       >
         <form onSubmit={onSubmit} className="p-6">
           <h2 className="text-lg font-semibold tracking-tight">
-            {isEdit ? `Edit ${state.vendor.name}` : "New vendor"}
+            {isEdit
+              ? t("vendors.edit_title", { name: state.vendor.name })
+              : t("vendors.new_title")}
           </h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Field label="Name *">
+            <Field label={t("vendors.field.name")}>
               <input
                 required
                 value={name}
@@ -335,14 +344,14 @@ function VendorFormModal({
                 autoFocus
               />
             </Field>
-            <Field label="Trade *">
+            <Field label={t("vendors.field.trade")}>
               <input
                 required
                 list="trade-suggestions"
                 value={trade}
                 onChange={(e) => setTrade(e.target.value)}
                 className={inputCls}
-                placeholder="electrical / plumbing / framing…"
+                placeholder={t("vendors.field.trade_ph")}
               />
               <datalist id="trade-suggestions">
                 {SUGGESTED_TRADES.map((t) => (
@@ -350,14 +359,14 @@ function VendorFormModal({
                 ))}
               </datalist>
             </Field>
-            <Field label="Primary contact">
+            <Field label={t("vendors.field.primary_contact")}>
               <input
                 value={primaryContact}
                 onChange={(e) => setPrimaryContact(e.target.value)}
                 className={inputCls}
               />
             </Field>
-            <Field label="Email">
+            <Field label={t("vendors.field.email")}>
               <input
                 type="email"
                 value={email}
@@ -365,14 +374,14 @@ function VendorFormModal({
                 className={inputCls}
               />
             </Field>
-            <Field label="Phone">
+            <Field label={t("vendors.field.phone")}>
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className={inputCls}
               />
             </Field>
-            <Field label="EIN">
+            <Field label={t("vendors.field.ein")}>
               <input
                 value={ein}
                 onChange={(e) => setEin(e.target.value)}
@@ -380,14 +389,14 @@ function VendorFormModal({
                 placeholder="XX-XXXXXXX"
               />
             </Field>
-            <Field label="Address" wide>
+            <Field label={t("col.address")} wide>
               <input
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 className={inputCls}
               />
             </Field>
-            <Field label="Default rate">
+            <Field label={t("vendors.field.default_rate")}>
               <div className="flex gap-2">
                 <input
                   value={defaultRateAmount}
@@ -407,7 +416,7 @@ function VendorFormModal({
                 />
               </div>
             </Field>
-            <Field label="Billing unit">
+            <Field label={t("vendors.field.billing_unit")}>
               <select
                 value={billingUnit}
                 onChange={(e) =>
@@ -417,22 +426,22 @@ function VendorFormModal({
                 }
                 className={selectCls}
               >
-                <option value="hour">per hour</option>
-                <option value="day">per day</option>
-                <option value="project">per project</option>
-                <option value="retainer">retainer</option>
-                <option value="unit">per unit</option>
+                <option value="hour">{t("vendors.unit.hour")}</option>
+                <option value="day">{t("vendors.unit.day")}</option>
+                <option value="project">{t("vendors.unit.project")}</option>
+                <option value="retainer">{t("vendors.unit.retainer")}</option>
+                <option value="unit">{t("vendors.unit.unit")}</option>
               </select>
             </Field>
-            <Field label="Payment terms" wide>
+            <Field label={t("vendors.field.payment_terms")} wide>
               <input
                 value={paymentTerms}
                 onChange={(e) => setPaymentTerms(e.target.value)}
                 className={inputCls}
-                placeholder="e.g. net 30, on receipt"
+                placeholder={t("vendors.field.payment_terms_ph")}
               />
             </Field>
-            <Field label="Tags (comma-separated)" wide>
+            <Field label={t("vendors.field.tags")} wide>
               <input
                 value={tagsRaw}
                 onChange={(e) => setTagsRaw(e.target.value)}
@@ -440,7 +449,7 @@ function VendorFormModal({
                 placeholder="preferred, residential"
               />
             </Field>
-            <Field label="Notes" wide>
+            <Field label={t("vendors.field.notes")} wide>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -456,14 +465,18 @@ function VendorFormModal({
               onClick={onClose}
               className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="submit"
               disabled={submitting}
               className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
             >
-              {submitting ? "Saving…" : isEdit ? "Save" : "Create"}
+              {submitting
+                ? t("common.saving")
+                : isEdit
+                  ? t("common.save")
+                  : t("common.create")}
             </button>
           </div>
         </form>
@@ -511,6 +524,7 @@ function VendorContactsWrapper({ vendorId }: { vendorId: string }) {
 // ────────────────────── compliance section ──────────────────────
 
 function ComplianceSection({ vendorId }: { vendorId: string }) {
+  const t = useT();
   const list = trpc.vendors.listCompliance.useQuery({ vendorId });
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ComplianceRow | null>(null);
@@ -520,11 +534,10 @@ function ComplianceSection({ vendorId }: { vendorId: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-base font-semibold tracking-tight">
-            Compliance documents
+            {t("vendors.compliance.title")}
           </h3>
           <p className="mt-0.5 text-xs text-slate-500">
-            W-9, COIs, licenses. Expiration dates feed the compliance sweep
-            workflow.
+            {t("vendors.compliance.lede")}
           </p>
         </div>
         {!adding && !editing && (
@@ -533,7 +546,7 @@ function ComplianceSection({ vendorId }: { vendorId: string }) {
             onClick={() => setAdding(true)}
             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-100"
           >
-            Add document
+            {t("vendors.compliance.add")}
           </button>
         )}
       </div>
@@ -556,10 +569,10 @@ function ComplianceSection({ vendorId }: { vendorId: string }) {
 
       <div className="mt-4 space-y-2">
         {list.isLoading ? (
-          <p className="text-xs text-slate-500">Loading…</p>
+          <p className="text-xs text-slate-500">{t("common.loading")}</p>
         ) : !list.data || list.data.length === 0 ? (
           <p className="text-xs text-slate-500">
-            No compliance documents yet.
+            {t("vendors.compliance.empty")}
           </p>
         ) : (
           list.data.map((c) => (
@@ -582,6 +595,7 @@ function ComplianceRowItem({
   compliance: ComplianceRow;
   onEdit: () => void;
 }) {
+  const t = useT();
   const utils = trpc.useUtils();
   const remove = trpc.vendors.removeCompliance.useMutation({
     onSuccess: () => utils.vendors.listCompliance.invalidate(),
@@ -600,15 +614,18 @@ function ComplianceRowItem({
         </div>
         <div className="mt-0.5 text-xs text-slate-500">
           {compliance.effectiveFrom && (
-            <>From {compliance.effectiveFrom} · </>
+            <>{t("vendors.compliance.from", { date: compliance.effectiveFrom })} · </>
           )}
           {compliance.expiresAt
-            ? `Expires ${compliance.expiresAt}`
-            : "No expiration"}
+            ? t("vendors.compliance.expires", { date: compliance.expiresAt })
+            : t("vendors.compliance.no_expiration")}
           {compliance.coverageAmount && compliance.coverageCurrency && (
             <>
               {" · "}
-              Coverage {compliance.coverageAmount} {compliance.coverageCurrency}
+              {t("vendors.compliance.coverage", {
+                amount: compliance.coverageAmount,
+                currency: compliance.coverageCurrency,
+              })}
             </>
           )}
         </div>
@@ -621,19 +638,19 @@ function ComplianceRowItem({
         onClick={onEdit}
         className="text-xs text-slate-500 hover:text-slate-900"
       >
-        Edit
+        {t("common.edit")}
       </button>
       <button
         type="button"
         onClick={() => {
-          if (confirm("Remove this compliance document?")) {
+          if (confirm(t("vendors.compliance.remove_confirm"))) {
             remove.mutate({ id: compliance.id });
           }
         }}
         disabled={remove.isPending}
         className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
       >
-        {remove.isPending ? "…" : "Remove"}
+        {remove.isPending ? "…" : t("common.remove")}
       </button>
     </div>
   );
@@ -650,6 +667,7 @@ function ComplianceForm({
   existing?: ComplianceRow;
   onClose: () => void;
 }) {
+  const t = useT();
   const [docType, setDocType] = useState<ComplianceDocType>(
     existing?.docType ?? "w9",
   );
@@ -690,7 +708,7 @@ function ComplianceForm({
     const amt = coverageAmount.trim();
     const cur = coverageCurrency.trim();
     if ((amt && !cur) || (!amt && cur)) {
-      setError("Coverage amount and currency must be set together.");
+      setError(t("vendors.compliance.err_coverage_pair"));
       return;
     }
     const base = {
@@ -714,7 +732,7 @@ function ComplianceForm({
       className="mt-3 rounded-md border border-slate-200 bg-white p-3"
     >
       <div className="grid gap-2 sm:grid-cols-2">
-        <Field label="Document type *">
+        <Field label={t("vendors.compliance.field.doc_type")}>
           <select
             value={docType}
             onChange={(e) => setDocType(e.target.value as ComplianceDocType)}
@@ -728,7 +746,7 @@ function ComplianceForm({
           </select>
         </Field>
         <div />
-        <Field label="Effective from">
+        <Field label={t("vendors.compliance.field.effective_from")}>
           <input
             type="date"
             value={effectiveFrom}
@@ -736,7 +754,7 @@ function ComplianceForm({
             className={inputCls}
           />
         </Field>
-        <Field label="Expires at">
+        <Field label={t("vendors.compliance.field.expires_at")}>
           <input
             type="date"
             value={expiresAt}
@@ -744,7 +762,7 @@ function ComplianceForm({
             className={inputCls}
           />
         </Field>
-        <Field label="Coverage amount">
+        <Field label={t("vendors.compliance.field.coverage_amount")}>
           <div className="flex gap-2">
             <input
               value={coverageAmount}
@@ -763,12 +781,12 @@ function ComplianceForm({
             />
           </div>
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("vendors.field.notes")} wide>
           <input
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             className={inputCls}
-            placeholder="Carrier, certificate #, etc."
+            placeholder={t("vendors.compliance.field.notes_ph")}
           />
         </Field>
       </div>
@@ -779,14 +797,18 @@ function ComplianceForm({
           onClick={onClose}
           className="rounded-md border border-slate-200 px-3 py-1 text-xs hover:bg-slate-50"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={submitting}
           className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {submitting ? "Saving…" : mode === "edit" ? "Save" : "Add"}
+          {submitting
+            ? t("common.saving")
+            : mode === "edit"
+              ? t("common.save")
+              : t("common.add")}
         </button>
       </div>
     </form>

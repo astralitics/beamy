@@ -11,7 +11,7 @@ import {
   type InvoiceStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -60,6 +60,7 @@ export default function ProjectMoney() {
     tabFromUrl === "invoices" ? "invoices" : "bills",
   );
   const fmt = useFormatters();
+  const t = useT();
 
   const bills = trpc.bills.list.useQuery({ projectId: project.id });
   const invoices = trpc.invoices.list.useQuery({ projectId: project.id });
@@ -84,13 +85,13 @@ export default function ProjectMoney() {
           <TabButton
             active={tab === "bills"}
             onClick={() => selectTab("bills")}
-            label="Bills"
+            label={t("money.tab.bills")}
             count={bills.data?.length ?? 0}
           />
           <TabButton
             active={tab === "invoices"}
             onClick={() => selectTab("invoices")}
-            label="Invoices"
+            label={t("money.tab.invoices")}
             count={invoices.data?.length ?? 0}
           />
         </nav>
@@ -125,6 +126,7 @@ function SummaryStrip({
   summary: Summary;
   fmt: ReturnType<typeof useFormatters>;
 }) {
+  const t = useT();
   function fmtCcyList(entries: Array<[string, number]>) {
     if (entries.length === 0) return "—";
     return entries.map(([c, a]) => fmt.currency(a.toFixed(2), c)).join(" · ");
@@ -132,26 +134,26 @@ function SummaryStrip({
   return (
     <div className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
       <SummaryTile
-        label="Outstanding · we owe"
+        label={t("money.summary.outstanding_we_owe")}
         value={fmtCcyList(summary.billsOutstandingByCcy)}
-        meta={`${summary.billsOverdueCount} overdue`}
+        meta={`${summary.billsOverdueCount} ${t("money.summary.overdue_suffix")}`}
         tone={summary.billsOverdueCount > 0 ? "alert" : undefined}
       />
       <SummaryTile
-        label="Outstanding · clients owe"
+        label={t("money.summary.outstanding_clients_owe")}
         value={fmtCcyList(summary.invoicesOutstandingByCcy)}
-        meta={`${summary.invoicesOverdueCount} overdue`}
+        meta={`${summary.invoicesOverdueCount} ${t("money.summary.overdue_suffix")}`}
         tone={summary.invoicesOverdueCount > 0 ? "alert" : undefined}
       />
       <SummaryTile
-        label="Paid to vendors"
+        label={t("money.summary.paid_to_vendors")}
         value={fmtCcyList(summary.billsPaidByCcy)}
-        meta="total"
+        meta={t("money.summary.total")}
       />
       <SummaryTile
-        label="Collected from clients"
+        label={t("money.summary.collected_from_clients")}
         value={fmtCcyList(summary.invoicesPaidByCcy)}
-        meta="total"
+        meta={t("money.summary.total")}
       />
     </div>
   );
@@ -238,6 +240,8 @@ function BillsTab({
   const [statusFilter, setStatusFilter] = useState<BillStatus | "">("");
   const [search, setSearch] = useState("");
   const fmt = useFormatters();
+  const L = useLabels();
+  const t = useT();
   const today = new Date().toISOString().slice(0, 10);
 
   const filtered = useMemo(() => {
@@ -260,13 +264,13 @@ function BillsTab({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            Bills
+            {t("money.bills.title")}
           </h2>
-          <p className="mt-1 text-sm text-ink-500">What we owe vendors.</p>
+          <p className="mt-1 text-sm text-ink-500">{t("money.bills.lede")}</p>
         </div>
         <Button variant="primary" onClick={() => setAdding(true)}>
           <Icon name="plus" className="h-4 w-4" />
-          New bill
+          {t("money.bills.new")}
         </Button>
       </div>
 
@@ -276,10 +280,10 @@ function BillsTab({
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as BillStatus | "")}
           >
-            <option value="">All statuses</option>
+            <option value="">{t("money.filter.all_statuses")}</option>
             {(Object.keys(BILL_STATUS_LABELS) as BillStatus[]).map((s) => (
               <option key={s} value={s}>
-                {BILL_STATUS_LABELS[s]}
+                {L.billStatus(s)}
               </option>
             ))}
           </Select>
@@ -292,7 +296,7 @@ function BillsTab({
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search description, vendor, bill #"
+            placeholder={t("money.bills.search")}
             className="pl-10"
           />
         </div>
@@ -300,15 +304,15 @@ function BillsTab({
 
       <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
         {loading ? (
-          <p className="px-6 py-8 text-sm text-ink-500">Loading…</p>
+          <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
         ) : error ? (
           <p className="px-6 py-8 text-sm text-rose-700">{error}</p>
         ) : filtered.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="font-display text-xl text-ink-900">
               {search.trim() || statusFilter
-                ? "No bills match these filters."
-                : "No bills yet."}
+                ? t("money.bills.empty_filtered")
+                : t("money.bills.empty")}
             </p>
             {!search.trim() && !statusFilter && (
               <Button
@@ -317,7 +321,7 @@ function BillsTab({
                 className="mt-5"
               >
                 <Icon name="plus" className="h-4 w-4" />
-                Add the first bill
+                {t("money.bills.add_first")}
               </Button>
             )}
           </div>
@@ -325,11 +329,11 @@ function BillsTab({
           <table className="w-full text-[14px]">
             <thead className="border-b border-ink-100 bg-paper-50">
               <tr className="text-left">
-                <Th>Description</Th>
-                <Th>Vendor</Th>
-                <Th align="right">Amount</Th>
-                <Th>Status</Th>
-                <Th>Due</Th>
+                <Th>{t("col.description")}</Th>
+                <Th>{t("col.vendor")}</Th>
+                <Th align="right">{t("col.amount")}</Th>
+                <Th>{t("col.status")}</Th>
+                <Th>{t("col.due")}</Th>
                 <Th />
               </tr>
             </thead>
@@ -347,7 +351,7 @@ function BillsTab({
                         className="block"
                       >
                         <span className="font-medium text-ink-900">
-                          {b.description || b.billNumber || "Untitled bill"}
+                          {b.description || b.billNumber || t("bill.untitled")}
                         </span>
                         {b.billNumber && b.description && (
                           <span className="block font-mono text-xs text-ink-500">
@@ -358,7 +362,9 @@ function BillsTab({
                     </Td>
                     <Td className="text-ink-600">
                       {b.vendor?.name ?? (
-                        <span className="text-ink-400">Self-purchase</span>
+                        <span className="text-ink-400">
+                          {t("money.bills.self_purchase")}
+                        </span>
                       )}
                     </Td>
                     <Td align="right" className="tnum text-ink-900 font-medium">
@@ -367,9 +373,9 @@ function BillsTab({
                     <Td>
                       <div className="flex items-center gap-1.5">
                         <Pill tone={BILL_TONE[b.status]} dot>
-                          {BILL_STATUS_LABELS[b.status]}
+                          {L.billStatus(b.status)}
                         </Pill>
-                        {overdue && <Pill tone="alert">Overdue</Pill>}
+                        {overdue && <Pill tone="alert">{t("common.overdue")}</Pill>}
                       </div>
                     </Td>
                     <Td className="tnum text-ink-600">
@@ -378,7 +384,7 @@ function BillsTab({
                     <Td align="right">
                       <Link
                         to={`/projects/${projectId}/bills/${b.id}`}
-                        aria-label="Open bill"
+                        aria-label={t("bill.open")}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
                       >
                         <Icon name="chevron-right" className="h-4 w-4" />
@@ -421,6 +427,8 @@ function InvoicesTab({
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "">("");
   const [search, setSearch] = useState("");
   const fmt = useFormatters();
+  const L = useLabels();
+  const t = useT();
   const today = new Date().toISOString().slice(0, 10);
 
   const filtered = useMemo(() => {
@@ -443,13 +451,13 @@ function InvoicesTab({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            Invoices
+            {t("money.invoices.title")}
           </h2>
-          <p className="mt-1 text-sm text-ink-500">What we bill clients.</p>
+          <p className="mt-1 text-sm text-ink-500">{t("money.invoices.lede")}</p>
         </div>
         <Button variant="primary" onClick={() => setAdding(true)}>
           <Icon name="plus" className="h-4 w-4" />
-          New invoice
+          {t("money.invoices.new")}
         </Button>
       </div>
 
@@ -461,11 +469,11 @@ function InvoicesTab({
               setStatusFilter(e.target.value as InvoiceStatus | "")
             }
           >
-            <option value="">All statuses</option>
+            <option value="">{t("money.filter.all_statuses")}</option>
             {(Object.keys(INVOICE_STATUS_LABELS) as InvoiceStatus[]).map(
               (s) => (
                 <option key={s} value={s}>
-                  {INVOICE_STATUS_LABELS[s]}
+                  {L.invoiceStatus(s)}
                 </option>
               ),
             )}
@@ -479,7 +487,7 @@ function InvoicesTab({
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search description, client, invoice #"
+            placeholder={t("money.invoices.search")}
             className="pl-10"
           />
         </div>
@@ -487,15 +495,15 @@ function InvoicesTab({
 
       <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
         {loading ? (
-          <p className="px-6 py-8 text-sm text-ink-500">Loading…</p>
+          <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
         ) : error ? (
           <p className="px-6 py-8 text-sm text-rose-700">{error}</p>
         ) : filtered.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="font-display text-xl text-ink-900">
               {search.trim() || statusFilter
-                ? "No invoices match these filters."
-                : "No invoices yet."}
+                ? t("money.invoices.empty_filtered")
+                : t("money.invoices.empty")}
             </p>
             {!search.trim() && !statusFilter && (
               <Button
@@ -504,7 +512,7 @@ function InvoicesTab({
                 className="mt-5"
               >
                 <Icon name="plus" className="h-4 w-4" />
-                Draft the first invoice
+                {t("money.invoices.draft_first")}
               </Button>
             )}
           </div>
@@ -512,11 +520,11 @@ function InvoicesTab({
           <table className="w-full text-[14px]">
             <thead className="border-b border-ink-100 bg-paper-50">
               <tr className="text-left">
-                <Th>Description</Th>
-                <Th>Client</Th>
-                <Th align="right">Amount</Th>
-                <Th>Status</Th>
-                <Th>Due</Th>
+                <Th>{t("col.description")}</Th>
+                <Th>{t("col.client")}</Th>
+                <Th align="right">{t("col.amount")}</Th>
+                <Th>{t("col.status")}</Th>
+                <Th>{t("col.due")}</Th>
                 <Th />
               </tr>
             </thead>
@@ -535,7 +543,7 @@ function InvoicesTab({
                         className="block"
                       >
                         <span className="font-medium text-ink-900">
-                          {i.description || i.invoiceNumber || "Untitled invoice"}
+                          {i.description || i.invoiceNumber || t("invoice.untitled")}
                         </span>
                         {i.invoiceNumber && i.description && (
                           <span className="block font-mono text-xs text-ink-500">
@@ -553,9 +561,9 @@ function InvoicesTab({
                     <Td>
                       <div className="flex items-center gap-1.5">
                         <Pill tone={INVOICE_TONE[i.status]} dot>
-                          {INVOICE_STATUS_LABELS[i.status]}
+                          {L.invoiceStatus(i.status)}
                         </Pill>
-                        {overdue && <Pill tone="alert">Overdue</Pill>}
+                        {overdue && <Pill tone="alert">{t("common.overdue")}</Pill>}
                       </div>
                     </Td>
                     <Td className="tnum text-ink-600">
@@ -564,7 +572,7 @@ function InvoicesTab({
                     <Td align="right">
                       <Link
                         to={`/projects/${projectId}/invoices/${i.id}`}
-                        aria-label="Open invoice"
+                        aria-label={t("invoice.open")}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
                       >
                         <Icon name="chevron-right" className="h-4 w-4" />
@@ -637,6 +645,8 @@ function BillCreateModal({
   onClose: () => void;
 }) {
   const vendorsQ = trpc.vendors.list.useQuery({ status: "active" });
+  const L = useLabels();
+  const t = useT();
   const [vendorId, setVendorId] = useState("");
   const [billNumber, setBillNumber] = useState("");
   const [description, setDescription] = useState("");
@@ -662,7 +672,7 @@ function BillCreateModal({
     e.preventDefault();
     setError(null);
     if (!amount.trim() || !currency.trim()) {
-      setError("Amount and currency are required.");
+      setError(t("money.error.amount_currency_required"));
       return;
     }
     create.mutate({
@@ -682,8 +692,8 @@ function BillCreateModal({
 
   return (
     <Modal
-      title="New bill"
-      subtitle="A vendor invoice you've received."
+      title={t("money.bills.new")}
+      subtitle={t("bill.create_subtitle")}
       onClose={onClose}
       size="lg"
       footer={
@@ -691,7 +701,7 @@ function BillCreateModal({
           <p className="text-xs text-rose-600">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -699,7 +709,7 @@ function BillCreateModal({
               variant="primary"
               disabled={create.isPending}
             >
-              {create.isPending ? "Saving…" : "Add bill"}
+              {create.isPending ? t("common.saving") : t("bill.add")}
             </Button>
           </div>
         </div>
@@ -710,20 +720,20 @@ function BillCreateModal({
         onSubmit={onSubmit}
         className="grid gap-5 sm:grid-cols-2"
       >
-        <Field label="Description" wide>
+        <Field label={t("col.description")} wide>
           <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             autoFocus
-            placeholder="Tile installation — kitchen + primary bath"
+            placeholder={t("bill.ph.description")}
           />
         </Field>
-        <Field label="Vendor" hint="Optional">
+        <Field label={t("col.vendor")} hint={t("common.optional")}>
           <Select
             value={vendorId}
             onChange={(e) => setVendorId(e.target.value)}
           >
-            <option value="">— None (self-purchase)</option>
+            <option value="">{t("bill.opt.no_vendor")}</option>
             {vendorsQ.data?.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
@@ -731,14 +741,14 @@ function BillCreateModal({
             ))}
           </Select>
         </Field>
-        <Field label="Bill number" hint="Vendor's invoice #">
+        <Field label={t("bill.field.number")} hint={t("bill.hint.number")}>
           <Input
             value={billNumber}
             onChange={(e) => setBillNumber(e.target.value)}
             placeholder="INV-12345"
           />
         </Field>
-        <Field label="Amount" required wide>
+        <Field label={t("col.amount")} required wide>
           <MoneyInput
             amount={amount}
             currency={currency}
@@ -748,40 +758,40 @@ function BillCreateModal({
             required
           />
         </Field>
-        <Field label="Status">
+        <Field label={t("col.status")}>
           <Select
             value={status}
             onChange={(e) => setStatus(e.target.value as BillStatus)}
           >
             {(Object.keys(BILL_STATUS_LABELS) as BillStatus[]).map((s) => (
               <option key={s} value={s}>
-                {BILL_STATUS_LABELS[s]}
+                {L.billStatus(s)}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Issued">
+        <Field label={t("bill.field.issued")}>
           <Input
             type="date"
             value={issuedAt}
             onChange={(e) => setIssuedAt(e.target.value)}
           />
         </Field>
-        <Field label="Due">
+        <Field label={t("col.due")}>
           <Input
             type="date"
             value={dueAt}
             onChange={(e) => setDueAt(e.target.value)}
           />
         </Field>
-        <Field label="Paid">
+        <Field label={t("bill.field.paid")}>
           <Input
             type="date"
             value={paidAt}
             onChange={(e) => setPaidAt(e.target.value)}
           />
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("detail.notes")} wide>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -803,6 +813,8 @@ function InvoiceCreateModal({
   onClose: () => void;
 }) {
   const clientsQ = trpc.clients.list.useQuery({ status: "active" });
+  const L = useLabels();
+  const t = useT();
   const [clientId, setClientId] = useState(defaultClientId);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [description, setDescription] = useState("");
@@ -829,7 +841,7 @@ function InvoiceCreateModal({
     e.preventDefault();
     setError(null);
     if (!amount.trim() || !currency.trim()) {
-      setError("Amount and currency are required.");
+      setError(t("money.error.amount_currency_required"));
       return;
     }
     create.mutate({
@@ -850,8 +862,8 @@ function InvoiceCreateModal({
 
   return (
     <Modal
-      title="New invoice"
-      subtitle="What you're billing the client."
+      title={t("money.invoices.new")}
+      subtitle={t("invoice.create_subtitle")}
       onClose={onClose}
       size="lg"
       footer={
@@ -859,7 +871,7 @@ function InvoiceCreateModal({
           <p className="text-xs text-rose-600">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -867,7 +879,7 @@ function InvoiceCreateModal({
               variant="primary"
               disabled={create.isPending}
             >
-              {create.isPending ? "Saving…" : "Add invoice"}
+              {create.isPending ? t("common.saving") : t("invoice.add")}
             </Button>
           </div>
         </div>
@@ -878,20 +890,20 @@ function InvoiceCreateModal({
         onSubmit={onSubmit}
         className="grid gap-5 sm:grid-cols-2"
       >
-        <Field label="Description" wide>
+        <Field label={t("col.description")} wide>
           <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             autoFocus
-            placeholder="Progress invoice #3 — kitchen rough-in complete"
+            placeholder={t("invoice.ph.description")}
           />
         </Field>
-        <Field label="Client" hint="Optional">
+        <Field label={t("col.client")} hint={t("common.optional")}>
           <Select
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
           >
-            <option value="">— None</option>
+            <option value="">{t("invoice.opt.no_client")}</option>
             {clientsQ.data?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -899,14 +911,14 @@ function InvoiceCreateModal({
             ))}
           </Select>
         </Field>
-        <Field label="Invoice number">
+        <Field label={t("invoice.field.number")}>
           <Input
             value={invoiceNumber}
             onChange={(e) => setInvoiceNumber(e.target.value)}
             placeholder="INV-2026-0001"
           />
         </Field>
-        <Field label="Amount" required wide>
+        <Field label={t("col.amount")} required wide>
           <MoneyInput
             amount={amount}
             currency={currency}
@@ -916,7 +928,7 @@ function InvoiceCreateModal({
             required
           />
         </Field>
-        <Field label="Status">
+        <Field label={t("col.status")}>
           <Select
             value={status}
             onChange={(e) => setStatus(e.target.value as InvoiceStatus)}
@@ -924,41 +936,41 @@ function InvoiceCreateModal({
             {(Object.keys(INVOICE_STATUS_LABELS) as InvoiceStatus[]).map(
               (s) => (
                 <option key={s} value={s}>
-                  {INVOICE_STATUS_LABELS[s]}
+                  {L.invoiceStatus(s)}
                 </option>
               ),
             )}
           </Select>
         </Field>
-        <Field label="Issued">
+        <Field label={t("invoice.field.issued")}>
           <Input
             type="date"
             value={issuedAt}
             onChange={(e) => setIssuedAt(e.target.value)}
           />
         </Field>
-        <Field label="Sent">
+        <Field label={t("invoice.field.sent")}>
           <Input
             type="date"
             value={sentAt}
             onChange={(e) => setSentAt(e.target.value)}
           />
         </Field>
-        <Field label="Due">
+        <Field label={t("col.due")}>
           <Input
             type="date"
             value={dueAt}
             onChange={(e) => setDueAt(e.target.value)}
           />
         </Field>
-        <Field label="Paid">
+        <Field label={t("invoice.field.paid")}>
           <Input
             type="date"
             value={paidAt}
             onChange={(e) => setPaidAt(e.target.value)}
           />
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("detail.notes")} wide>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}

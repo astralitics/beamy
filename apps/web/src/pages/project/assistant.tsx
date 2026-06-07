@@ -9,7 +9,7 @@ import { useOutletContext } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useT } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type ChatMessage = inferRouterOutputs<AppRouter>["chat"]["list"][number];
@@ -24,6 +24,7 @@ type ChatMessage = inferRouterOutputs<AppRouter>["chat"]["list"][number];
  * no tool use, conversation persisted in chat_messages.
  */
 export default function ProjectAssistant() {
+  const t = useT();
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const [draft, setDraft] = useState("");
   const messages = trpc.chat.list.useQuery({ projectId: project.id });
@@ -74,24 +75,24 @@ export default function ProjectAssistant() {
       <div className="flex items-start justify-between gap-6">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            Project assistant
+            {t("assistant.title")}
           </h2>
           <p className="mt-1 text-sm text-ink-500">
-            Ask anything about this project.
+            {t("assistant.lede")}
           </p>
         </div>
         {list.length > 0 && (
           <button
             type="button"
             onClick={() => {
-              if (confirm("Clear the chat history for this project?")) {
+              if (confirm(t("assistant.reset_confirm"))) {
                 reset.mutate({ projectId: project.id });
               }
             }}
             disabled={reset.isPending}
             className="rounded-md border border-paper-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-paper-50 disabled:opacity-50"
           >
-            Reset
+            {t("assistant.reset")}
           </button>
         )}
       </div>
@@ -102,7 +103,7 @@ export default function ProjectAssistant() {
         className="mt-4 flex-1 space-y-3 overflow-y-auto rounded-md border border-paper-200 bg-paper-50/40 p-4"
       >
         {messages.isLoading ? (
-          <p className="text-xs text-slate-500">Loading…</p>
+          <p className="text-xs text-slate-500">{t("common.loading")}</p>
         ) : list.length === 0 ? (
           <EmptyHint projectName={project.name} />
         ) : (
@@ -127,7 +128,7 @@ export default function ProjectAssistant() {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
           rows={2}
-          placeholder="Ask anything about this project. Enter to send · Shift+Enter for newline."
+          placeholder={t("assistant.composer_placeholder")}
           className="flex-1 resize-none rounded-md border border-transparent bg-transparent px-2 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none"
           disabled={send.isPending}
         />
@@ -136,13 +137,12 @@ export default function ProjectAssistant() {
           disabled={send.isPending || draft.trim().length === 0}
           className="rounded-md bg-blueprint-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-blueprint-800 disabled:opacity-50"
         >
-          {send.isPending ? "…" : "Send"}
+          {send.isPending ? "…" : t("assistant.send")}
         </button>
       </form>
 
       <p className="mt-2 text-[10px] text-slate-400">
-        v2 · queries assets, materials, money, activity on demand ·
-        results cached per turn
+        {t("assistant.footer")}
       </p>
     </div>
   );
@@ -156,12 +156,13 @@ export default function ProjectAssistant() {
  * tool sequence isn't streamed back, so this is a UI affordance only.
  */
 function ThinkingBubble() {
+  const t = useT();
   const [phase, setPhase] = useState(0);
   const phases = [
-    "Thinking…",
-    "Looking things up…",
-    "Cross-checking…",
-    "Putting it together…",
+    t("assistant.thinking.thinking"),
+    t("assistant.thinking.looking_up"),
+    t("assistant.thinking.cross_checking"),
+    t("assistant.thinking.putting_together"),
   ];
   useEffect(() => {
     const id = setInterval(
@@ -174,7 +175,7 @@ function ThinkingBubble() {
     <div className="flex justify-start">
       <div className="max-w-[85%] rounded-lg border border-blueprint-100 bg-blueprint-50/80 px-3 py-2 text-sm">
         <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">
-          assistant
+          {t("assistant.role.assistant")}
         </p>
         <p className="mt-1 flex items-center gap-2 leading-relaxed text-slate-500">
           <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-safety-700" />
@@ -188,6 +189,7 @@ function ThinkingBubble() {
 // ────────────────────── bubble ──────────────────────
 
 function Bubble({ msg }: { msg: ChatMessage }) {
+  const t = useT();
   const fmt = useFormatters();
   const isUser = msg.role === "user";
   return (
@@ -201,7 +203,7 @@ function Bubble({ msg }: { msg: ChatMessage }) {
       >
         <div className="flex items-baseline justify-between gap-3">
           <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400">
-            {isUser ? "you" : "assistant"}
+            {isUser ? t("assistant.role.you") : t("assistant.role.assistant")}
           </p>
           <p className="font-mono text-[9px] uppercase tracking-wider text-slate-400">
             {fmt.time(msg.createdAt)}
@@ -216,19 +218,20 @@ function Bubble({ msg }: { msg: ChatMessage }) {
 }
 
 function EmptyHint({ projectName }: { projectName: string }) {
+  const t = useT();
   const suggestions = [
-    `Summarize ${projectName} for me — scope, vendors, money.`,
-    "Which bids are the cheapest per trade?",
-    "What's on the Plan that's overdue?",
-    "What was Grupo AVA's quote total and what's in it?",
+    t("assistant.suggestion.summarize", { name: projectName }),
+    t("assistant.suggestion.cheapest_bids"),
+    t("assistant.suggestion.overdue_plan"),
+    t("assistant.suggestion.quote_total"),
   ];
   return (
     <div className="mx-auto max-w-md py-6 text-center">
       <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
-        Project assistant · v1
+        {t("assistant.empty_eyebrow")}
       </p>
       <p className="mt-2 text-sm text-slate-600">
-        Try a question, or pick one to get started:
+        {t("assistant.empty_hint")}
       </p>
       <ul className="mt-3 space-y-1.5 text-left">
         {suggestions.map((s) => (

@@ -2,7 +2,7 @@ import { useOutletContext } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useT, type MessageKey } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type ActivityRow =
@@ -19,6 +19,7 @@ type ActivityRow =
  * a year from now.
  */
 export default function ProjectActivity() {
+  const t = useT();
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const entries = trpc.activity.listForProject.useQuery({
     projectId: project.id,
@@ -28,22 +29,21 @@ export default function ProjectActivity() {
     <div>
       <div>
         <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-          Activity
+          {t("activity.title")}
         </h2>
         <p className="mt-1 text-sm text-ink-500">
-          Every state change, in order.
+          {t("activity.lede")}
         </p>
       </div>
 
       <div className="mt-4">
         {entries.isLoading ? (
-          <p className="text-xs text-slate-500">Loading…</p>
+          <p className="text-xs text-slate-500">{t("common.loading")}</p>
         ) : entries.error ? (
           <p className="text-xs text-rose-700">{entries.error.message}</p>
         ) : !entries.data || entries.data.length === 0 ? (
           <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
-            No activity yet on this project. Edit any record on any tab to
-            see entries land here.
+            {t("activity.empty")}
           </p>
         ) : (
           <ol className="space-y-2">
@@ -60,6 +60,7 @@ export default function ProjectActivity() {
 // ────────────────────── row ──────────────────────
 
 function ActivityItem({ entry }: { entry: ActivityRow }) {
+  const t = useT();
   const fmt = useFormatters();
   const { verb, tone } = parseAction(entry.action);
   const { kind, name } = parseActor(entry.actor);
@@ -77,7 +78,7 @@ function ActivityItem({ entry }: { entry: ActivityRow }) {
               {verb}
             </span>
             <span className="text-[10px] uppercase tracking-wider text-slate-400">
-              · {KIND_LABEL[kind]} {name}
+              · {t(KIND_LABEL[kind])} {name}
             </span>
           </div>
           {entry.payload != null ? (
@@ -98,6 +99,7 @@ function ActivityItem({ entry }: { entry: ActivityRow }) {
 // Compact payload preview — first 3 keys, truncated values. Keeps the
 // audit log readable without dumping a JSON blob into the UI.
 function PayloadPreview({ payload }: { payload: Record<string, unknown> }) {
+  const t = useT();
   const entries = Object.entries(payload).slice(0, 3);
   if (entries.length === 0) return null;
   return (
@@ -110,7 +112,7 @@ function PayloadPreview({ payload }: { payload: Record<string, unknown> }) {
       ))}
       {Object.keys(payload).length > 3 && (
         <span className="text-slate-400">
-          + {Object.keys(payload).length - 3} more
+          {t("activity.more", { count: Object.keys(payload).length - 3 })}
         </span>
       )}
     </div>
@@ -168,12 +170,15 @@ function parseAction(action: string): { verb: string; tone: Tone } {
 
 // ────────────────────── actor parsing ──────────────────────
 
-const KIND_LABEL = {
-  user: "by",
-  agent: "by agent",
-  webhook: "via webhook",
-  unknown: "by",
-} as const;
+const KIND_LABEL: Record<
+  "user" | "agent" | "webhook" | "unknown",
+  MessageKey
+> = {
+  user: "activity.actor.by",
+  agent: "activity.actor.by_agent",
+  webhook: "activity.actor.via_webhook",
+  unknown: "activity.actor.by",
+};
 
 function parseActor(actor: string): {
   kind: keyof typeof KIND_LABEL;

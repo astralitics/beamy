@@ -3,14 +3,12 @@ import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  FURNITURE_CATEGORY_LABELS,
   FURNITURE_EVENT_TYPE_LABELS,
-  FURNITURE_STATUS_LABELS,
   type FurnitureEventType,
   type FurnitureStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -59,6 +57,8 @@ export default function ProjectFurnitureDetail() {
   const { furnitureId } = useParams<{ furnitureId: string }>();
   const navigate = useNavigate();
   const fmt = useFormatters();
+  const L = useLabels();
+  const t = useT();
   const [addingEvent, setAddingEvent] = useState(false);
 
   const piece = trpc.furniture.get.useQuery(
@@ -79,7 +79,8 @@ export default function ProjectFurnitureDetail() {
   });
 
   if (!furnitureId) return null;
-  if (piece.isLoading) return <p className="text-sm text-ink-500">Loading…</p>;
+  if (piece.isLoading)
+    return <p className="text-sm text-ink-500">{t("common.loading")}</p>;
   if (piece.error)
     return <p className="text-sm text-rose-700">{piece.error.message}</p>;
   if (!piece.data) return null;
@@ -97,19 +98,21 @@ export default function ProjectFurnitureDetail() {
           className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-900"
         >
           <Icon name="chevron-left" className="h-3 w-3" />
-          Furniture
+          {t("furniture.title")}
         </Link>
 
         <div className="mt-3 flex items-start justify-between gap-6">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
               <Pill tone={STATUS_TONE[p.status]} dot>
-                {FURNITURE_STATUS_LABELS[p.status]}
+                {L.furnitureStatus(p.status)}
               </Pill>
               <span className="text-[13px] text-ink-500">
-                {FURNITURE_CATEGORY_LABELS[p.category]}
+                {L.furnitureCategory(p.category)}
                 {p.room ? ` · ${p.room.name}` : ""}
-                {p.quantity > 1 ? ` · qty ${p.quantity}` : ""}
+                {p.quantity > 1
+                  ? ` · ${t("furniture.qty", { n: p.quantity })}`
+                  : ""}
               </span>
             </div>
             <h1 className="mt-3 font-display text-4xl font-normal leading-[1.1] tracking-tightest text-ink-900">
@@ -127,32 +130,34 @@ export default function ProjectFurnitureDetail() {
                 rel="noreferrer noopener"
                 className="inline-flex h-10 items-center gap-1.5 rounded-md border border-ink-200 bg-white px-4 text-sm font-medium text-ink-800 transition-colors hover:bg-paper-50 hover:border-ink-300"
               >
-                Product page
+                {t("detail.product_page")}
                 <ExternalIcon className="h-3.5 w-3.5" />
               </a>
             )}
             <Button variant="primary" onClick={() => setAddingEvent(true)}>
               <Icon name="plus" className="h-4 w-4" />
-              Log event
+              {t("detail.log_event")}
             </Button>
           </div>
         </div>
       </header>
 
       <section className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-5">
-        <Fact label="Delivery">
+        <Fact label={t("col.delivery")}>
           {p.deliveryDate ? fmt.date(p.deliveryDate) : "—"}
         </Fact>
-        <Fact label="Warranty">
+        <Fact label={t("col.warranty")}>
           {p.warrantyExpiresAt ? fmt.date(p.warrantyExpiresAt) : "—"}
         </Fact>
-        <Fact label="Price">
+        <Fact label={t("col.price")}>
           {p.purchasePriceAmount && p.purchasePriceCurrency
             ? fmt.currency(p.purchasePriceAmount, p.purchasePriceCurrency)
             : "—"}
         </Fact>
-        <Fact label="Dimensions">{p.dimensions ?? "—"}</Fact>
-        <Fact label="Vendor">{p.vendor?.name ?? "—"}</Fact>
+        <Fact label={t("furniture.field.dimensions")}>
+          {p.dimensions ?? "—"}
+        </Fact>
+        <Fact label={t("col.vendor")}>{p.vendor?.name ?? "—"}</Fact>
       </section>
 
       {(p.photoUrl || finishLine || p.notes) && (
@@ -175,7 +180,7 @@ export default function ProjectFurnitureDetail() {
             {finishLine && (
               <>
                 <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-                  Material · finish
+                  {t("detail.material_finish")}
                 </h3>
                 <p className="mt-2 text-[15px] text-ink-700">{finishLine}</p>
               </>
@@ -185,7 +190,7 @@ export default function ProjectFurnitureDetail() {
                 <h3
                   className={`text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400 ${finishLine ? "mt-6" : ""}`}
                 >
-                  Notes
+                  {t("detail.notes")}
                 </h3>
                 <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink-700">
                   {p.notes}
@@ -198,21 +203,23 @@ export default function ProjectFurnitureDetail() {
 
       <section>
         <h2 className="font-display text-xl font-normal tracking-tight text-ink-900">
-          Timeline
+          {t("detail.timeline")}
         </h2>
         <p className="mt-1 text-sm text-ink-500">
-          What's happened to this piece, in chronological order.
+          {t("detail.timeline_lede.furniture")}
         </p>
         <div className="mt-6">
           {events.isLoading ? (
-            <p className="text-sm text-ink-500">Loading…</p>
+            <p className="text-sm text-ink-500">{t("common.loading")}</p>
           ) : events.error ? (
             <p className="text-sm text-rose-700">{events.error.message}</p>
           ) : !events.data || events.data.length === 0 ? (
             <div className="rounded-xl border border-dashed border-ink-200 bg-white px-6 py-10 text-center">
-              <p className="text-[15px] text-ink-700">Nothing logged yet.</p>
+              <p className="text-[15px] text-ink-700">
+                {t("detail.nothing_logged")}
+              </p>
               <p className="mt-1 text-sm text-ink-500">
-                Log selection, delivery, cleaning, or any note as you go.
+                {t("furniture.timeline_empty_hint")}
               </p>
               <Button
                 variant="secondary"
@@ -220,7 +227,7 @@ export default function ProjectFurnitureDetail() {
                 className="mt-4"
               >
                 <Icon name="plus" className="h-4 w-4" />
-                Log first event
+                {t("detail.log_first_event")}
               </Button>
             </div>
           ) : (
@@ -246,13 +253,13 @@ export default function ProjectFurnitureDetail() {
         <button
           type="button"
           onClick={() => {
-            if (confirm(`Delete "${p.name}"? This cannot be undone.`)) {
+            if (confirm(t("furniture.delete_confirm", { name: p.name }))) {
               remove.mutate({ id: p.id });
             }
           }}
           className="text-[13px] text-rose-600 hover:text-rose-800"
         >
-          Delete this piece
+          {t("detail.delete_furniture")}
         </button>
       </section>
 
@@ -295,6 +302,8 @@ function EventRow({
   onDeleted: () => void;
 }) {
   const fmt = useFormatters();
+  const L = useLabels();
+  const t = useT();
   const remove = trpc.furniture.events.remove.useMutation({
     onSuccess: onDeleted,
   });
@@ -310,7 +319,7 @@ function EventRow({
       <div className="flex items-baseline justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <span className="text-[15px] font-medium text-ink-900">
-            {FURNITURE_EVENT_TYPE_LABELS[event.eventType]}
+            {L.furnitureEvent(event.eventType)}
           </span>
           <span className="text-[12px] text-ink-400">
             · {fmt.date(event.occurredAt)}
@@ -322,8 +331,8 @@ function EventRow({
             if (
               confirm(
                 trackedBill
-                  ? "Delete this event? The linked bill in project finance will also be removed."
-                  : "Delete this event?",
+                  ? t("furniture.event_delete_confirm_billed")
+                  : t("furniture.event_delete_confirm"),
               )
             ) {
               remove.mutate({ id: event.id });
@@ -331,7 +340,7 @@ function EventRow({
           }}
           className="text-[12px] text-ink-400 hover:text-rose-600"
         >
-          Remove
+          {t("common.remove")}
         </button>
       </div>
       <p className="mt-1 text-[15px] text-ink-700">{event.summary}</p>
@@ -346,11 +355,11 @@ function EventRow({
           {trackedBill && (
             <Link
               to={`/projects/${projectId}/money`}
-              title="Open in project finance"
+              title={t("furniture.open_in_finance")}
               className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200 transition-colors hover:bg-emerald-100"
             >
               <FinanceIcon className="h-3 w-3" />
-              Tracked in finance
+              {t("detail.tracked_in_finance")}
             </Link>
           )}
         </div>
@@ -372,6 +381,8 @@ function EventFormModal({
   onClose: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
+  const L = useLabels();
+  const t = useT();
   const [eventType, setEventType] = useState<FurnitureEventType>("delivered");
   const [occurredAt, setOccurredAt] = useState(today);
   const [summary, setSummary] = useState("");
@@ -397,7 +408,7 @@ function EventFormModal({
     const amt = costAmount.trim();
     const cur = costCurrency.trim();
     if ((amt && !cur) || (!amt && cur)) {
-      setError("Cost and currency must be set together.");
+      setError(t("furniture.err_cost_currency"));
       return;
     }
     create.mutate({
@@ -414,15 +425,15 @@ function EventFormModal({
 
   return (
     <Modal
-      title="Log event"
-      subtitle="Record delivery, cleaning, repair, or a note."
+      title={t("detail.log_event")}
+      subtitle={t("furniture.event_subtitle")}
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-rose-600">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -430,7 +441,7 @@ function EventFormModal({
               variant="primary"
               disabled={create.isPending}
             >
-              {create.isPending ? "Saving…" : "Log event"}
+              {create.isPending ? t("common.saving") : t("detail.log_event")}
             </Button>
           </div>
         </div>
@@ -441,7 +452,7 @@ function EventFormModal({
         onSubmit={onSubmit}
         className="grid gap-5 sm:grid-cols-2"
       >
-        <Field label="Type">
+        <Field label={t("furniture.event_field.type")}>
           <Select
             value={eventType}
             onChange={(e) =>
@@ -454,12 +465,12 @@ function EventFormModal({
               ) as FurnitureEventType[]
             ).map((t) => (
               <option key={t} value={t}>
-                {FURNITURE_EVENT_TYPE_LABELS[t]}
+                {L.furnitureEvent(t)}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Date" required>
+        <Field label={t("furniture.event_field.date")} required>
           <Input
             type="date"
             value={occurredAt}
@@ -467,16 +478,16 @@ function EventFormModal({
             required
           />
         </Field>
-        <Field label="Summary" required wide>
+        <Field label={t("furniture.event_field.summary")} required wide>
           <Input
             required
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
-            placeholder="Steam-cleaned by Lily Clean; new dust cover installed"
+            placeholder={t("furniture.event_ph.summary")}
             autoFocus
           />
         </Field>
-        <Field label="Cost" hint="Optional" wide>
+        <Field label={t("furniture.event_field.cost")} hint={t("common.optional")} wide>
           <MoneyInput
             amount={costAmount}
             currency={costCurrency}
@@ -496,21 +507,21 @@ function EventFormModal({
               />
               <span>
                 <span className="block text-[14px] font-medium text-ink-900">
-                  Paid from company account
+                  {t("detail.paid_from_company")}
                 </span>
                 <span className="mt-0.5 block text-[12px] text-ink-500">
-                  Logs a paid bill in the project ledger and links it here. Uncheck if this cost is informational only.
+                  {t("detail.paid_from_company_hint")}
                 </span>
               </span>
             </label>
           </div>
         )}
-        <Field label="Notes" wide>
+        <Field label={t("detail.notes")} wide>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            placeholder="Care notes, swatch refs, what to watch for."
+            placeholder={t("furniture.event_ph.notes")}
           />
         </Field>
       </form>

@@ -4,6 +4,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import { ROOM_TYPE_LABELS, type RoomType } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
+import { useLabels, useT } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -20,6 +21,8 @@ type RoomRow =
 
 export default function ProjectRooms() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
+  const L = useLabels();
+  const t = useT();
   const [adding, setAdding] = useState(false);
   const [typeFilter, setTypeFilter] = useState<RoomType | "">("");
   const [search, setSearch] = useState("");
@@ -45,15 +48,13 @@ export default function ProjectRooms() {
       <div className="flex items-end justify-between gap-6">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            Rooms
+            {t("rooms.title")}
           </h2>
-          <p className="mt-1 text-sm text-ink-500">
-            Every space in the project — what's in it and how big it is.
-          </p>
+          <p className="mt-1 text-sm text-ink-500">{t("rooms.lede")}</p>
         </div>
         <Button variant="primary" onClick={() => setAdding(true)}>
           <Icon name="plus" className="h-4 w-4" />
-          Add room
+          {t("rooms.add")}
         </Button>
       </div>
 
@@ -63,10 +64,10 @@ export default function ProjectRooms() {
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as RoomType | "")}
           >
-            <option value="">All types</option>
+            <option value="">{t("rooms.filter.all_types")}</option>
             {(Object.keys(ROOM_TYPE_LABELS) as RoomType[]).map((t) => (
               <option key={t} value={t}>
-                {ROOM_TYPE_LABELS[t]}
+                {L.roomType(t)}
               </option>
             ))}
           </Select>
@@ -79,7 +80,7 @@ export default function ProjectRooms() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, floor, notes"
+            placeholder={t("rooms.search")}
             className="pl-10"
           />
         </div>
@@ -87,15 +88,15 @@ export default function ProjectRooms() {
 
       <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
         {list.isLoading ? (
-          <p className="px-6 py-8 text-sm text-ink-500">Loading…</p>
+          <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="px-6 py-8 text-sm text-rose-700">{list.error.message}</p>
         ) : filtered.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="font-display text-xl text-ink-900">
               {search.trim() || typeFilter
-                ? "No rooms match these filters."
-                : "No rooms yet."}
+                ? t("rooms.empty_filtered")
+                : t("rooms.empty")}
             </p>
             {!search.trim() && !typeFilter && (
               <Button
@@ -104,7 +105,7 @@ export default function ProjectRooms() {
                 className="mt-5"
               >
                 <Icon name="plus" className="h-4 w-4" />
-                Add the first room
+                {t("rooms.add_first")}
               </Button>
             )}
           </div>
@@ -112,11 +113,11 @@ export default function ProjectRooms() {
           <table className="w-full text-[14px]">
             <thead className="border-b border-ink-100 bg-paper-50">
               <tr className="text-left">
-                <Th>Name</Th>
-                <Th>Type</Th>
-                <Th>Floor</Th>
-                <Th align="right">Area</Th>
-                <Th align="right">Ceiling</Th>
+                <Th>{t("col.name")}</Th>
+                <Th>{t("col.type")}</Th>
+                <Th>{t("rooms.col.floor")}</Th>
+                <Th align="right">{t("rooms.col.area")}</Th>
+                <Th align="right">{t("rooms.col.ceiling")}</Th>
                 <Th />
               </tr>
             </thead>
@@ -140,7 +141,7 @@ export default function ProjectRooms() {
                     </Link>
                   </Td>
                   <Td className="text-ink-600">
-                    {r.roomType ? ROOM_TYPE_LABELS[r.roomType] : "—"}
+                    {r.roomType ? L.roomType(r.roomType) : "—"}
                   </Td>
                   <Td className="text-ink-600">{r.floor ?? "—"}</Td>
                   <Td align="right" className="tnum text-ink-700">
@@ -152,7 +153,7 @@ export default function ProjectRooms() {
                   <Td align="right">
                     <Link
                       to={`/projects/${project.id}/rooms/${r.id}`}
-                      aria-label="Open room"
+                      aria-label={t("rooms.open")}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
                     >
                       <Icon name="chevron-right" className="h-4 w-4" />
@@ -218,6 +219,8 @@ function RoomCreateModal({
   projectId: string;
   onClose: () => void;
 }) {
+  const L = useLabels();
+  const t = useT();
   const [name, setName] = useState("");
   const [roomType, setRoomType] = useState<RoomType | "">("");
   const [floor, setFloor] = useState("");
@@ -255,8 +258,8 @@ function RoomCreateModal({
 
   return (
     <Modal
-      title="New room"
-      subtitle="Add a space to this project."
+      title={t("rooms.modal.title")}
+      subtitle={t("rooms.modal.subtitle")}
       onClose={onClose}
       size="lg"
       footer={
@@ -264,7 +267,7 @@ function RoomCreateModal({
           <p className="text-xs text-rose-600">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -272,7 +275,7 @@ function RoomCreateModal({
               variant="primary"
               disabled={create.isPending}
             >
-              {create.isPending ? "Saving…" : "Add room"}
+              {create.isPending ? t("common.saving") : t("rooms.add")}
             </Button>
           </div>
         </div>
@@ -283,16 +286,16 @@ function RoomCreateModal({
         onSubmit={onSubmit}
         className="grid gap-5 sm:grid-cols-2"
       >
-        <Field label="Name" required wide>
+        <Field label={t("col.name")} required wide>
           <Input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoFocus
-            placeholder="e.g. Recámara Principal"
+            placeholder={t("rooms.field.name_placeholder")}
           />
         </Field>
-        <Field label="Type">
+        <Field label={t("col.type")}>
           <Select
             value={roomType}
             onChange={(e) => setRoomType(e.target.value as RoomType | "")}
@@ -300,19 +303,19 @@ function RoomCreateModal({
             <option value="">—</option>
             {(Object.keys(ROOM_TYPE_LABELS) as RoomType[]).map((t) => (
               <option key={t} value={t}>
-                {ROOM_TYPE_LABELS[t]}
+                {L.roomType(t)}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Floor / level" hint="e.g. P6, Roof, Ground">
+        <Field label={t("rooms.field.floor")} hint={t("rooms.field.floor_hint")}>
           <Input
             value={floor}
             onChange={(e) => setFloor(e.target.value)}
             placeholder="P6"
           />
         </Field>
-        <Field label="Floor area (m²)">
+        <Field label={t("rooms.field.floor_area")}>
           <Input
             value={floorAreaSqM}
             onChange={(e) => setFloorAreaSqM(e.target.value)}
@@ -320,7 +323,7 @@ function RoomCreateModal({
             inputMode="decimal"
           />
         </Field>
-        <Field label="Ceiling height (m)">
+        <Field label={t("rooms.field.ceiling_height")}>
           <Input
             value={ceilingHeightM}
             onChange={(e) => setCeilingHeightM(e.target.value)}
@@ -328,15 +331,19 @@ function RoomCreateModal({
             inputMode="decimal"
           />
         </Field>
-        <Field label="Description" hint="What's in it / what's special" wide>
+        <Field
+          label={t("col.description")}
+          hint={t("rooms.field.description_hint")}
+          wide
+        >
           <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
-            placeholder="South-facing, large windows, oak floor."
+            placeholder={t("rooms.field.description_placeholder")}
           />
         </Field>
-        <Field label="Photo URL" wide>
+        <Field label={t("rooms.field.photo_url")} wide>
           <Input
             type="url"
             value={photoUrl}
@@ -344,7 +351,7 @@ function RoomCreateModal({
             placeholder="https://…"
           />
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("detail.notes")} wide>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}

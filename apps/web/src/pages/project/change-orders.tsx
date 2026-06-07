@@ -9,12 +9,11 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
   CHANGE_ORDER_LINE_KIND_LABELS,
-  CHANGE_ORDER_STATUS_LABELS,
   type ChangeOrderLineKind,
   type ChangeOrderStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type COSummary =
@@ -29,6 +28,7 @@ type WorkItemRow = inferRouterOutputs<AppRouter>["workItems"]["list"][number];
  */
 export default function ProjectChangeOrders() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
+  const t = useT();
   const [creating, setCreating] = useState(false);
   const list = trpc.changeOrders.list.useQuery({ projectId: project.id });
 
@@ -37,10 +37,10 @@ export default function ProjectChangeOrders() {
       <div className="flex items-start justify-between gap-6">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            Change orders
+            {t("co.title")}
           </h2>
           <p className="mt-1 text-sm text-ink-500">
-            Formal scope and budget changes.
+            {t("co.lede")}
           </p>
         </div>
         {!creating && (
@@ -49,7 +49,7 @@ export default function ProjectChangeOrders() {
             onClick={() => setCreating(true)}
             className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
           >
-            New change order
+            {t("co.new")}
           </button>
         )}
       </div>
@@ -64,14 +64,13 @@ export default function ProjectChangeOrders() {
 
       <div className="mt-5 grid gap-2">
         {list.isLoading ? (
-          <p className="text-xs text-slate-500">Loading…</p>
+          <p className="text-xs text-slate-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="text-xs text-rose-700">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
           <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
-            No change orders yet. Click <strong>New change order</strong> when
-            scope shifts mid-execution — rotted baseboards, client adds a
-            sconce, vendor delivers fewer than ordered.
+            {t("co.empty_prefix")} <strong>{t("co.new")}</strong>{" "}
+            {t("co.empty_suffix")}
           </p>
         ) : (
           list.data.map((co) => (
@@ -99,6 +98,8 @@ function COCard({
   co: COSummary;
 }) {
   const fmt = useFormatters();
+  const L = useLabels();
+  const t = useT();
   const delta = parseFloat(co.totalDeltaAmount);
   const negative = delta < 0;
   return (
@@ -114,7 +115,7 @@ function COCard({
           className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[co.status]}`}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-          {CHANGE_ORDER_STATUS_LABELS[co.status]}
+          {L.changeOrderStatus(co.status)}
         </span>
         <span className="text-sm font-medium text-blueprint-900">{co.title}</span>
         <span
@@ -125,12 +126,14 @@ function COCard({
         </span>
       </div>
       <div className="mt-1 flex gap-3 text-[10px] uppercase tracking-wider text-slate-400">
-        <span>drafted {fmt.date(co.createdAt)}</span>
-        {co.sentAt && <span>· sent {fmt.date(co.sentAt)}</span>}
+        <span>{t("co.drafted_at", { date: fmt.date(co.createdAt) })}</span>
+        {co.sentAt && (
+          <span>· {t("co.sent_at", { date: fmt.date(co.sentAt) })}</span>
+        )}
         {co.decidedAt && (
           <span>
-            · decided {fmt.date(co.decidedAt)}
-            {co.decidedBy ? ` by ${co.decidedBy}` : ""}
+            · {t("co.decided_at", { date: fmt.date(co.decidedAt) })}
+            {co.decidedBy ? ` ${t("co.by_actor", { actor: co.decidedBy })}` : ""}
           </span>
         )}
       </div>
@@ -163,6 +166,8 @@ function CreateForm({
   onClose: () => void;
 }) {
   const fmt = useFormatters();
+  const t = useT();
+  const L = useLabels();
   const utils = trpc.useUtils();
   const items = trpc.workItems.list.useQuery({ projectId });
 
@@ -232,24 +237,24 @@ function CreateForm({
     e.preventDefault();
     setError(null);
     if (!title.trim()) {
-      setError("Title is required.");
+      setError(t("co.err_title_required"));
       return;
     }
     if (lines.length === 0) {
-      setError("Add at least one line.");
+      setError(t("co.err_min_one_line"));
       return;
     }
     for (const l of lines) {
       if (l.kind === "add" && !l.description.trim()) {
-        setError("Add lines need a description.");
+        setError(t("co.err_add_needs_description"));
         return;
       }
       if ((l.kind === "modify" || l.kind === "remove") && !l.workItemId) {
-        setError(`${l.kind} lines must reference a work item.`);
+        setError(t("co.err_line_needs_work_item", { kind: L.changeOrderKind(l.kind) }));
         return;
       }
       if (!l.totalDeltaAmount.trim()) {
-        setError("Each line needs a money delta.");
+        setError(t("co.err_line_needs_delta"));
         return;
       }
     }
@@ -281,21 +286,21 @@ function CreateForm({
       className="mt-4 rounded-md border border-paper-200 bg-white p-4"
     >
       <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
-        New · change order
+        {t("co.form_eyebrow")}
       </p>
 
       <div className="mt-2 grid gap-3 sm:grid-cols-3">
-        <Field label="Title *" wide>
+        <Field label={t("co.field_title")} wide>
           <input
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className={inputCls}
             autoFocus
-            placeholder="Rotted baseboards in primary bath — CO-01"
+            placeholder={t("co.field_title_ph")}
           />
         </Field>
-        <Field label="Currency">
+        <Field label={t("co.field_currency")}>
           <input
             value={currency}
             onChange={(e) => setCurrency(e.target.value.toUpperCase())}
@@ -303,13 +308,13 @@ function CreateForm({
             maxLength={3}
           />
         </Field>
-        <Field label="Description" wide>
+        <Field label={t("co.field_description")} wide>
           <textarea
             rows={2}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className={inputCls}
-            placeholder="What changed, why, who flagged it."
+            placeholder={t("co.field_description_ph")}
           />
         </Field>
       </div>
@@ -317,14 +322,14 @@ function CreateForm({
       <div className="mt-4 space-y-2">
         <div className="flex items-center justify-between">
           <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-            Lines
+            {t("co.lines")}
           </p>
           <button
             type="button"
             onClick={addLine}
             className="text-xs text-slate-500 hover:text-slate-900"
           >
-            + Add line
+            {t("co.add_line")}
           </button>
         </div>
         {lines.map((l) => (
@@ -341,7 +346,12 @@ function CreateForm({
       </div>
 
       <div className="mt-3 flex items-center justify-end gap-3 text-[11px] uppercase tracking-wider text-slate-500">
-        <span>net delta · {lines.length} line{lines.length === 1 ? "" : "s"}</span>
+        <span>
+          {t(
+            lines.length === 1 ? "co.net_delta_count_one" : "co.net_delta_count_other",
+            { count: lines.length },
+          )}
+        </span>
         <span
           className={`text-base ${total < 0 ? "text-rose-700" : "text-emerald-700"}`}
         >
@@ -357,14 +367,14 @@ function CreateForm({
           onClick={onClose}
           className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={create.isPending}
           className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {create.isPending ? "Saving…" : "Create change order"}
+          {create.isPending ? t("common.saving") : t("co.create_submit")}
         </button>
       </div>
     </form>
@@ -386,6 +396,8 @@ function LineRowEditor({
   onRemove: () => void;
   onWorkItemSelected: (line: DraftLine, id: string) => void;
 }) {
+  const L = useLabels();
+  const t = useT();
   const showWorkItemPicker = line.kind === "modify" || line.kind === "remove";
   const showAfterFields = line.kind === "add" || line.kind === "modify";
 
@@ -403,7 +415,7 @@ function LineRowEditor({
             Object.keys(CHANGE_ORDER_LINE_KIND_LABELS) as ChangeOrderLineKind[]
           ).map((k) => (
             <option key={k} value={k}>
-              {CHANGE_ORDER_LINE_KIND_LABELS[k]}
+              {L.changeOrderKind(k)}
             </option>
           ))}
         </select>
@@ -414,7 +426,7 @@ function LineRowEditor({
             onChange={(e) => onWorkItemSelected(line, e.target.value)}
             className={`${selectCls} flex-1 min-w-[12rem]`}
           >
-            <option value="">— pick a work item</option>
+            <option value="">{t("co.pick_work_item")}</option>
             {workItems.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.ref ? `${w.ref} — ` : ""}
@@ -429,7 +441,7 @@ function LineRowEditor({
           onClick={onRemove}
           className="ml-auto text-xs text-rose-600 hover:text-rose-800"
         >
-          × Remove
+          {t("co.remove_line")}
         </button>
       </div>
 
@@ -443,8 +455,8 @@ function LineRowEditor({
               className={inputCls}
               placeholder={
                 line.kind === "add"
-                  ? "Description of the new line *"
-                  : "Updated description (leave blank to keep current)"
+                  ? t("co.line_description_add_ph")
+                  : t("co.line_description_modify_ph")
               }
             />
           </div>
@@ -452,20 +464,20 @@ function LineRowEditor({
             value={line.qty}
             onChange={(e) => onUpdate({ qty: e.target.value })}
             className={inputCls}
-            placeholder="Qty"
+            placeholder={t("co.line_qty_ph")}
             inputMode="decimal"
           />
           <input
             value={line.unit}
             onChange={(e) => onUpdate({ unit: e.target.value })}
             className={inputCls}
-            placeholder="ea / m² / ml"
+            placeholder={t("co.line_unit_ph")}
           />
           <input
             value={line.unitPriceAmount}
             onChange={(e) => onUpdate({ unitPriceAmount: e.target.value })}
             className={inputCls}
-            placeholder="Unit price"
+            placeholder={t("co.line_unit_price_ph")}
             inputMode="decimal"
           />
           <input
@@ -483,19 +495,19 @@ function LineRowEditor({
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         <label className="text-sm">
           <span className="text-[10px] uppercase tracking-wider text-slate-500">
-            Money delta * ({currency}, negative for deductive)
+            {t("co.line_money_delta", { currency })}
           </span>
           <input
             value={line.totalDeltaAmount}
             onChange={(e) => onUpdate({ totalDeltaAmount: e.target.value })}
             className={`${inputCls} mt-1`}
-            placeholder="-1450.00 or 5500.00"
+            placeholder={t("co.line_money_delta_ph")}
             inputMode="decimal"
           />
         </label>
         <label className="text-sm">
           <span className="text-[10px] uppercase tracking-wider text-slate-500">
-            Notes
+            {t("co.line_notes")}
           </span>
           <input
             value={line.notes}

@@ -3,6 +3,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import type { BillingUnit, ServiceStatus } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
+import { useT } from "../lib/i18n";
 
 type ServiceRow = inferRouterOutputs<AppRouter>["services"]["list"][number];
 type StatusFilter = ServiceStatus | "all";
@@ -11,15 +12,23 @@ type ModalState =
   | { mode: "create" }
   | { mode: "edit"; service: ServiceRow };
 
-const BILLING_UNIT_LABELS: Record<BillingUnit, string> = {
-  hour: "per hour",
-  day: "per day",
-  project: "per project",
-  retainer: "retainer",
-  unit: "per unit",
-};
+const BILLING_UNITS: BillingUnit[] = [
+  "hour",
+  "day",
+  "project",
+  "retainer",
+  "unit",
+];
+
+/** Localized "per hour" / "per day" / … label for a billing unit. */
+function useBillingUnitLabel() {
+  const t = useT();
+  return (u: BillingUnit) => t(`services.unit.${u}` as const);
+}
 
 export default function ServicesPage() {
+  const t = useT();
+  const unitLabel = useBillingUnitLabel();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [search, setSearch] = useState("");
   const [modalState, setModalState] = useState<ModalState>({ mode: "closed" });
@@ -33,17 +42,16 @@ export default function ServicesPage() {
     <div className="mx-auto max-w-5xl p-10">
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Services</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            The firm's standard offerings catalog — reusable building blocks
-            that proposals and bids draw from.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {t("nav.services")}
+          </h1>
+          <p className="mt-1 text-sm text-slate-600">{t("services.lede")}</p>
         </div>
         <button
           onClick={() => setModalState({ mode: "create" })}
           className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
         >
-          New Service
+          {t("services.new")}
         </button>
       </div>
 
@@ -53,41 +61,41 @@ export default function ServicesPage() {
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
           className={selectCls}
         >
-          <option value="active">Active</option>
-          <option value="archived">Archived</option>
-          <option value="all">All</option>
+          <option value="active">{t("services.filter.active")}</option>
+          <option value="archived">{t("services.filter.archived")}</option>
+          <option value="all">{t("services.filter.all")}</option>
         </select>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or description…"
+          placeholder={t("services.search")}
           className="flex-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
         />
       </div>
 
       <div className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white">
         {list.isLoading ? (
-          <p className="p-6 text-sm text-slate-500">Loading…</p>
+          <p className="p-6 text-sm text-slate-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="p-6 text-sm text-rose-700">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
           <p className="p-6 text-sm text-slate-500">
             {search.trim()
-              ? "No services match your search."
+              ? t("services.empty_filtered")
               : statusFilter === "archived"
-                ? "No archived services."
-                : "No services yet. Click New Service to add one."}
+                ? t("services.empty_archived")
+                : t("services.empty")}
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <Th>Name</Th>
-                <Th>Default rate</Th>
-                <Th>Tags</Th>
-                <Th className="w-24">Status</Th>
-                <Th className="w-28">Updated</Th>
-                <Th className="w-24 text-right">Actions</Th>
+                <Th>{t("col.name")}</Th>
+                <Th>{t("services.col.default_rate")}</Th>
+                <Th>{t("services.col.tags")}</Th>
+                <Th className="w-24">{t("col.status")}</Th>
+                <Th className="w-28">{t("col.updated")}</Th>
+                <Th className="w-24 text-right">{t("services.col.actions")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -107,8 +115,8 @@ export default function ServicesPage() {
                   </Td>
                   <Td className="text-slate-600">
                     {s.defaultRateAmount && s.defaultRateCurrency
-                      ? `${s.defaultRateAmount} ${s.defaultRateCurrency} ${BILLING_UNIT_LABELS[s.billingUnit]}`
-                      : BILLING_UNIT_LABELS[s.billingUnit]}
+                      ? `${s.defaultRateAmount} ${s.defaultRateCurrency} ${unitLabel(s.billingUnit)}`
+                      : unitLabel(s.billingUnit)}
                   </Td>
                   <Td className="text-slate-600">
                     {s.tags.length > 0 ? s.tags.join(", ") : "—"}
@@ -180,6 +188,7 @@ function StatusPill({ status }: { status: ServiceStatus }) {
 }
 
 function RowActions({ service }: { service: ServiceRow }) {
+  const t = useT();
   const utils = trpc.useUtils();
   const archive = trpc.services.archive.useMutation({
     onSuccess: () => utils.services.list.invalidate(),
@@ -201,7 +210,11 @@ function RowActions({ service }: { service: ServiceRow }) {
       disabled={pending}
       className="text-xs text-slate-500 hover:text-slate-900 disabled:opacity-50"
     >
-      {pending ? "…" : service.status === "active" ? "Archive" : "Restore"}
+      {pending
+        ? "…"
+        : service.status === "active"
+          ? t("services.archive")
+          : t("services.restore")}
     </button>
   );
 }
@@ -213,6 +226,8 @@ function ServiceFormModal({
   state: { mode: "create" } | { mode: "edit"; service: ServiceRow };
   onClose: () => void;
 }) {
+  const t = useT();
+  const unitLabel = useBillingUnitLabel();
   const isEdit = state.mode === "edit";
   const initial = isEdit ? state.service : null;
 
@@ -259,7 +274,7 @@ function ServiceFormModal({
     const rateAmt = defaultRateAmount.trim();
     const rateCur = defaultRateCurrency.trim();
     if ((rateAmt && !rateCur) || (!rateAmt && rateCur)) {
-      setError("Default rate amount and currency must be set together.");
+      setError(t("services.err_rate_pair"));
       return;
     }
     const payload = {
@@ -289,10 +304,10 @@ function ServiceFormModal({
         className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl"
       >
         <h2 className="text-lg font-semibold tracking-tight">
-          {isEdit ? "Edit service" : "New service"}
+          {isEdit ? t("services.edit_title") : t("services.new_title")}
         </h2>
         <div className="mt-4 space-y-3">
-          <Field label="Name *">
+          <Field label={t("services.field.name")}>
             <input
               required
               value={name}
@@ -302,17 +317,17 @@ function ServiceFormModal({
               autoFocus
             />
           </Field>
-          <Field label="Description">
+          <Field label={t("services.field.description")}>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               className={inputCls}
-              placeholder="What's included, deliverables, scope notes."
+              placeholder={t("services.field.description_ph")}
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Default rate">
+            <Field label={t("services.field.default_rate")}>
               <div className="flex gap-2">
                 <input
                   value={defaultRateAmount}
@@ -332,7 +347,7 @@ function ServiceFormModal({
                 />
               </div>
             </Field>
-            <Field label="Billing unit">
+            <Field label={t("services.field.billing_unit")}>
               <select
                 value={billingUnit}
                 onChange={(e) =>
@@ -340,17 +355,15 @@ function ServiceFormModal({
                 }
                 className={selectCls}
               >
-                {(Object.keys(BILLING_UNIT_LABELS) as BillingUnit[]).map(
-                  (u) => (
-                    <option key={u} value={u}>
-                      {BILLING_UNIT_LABELS[u]}
-                    </option>
-                  ),
-                )}
+                {BILLING_UNITS.map((u) => (
+                  <option key={u} value={u}>
+                    {unitLabel(u)}
+                  </option>
+                ))}
               </select>
             </Field>
           </div>
-          <Field label="Tags (comma-separated)">
+          <Field label={t("services.field.tags")}>
             <input
               value={tagsRaw}
               onChange={(e) => setTagsRaw(e.target.value)}
@@ -358,7 +371,7 @@ function ServiceFormModal({
               placeholder="residential, kitchen, design-build"
             />
           </Field>
-          <Field label="Notes">
+          <Field label={t("services.field.notes")}>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -374,14 +387,18 @@ function ServiceFormModal({
             onClick={onClose}
             className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="submit"
             disabled={submitting}
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
-            {submitting ? "Saving…" : isEdit ? "Save" : "Create"}
+            {submitting
+              ? t("common.saving")
+              : isEdit
+                ? t("common.save")
+                : t("common.create")}
           </button>
         </div>
       </form>

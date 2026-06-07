@@ -1,6 +1,8 @@
+import { useT, type MessageKey } from "../../lib/i18n";
+
 type PlaceholderInfo = {
-  title: string;
-  blurb: string;
+  titleKey: MessageKey;
+  blurbKey: MessageKey;
   milestone: string;
 };
 
@@ -11,51 +13,54 @@ type PlaceholderInfo = {
  */
 const PLACEHOLDERS: Record<string, PlaceholderInfo> = {
   drawings: {
-    title: "Drawings",
-    blurb:
-      "Sheet sets with version tracking (IFP → IFB → IFC → as-built), NCS-aware sheet numbering, and in-browser PDF search across the set.",
+    titleKey: "placeholder.drawings.title",
+    blurbKey: "placeholder.drawings.blurb",
     milestone: "M8 · CAD + drawings",
   },
   rfis: {
-    title: "RFIs",
-    blurb:
-      "Question → answer → implemented state machine. Drafted from voice or photo; the answer attaches to the relevant sheet, spec, or asset.",
+    titleKey: "placeholder.rfis.title",
+    blurbKey: "placeholder.rfis.blurb",
     milestone: "v1.5",
   },
   punch: {
-    title: "Punch list",
-    blurb:
-      "Closeout items with required photos. State machine: open → scheduled → done → verified. Final invoice gates on full verification.",
+    titleKey: "placeholder.punch.title",
+    blurbKey: "placeholder.punch.blurb",
     milestone: "v1.5",
   },
   "site-logs": {
-    title: "Site logs",
-    blurb:
-      "Daily reports and site visits. Mobile capture (photo + voice memo); Claude transcribes and extracts structured todos.",
+    titleKey: "placeholder.site_logs.title",
+    blurbKey: "placeholder.site_logs.blurb",
     milestone: "v1 · workflow #6",
   },
 };
 
 export default function ProjectPlaceholder({ tab }: { tab: string }) {
+  const t = useT();
   const info = PLACEHOLDERS[tab];
   if (!info) {
-    return <p className="text-sm text-zinc-500">Unknown tab: {tab}</p>;
+    return (
+      <p className="text-sm text-zinc-500">
+        {t("placeholder.unknown_tab", { tab })}
+      </p>
+    );
   }
   return (
     <section>
       <div className="flex items-center gap-2">
         <h2 className="text-xl font-semibold tracking-tight text-blueprint-900">
-          {info.title}
+          {t(info.titleKey)}
         </h2>
         <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-600 ring-1 ring-inset ring-zinc-200">
-          Not yet built
+          {t("placeholder.not_yet_built")}
         </span>
       </div>
       <p className="mt-3 max-w-prose text-sm leading-relaxed text-zinc-600">
-        {info.blurb}
+        {t(info.blurbKey)}
       </p>
       <p className="mt-6 text-xs text-zinc-400">
-        Planned for <span className="text-zinc-600">{info.milestone}</span>.
+        {t("placeholder.planned_for", {
+          milestone: info.milestone,
+        })}
       </p>
     </section>
   );

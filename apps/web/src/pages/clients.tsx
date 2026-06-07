@@ -3,6 +3,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import type { ClientStatus } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
+import { useT } from "../lib/i18n";
 import { ContactsSection } from "../components/contacts-section";
 
 type ClientRow = inferRouterOutputs<AppRouter>["clients"]["list"][number];
@@ -13,6 +14,7 @@ type ModalState =
   | { mode: "edit"; client: ClientRow };
 
 export default function ClientsPage() {
+  const t = useT();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [search, setSearch] = useState("");
   const [modalState, setModalState] = useState<ModalState>({ mode: "closed" });
@@ -26,16 +28,16 @@ export default function ClientsPage() {
     <div className="mx-auto max-w-5xl p-10">
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            External parties the firm has projects with.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {t("nav.clients")}
+          </h1>
+          <p className="mt-1 text-sm text-slate-600">{t("clients.lede")}</p>
         </div>
         <button
           onClick={() => setModalState({ mode: "create" })}
           className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
         >
-          New Client
+          {t("clients.new")}
         </button>
       </div>
 
@@ -45,41 +47,41 @@ export default function ClientsPage() {
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
           className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
         >
-          <option value="active">Active</option>
-          <option value="archived">Archived</option>
-          <option value="all">All</option>
+          <option value="active">{t("clients.filter.active")}</option>
+          <option value="archived">{t("clients.filter.archived")}</option>
+          <option value="all">{t("clients.filter.all")}</option>
         </select>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or contact…"
+          placeholder={t("clients.search")}
           className="flex-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
         />
       </div>
 
       <div className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white">
         {list.isLoading ? (
-          <p className="p-6 text-sm text-slate-500">Loading…</p>
+          <p className="p-6 text-sm text-slate-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="p-6 text-sm text-rose-700">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
           <p className="p-6 text-sm text-slate-500">
             {search.trim()
-              ? "No clients match your search."
+              ? t("clients.empty_filtered")
               : statusFilter === "archived"
-                ? "No archived clients."
-                : "No clients yet. Click New Client to add one."}
+                ? t("clients.empty_archived")
+                : t("clients.empty")}
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <Th>Name</Th>
-                <Th>Primary contact</Th>
-                <Th>Tags</Th>
-                <Th className="w-24">Status</Th>
-                <Th className="w-28">Updated</Th>
-                <Th className="w-24 text-right">Actions</Th>
+                <Th>{t("col.name")}</Th>
+                <Th>{t("clients.col.primary_contact")}</Th>
+                <Th>{t("clients.col.tags")}</Th>
+                <Th className="w-24">{t("col.status")}</Th>
+                <Th className="w-28">{t("col.updated")}</Th>
+                <Th className="w-24 text-right">{t("clients.col.actions")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -161,6 +163,7 @@ function StatusPill({ status }: { status: ClientStatus }) {
 }
 
 function RowActions({ client }: { client: ClientRow }) {
+  const t = useT();
   const utils = trpc.useUtils();
   const archive = trpc.clients.archive.useMutation({
     onSuccess: () => utils.clients.list.invalidate(),
@@ -182,7 +185,11 @@ function RowActions({ client }: { client: ClientRow }) {
       disabled={pending}
       className="text-xs text-slate-500 hover:text-slate-900 disabled:opacity-50"
     >
-      {pending ? "…" : client.status === "active" ? "Archive" : "Restore"}
+      {pending
+        ? "…"
+        : client.status === "active"
+          ? t("clients.archive")
+          : t("clients.restore")}
     </button>
   );
 }
@@ -194,6 +201,7 @@ function ClientFormModal({
   state: { mode: "create" } | { mode: "edit"; client: ClientRow };
   onClose: () => void;
 }) {
+  const t = useT();
   const isEdit = state.mode === "edit";
   const initial = isEdit ? state.client : null;
 
@@ -256,10 +264,12 @@ function ClientFormModal({
       >
         <form onSubmit={onSubmit} className="p-6">
           <h2 className="text-lg font-semibold tracking-tight">
-            {isEdit ? `Edit ${state.client.name}` : "New client"}
+            {isEdit
+              ? t("clients.edit_title", { name: state.client.name })
+              : t("clients.new_title")}
           </h2>
           <div className="mt-4 space-y-3">
-            <Field label="Name *">
+            <Field label={t("clients.field.name")}>
               <input
                 required
                 value={name}
@@ -268,7 +278,7 @@ function ClientFormModal({
                 autoFocus
               />
             </Field>
-            <Field label="Primary contact">
+            <Field label={t("clients.field.primary_contact")}>
               <input
                 value={primaryContact}
                 onChange={(e) => setPrimaryContact(e.target.value)}
@@ -276,14 +286,14 @@ function ClientFormModal({
                 placeholder="e.g. Sarah Anderson"
               />
             </Field>
-            <Field label="Address">
+            <Field label={t("col.address")}>
               <input
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 className={inputCls}
               />
             </Field>
-            <Field label="Notes">
+            <Field label={t("clients.field.notes")}>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -291,7 +301,7 @@ function ClientFormModal({
                 className={inputCls}
               />
             </Field>
-            <Field label="Tags (comma-separated)">
+            <Field label={t("clients.field.tags")}>
               <input
                 value={tagsRaw}
                 onChange={(e) => setTagsRaw(e.target.value)}
@@ -307,14 +317,18 @@ function ClientFormModal({
               onClick={onClose}
               className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="submit"
               disabled={submitting}
               className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
             >
-              {submitting ? "Saving…" : isEdit ? "Save" : "Create"}
+              {submitting
+                ? t("common.saving")
+                : isEdit
+                  ? t("common.save")
+                  : t("common.create")}
             </button>
           </div>
         </form>

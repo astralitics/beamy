@@ -34,7 +34,7 @@ export default function ProjectShell() {
 
   if (!id) return null;
   if (project.isLoading) {
-    return <p className="p-12 text-sm text-ink-500">Loading…</p>;
+    return <p className="p-12 text-sm text-ink-500">{t("common.loading")}</p>;
   }
   if (project.error) {
     return (
@@ -44,7 +44,7 @@ export default function ProjectShell() {
           to="/projects"
           className="mt-4 inline-block text-sm text-ink-700 hover:text-ink-900"
         >
-          ← Back to projects
+          {t("shell.back_to_projects")}
         </Link>
       </div>
     );
