@@ -19,7 +19,10 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
 export const bidStatusSchema = z.enum([
   "received",
   "comparing",
+  // `accepted` = approved & work underway ("Ongoing"); `completed` =
+  // work wrapped up. Payment is tracked separately on the linked bill.
   "accepted",
+  "completed",
   "rejected",
   "expired",
 ]);
@@ -28,7 +31,8 @@ export type BidStatus = z.infer<typeof bidStatusSchema>;
 export const BID_STATUS_LABELS: Record<BidStatus, string> = {
   received: "Received",
   comparing: "Comparing",
-  accepted: "Accepted",
+  accepted: "Ongoing",
+  completed: "Completed",
   rejected: "Rejected",
   expired: "Expired",
 };

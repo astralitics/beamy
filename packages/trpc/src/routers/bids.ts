@@ -4,6 +4,7 @@ import {
   auditLog,
   bidPackages,
   bids,
+  bills,
   getDb,
   projects,
   vendors,
@@ -66,14 +67,25 @@ export const bidsRouter = router({
       }
 
       return await db
-        .select({ bid: bids, vendor: vendors, package: bidPackages })
+        .select({ bid: bids, vendor: vendors, package: bidPackages, bill: bills })
         .from(bids)
         .leftJoin(vendors, eq(bids.vendorId, vendors.id))
         .leftJoin(bidPackages, eq(bids.packageId, bidPackages.id))
+        // ≤1 bill per bid (auto-created on approval, idempotent) — left
+        // join surfaces its payment status on the row.
+        .leftJoin(
+          bills,
+          and(eq(bills.bidId, bids.id), eq(bills.orgId, ctx.orgId)),
+        )
         .where(and(...conditions))
         .orderBy(desc(bids.updatedAt))
         .then((rows) =>
-          rows.map((r) => ({ ...r.bid, vendor: r.vendor, package: r.package })),
+          rows.map((r) => ({
+            ...r.bid,
+            vendor: r.vendor,
+            package: r.package,
+            bill: r.bill,
+          })),
         );
     }),
 
@@ -254,22 +266,10 @@ export const bidsRouter = router({
           .where(eq(bids.id, winner.id));
 
         // Promote this bid's still-"specified" work items into the
-        // approved Plan. Don't touch items past approved — those have
-        // moved on through the lifecycle.
-        await tx
-          .update(workItems)
-          .set({
-            status: "approved",
-            updatedAt: new Date(),
-            updatedBy: ctx.actor,
-          })
-          .where(
-            and(
-              eq(workItems.bidId, winner.id),
-              eq(workItems.orgId, ctx.orgId),
-              eq(workItems.status, "specified"),
-            ),
-          );
+        // approved Plan, and drop the matching payable into Money —
+        // same side effects as a plain `decide` → accepted.
+        await promoteSpecifiedWorkItems(tx, ctx.orgId, ctx.actor, winner.id);
+        await ensureBillForAcceptedBid(tx, ctx.orgId, ctx.actor, winner);
 
         if (winner.packageId) {
           // Reject siblings inside the same package (skip those already
@@ -317,8 +317,10 @@ export const bidsRouter = router({
 
   /**
    * Approve / reject a quote. Sets status (accepted | rejected) +
-   * decidedAt. No side effects — does NOT promote line items into the
-   * Plan or touch sibling bids (that's `award`). A plain decision verb.
+   * decidedAt. Approving also drops an open bill into the Money tab
+   * (money owed to the vendor) — see `ensureBillForAcceptedBid`. Does
+   * NOT promote line items into the Plan or touch sibling bids (that's
+   * `award`). A plain decision verb.
    */
   decide: orgScopedProcedure
     .input(bidDecideInputSchema)
@@ -343,6 +345,13 @@ export const bidsRouter = router({
           .where(eq(bids.id, input.id))
           .returning();
         if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        if (input.decision === "accepted") {
+          // Surface the quote's line items in the live Plan, and book the
+          // matching payable in Money.
+          await promoteSpecifiedWorkItems(tx, ctx.orgId, ctx.actor, updated.id);
+          await ensureBillForAcceptedBid(tx, ctx.orgId, ctx.actor, updated);
+        }
 
         await tx.insert(auditLog).values({
           orgId: ctx.orgId,
@@ -561,6 +570,88 @@ export const bidsRouter = router({
       });
     }),
 });
+
+/**
+ * Idempotently create the "money owed" bill for an accepted quote.
+ *
+ * Approving a bid commits us to paying the vendor, so we mirror it as
+ * an open bill in the Money tab. Guards:
+ *   - needs a total + currency (can't book a payable for an unknown
+ *     amount) — silently skips otherwise;
+ *   - one bill per bid — re-approving (or approve → reject → approve)
+ *     never double-books.
+ * Deleting the bill by hand and re-approving recreates it; that's the
+ * intended escape hatch.
+ */
+/**
+ * Promote a quote's still-"specified" line items into the live Plan as
+ * "approved" work. Items already past approved (scheduled / in_progress
+ * / done / …) are left untouched. Runs when a quote is approved so its
+ * lines become trackable work items instead of dormant bid lines.
+ */
+async function promoteSpecifiedWorkItems(
+  tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0],
+  orgId: string,
+  actor: string,
+  bidId: string,
+) {
+  await tx
+    .update(workItems)
+    .set({ status: "approved", updatedAt: new Date(), updatedBy: actor })
+    .where(
+      and(
+        eq(workItems.bidId, bidId),
+        eq(workItems.orgId, orgId),
+        eq(workItems.status, "specified"),
+      ),
+    );
+}
+
+async function ensureBillForAcceptedBid(
+  tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0],
+  orgId: string,
+  actor: string,
+  bid: typeof bids.$inferSelect,
+) {
+  if (!bid.totalAmount || !bid.currency) return;
+
+  const already = await tx
+    .select({ id: bills.id })
+    .from(bills)
+    .where(and(eq(bills.bidId, bid.id), eq(bills.orgId, orgId)))
+    .limit(1);
+  if (already[0]) return;
+
+  const [bill] = await tx
+    .insert(bills)
+    .values({
+      orgId,
+      projectId: bid.projectId,
+      vendorId: bid.vendorId ?? null,
+      bidId: bid.id,
+      billNumber: bid.bidNumber ?? null,
+      description: bid.trade
+        ? `${bid.trade} — accepted quote`
+        : "Accepted quote",
+      amount: bid.totalAmount,
+      currency: bid.currency,
+      issuedAt: bid.bidDate ?? null,
+      status: "open",
+      createdBy: actor,
+      updatedBy: actor,
+    })
+    .returning({ id: bills.id });
+  if (!bill) return;
+
+  await tx.insert(auditLog).values({
+    orgId,
+    actor,
+    action: "bill.created",
+    resourceType: "bill",
+    resourceId: bill.id,
+    payload: { fromBidId: bid.id, source: "bid.accepted" },
+  });
+}
 
 async function verifyOwnership(
   tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0],

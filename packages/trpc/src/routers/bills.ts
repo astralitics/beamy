@@ -4,6 +4,7 @@ import {
   assetEvents,
   assets,
   auditLog,
+  bids,
   bills,
   getDb,
   projects,
@@ -100,7 +101,25 @@ export const billsRouter = router({
         ? { event: fromEvent[0].event, asset: fromEvent[0].asset }
         : null;
 
-      return { ...row.bill, vendor: row.vendor, source };
+      // Back-reference: if this bill was auto-created from an accepted
+      // quote, surface the link so the detail page can click back to it.
+      const sourceBid = row.bill.bidId
+        ? ((
+            await db
+              .select({
+                id: bids.id,
+                bidNumber: bids.bidNumber,
+                trade: bids.trade,
+              })
+              .from(bids)
+              .where(
+                and(eq(bids.id, row.bill.bidId), eq(bids.orgId, ctx.orgId)),
+              )
+              .limit(1)
+          )[0] ?? null)
+        : null;
+
+      return { ...row.bill, vendor: row.vendor, source, sourceBid };
     }),
 
   create: orgScopedProcedure
