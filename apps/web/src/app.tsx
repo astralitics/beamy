@@ -24,7 +24,6 @@ import ProjectFurnitureDetail from "./pages/project/furniture-detail";
 import ProjectRooms from "./pages/project/rooms";
 import ProjectRoomDetail from "./pages/project/room-detail";
 import ProjectMaterials from "./pages/project/materials";
-import ProjectSpecs from "./pages/project/specs";
 import ProjectMoney from "./pages/project/money";
 import ProjectBillDetail from "./pages/project/bill-detail";
 import ProjectInvoiceDetail from "./pages/project/invoice-detail";
@@ -114,7 +113,6 @@ function AppShell() {
               path="drawings"
               element={<ProjectPlaceholder tab="drawings" />}
             />
-            <Route path="specs" element={<ProjectSpecs />} />
             <Route path="assets" element={<ProjectAssets />} />
             <Route
               path="assets/:assetId"

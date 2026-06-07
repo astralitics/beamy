@@ -17,8 +17,8 @@ type ChatMessage = inferRouterOutputs<AppRouter>["chat"]["list"][number];
 /**
  * Assistant — per-project chat with Claude. Server-side prompt builder
  * stuffs the latest project state into the system prompt each turn, so
- * the assistant always sees current data: project facts, rooms, open
- * specs, bills/invoices, recent activity.
+ * the assistant always sees current data: project facts, rooms,
+ * bills/invoices, recent activity.
  *
  * v1 mechanics: non-streaming (single mutation returns the full reply),
  * no tool use, conversation persisted in chat_messages.
@@ -141,7 +141,7 @@ export default function ProjectAssistant() {
       </form>
 
       <p className="mt-2 text-[10px] text-slate-400">
-        v2 · queries assets, materials, specs, money, activity on demand ·
+        v2 · queries assets, materials, money, activity on demand ·
         results cached per turn
       </p>
     </div>

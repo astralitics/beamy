@@ -60,7 +60,6 @@ const PROJECT_NAV: NavSection[] = [
     items: [
       { to: "bids", labelKey: "project_nav.bids" },
       { to: "plan?phase=proposal", labelKey: "project_nav.plan_scope" },
-      { to: "specs", labelKey: "project_nav.specs" },
       { to: "proposals", labelKey: "project_nav.proposals" },
       { to: "money?phase=proposal", labelKey: "project_nav.proposal_money" },
     ],
