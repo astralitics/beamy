@@ -39,6 +39,26 @@ export const PROPOSAL_STATUS_FLOW: ProposalStatus[] = [
 ];
 
 /**
+ * How the client-facing artifact buckets its line items. Chosen at
+ * generation; the rendered HTML also ships an interactive toggle so
+ * the client can flip between these without us regenerating.
+ */
+export const proposalGroupBySchema = z.enum([
+  "work_type",
+  "vendor",
+  "room",
+  "none",
+]);
+export type ProposalGroupBy = z.infer<typeof proposalGroupBySchema>;
+
+export const PROPOSAL_GROUP_BY_LABELS: Record<ProposalGroupBy, string> = {
+  work_type: "Work type",
+  vendor: "Vendor",
+  room: "Room",
+  none: "No grouping",
+};
+
+/**
  * Generator input. Server walks the workItemIds, applies the
  * markup, snapshots each line into proposal_lines, renders HTML,
  * uploads to documents bucket, and stamps the proposal with the
@@ -49,28 +69,56 @@ export const PROPOSAL_STATUS_FLOW: ProposalStatus[] = [
  * work_item. UI typically reads project-level default and passes
  * it here; per-line overrides are a follow-up edit step.
  */
-export const proposalGenerateInputSchema = z.object({
-  projectId: z.string().uuid(),
-  workItemIds: z
-    .array(z.string().uuid())
-    .min(1, "Pick at least one work item")
-    .max(500),
-  title: z.string().trim().min(1, "Title is required").max(200),
-  introText: z.string().trim().max(20000).optional(),
-  markupPct: z
-    .number()
-    .min(0, "Markup can't be negative")
-    .max(500, "Markup must be reasonable")
-    .default(0),
-  currency: z.string().length(3, "ISO 4217 3-letter code"),
-  expiresAt: isoDate.optional(),
-  /**
-   * Optional section labels keyed by work_item.trade. Lines whose
-   * trade matches a key get that section heading in the rendered
-   * artifact; lines with no match group under "Other".
-   */
-  sectionLabelsByTrade: z.record(z.string(), z.string().max(80)).optional(),
-});
+export const proposalGenerateInputSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    workItemIds: z
+      .array(z.string().uuid())
+      .min(1, "Pick at least one work item")
+      .max(500),
+    title: z.string().trim().min(1, "Title is required").max(200),
+    introText: z.string().trim().max(20000).optional(),
+    markupPct: z
+      .number()
+      .min(0, "Markup can't be negative")
+      .max(500, "Markup must be reasonable")
+      .default(0),
+    /**
+     * Proposal-level markup applied to the subtotal, on top of each
+     * line's own per-item markup (which the Plan owns). "Markup at the
+     * end." Optional; absent = 0.
+     */
+    overallMarkupPct: z
+      .number()
+      .min(0, "Markup can't be negative")
+      .max(500, "Markup must be reasonable")
+      .optional(),
+    /** Discount as a % of the marked-up subtotal. */
+    discountPct: z
+      .number()
+      .min(0, "Discount can't be negative")
+      .max(100, "Discount can't exceed 100%")
+      .optional(),
+    /** Discount as a flat amount in `currency`. */
+    discountAmount: z
+      .number()
+      .min(0, "Discount can't be negative")
+      .optional(),
+    currency: z.string().length(3, "ISO 4217 3-letter code"),
+    expiresAt: isoDate.optional(),
+    /** How the artifact buckets its lines by default. */
+    groupBy: proposalGroupBySchema.default("work_type"),
+    /**
+     * Optional section labels keyed by work_item.trade. Lines whose
+     * trade matches a key get that section heading in the rendered
+     * artifact; lines with no match group under "Other".
+     */
+    sectionLabelsByTrade: z.record(z.string(), z.string().max(80)).optional(),
+  })
+  .refine((v) => !(v.discountPct != null && v.discountAmount != null), {
+    message: "Set the discount as either a percentage or an amount, not both.",
+    path: ["discountAmount"],
+  });
 export type ProposalGenerateInput = z.infer<typeof proposalGenerateInputSchema>;
 
 export const proposalListInputSchema = z.object({
