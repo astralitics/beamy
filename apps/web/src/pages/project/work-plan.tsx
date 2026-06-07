@@ -457,12 +457,15 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             onRowClick={openDetail}
             trades={trades.data ?? []}
             rooms={rooms.data ?? []}
+            vendors={vendors.data ?? []}
             statusFilter={statusFilter}
             setStatusFilter={setStatusFilter}
             tradeFilter={tradeFilter}
             setTradeFilter={setTradeFilter}
             roomFilter={roomFilter}
             setRoomFilter={setRoomFilter}
+            vendorFilter={vendorFilter}
+            setVendorFilter={setVendorFilter}
             search={search}
             setSearch={setSearch}
             hasActiveFilters={hasActiveFilters}
@@ -707,12 +710,15 @@ function WorkItemsTable({
   onRowClick,
   trades,
   rooms,
+  vendors,
   statusFilter,
   setStatusFilter,
   tradeFilter,
   setTradeFilter,
   roomFilter,
   setRoomFilter,
+  vendorFilter,
+  setVendorFilter,
   search,
   setSearch,
   hasActiveFilters,
@@ -721,12 +727,15 @@ function WorkItemsTable({
   onRowClick: (w: WorkItemRow) => void;
   trades: string[];
   rooms: RoomRow[];
+  vendors: VendorRow[];
   statusFilter: StatusFilter;
   setStatusFilter: (s: StatusFilter) => void;
   tradeFilter: string;
   setTradeFilter: (s: string) => void;
   roomFilter: string;
   setRoomFilter: (s: string) => void;
+  vendorFilter: string;
+  setVendorFilter: (s: string) => void;
   search: string;
   setSearch: (s: string) => void;
   hasActiveFilters: boolean;
@@ -740,6 +749,7 @@ function WorkItemsTable({
             <th className="px-3 pt-2">Description</th>
             <th className="px-3 pt-2">Type of work</th>
             <th className="px-3 pt-2">Rooms</th>
+            <th className="px-3 pt-2">Vendor</th>
             <th className="px-3 pt-2">Status</th>
             <th className="px-3 pt-2">Start</th>
             <th className="px-3 pt-2">End</th>
@@ -784,6 +794,20 @@ function WorkItemsTable({
             </th>
             <th className="px-3 pb-2 pt-1.5">
               <select
+                value={vendorFilter}
+                onChange={(e) => setVendorFilter(e.target.value)}
+                className={colFilterCls}
+              >
+                <option value="">All</option>
+                {vendors.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            </th>
+            <th className="px-3 pb-2 pt-1.5">
+              <select
                 value={statusFilter}
                 onChange={(e) =>
                   setStatusFilter(e.target.value as StatusFilter)
@@ -805,7 +829,7 @@ function WorkItemsTable({
           {items.length === 0 ? (
             <tr>
               <td
-                colSpan={7}
+                colSpan={8}
                 className="px-3 py-10 text-center text-xs text-slate-500"
               >
                 {hasActiveFilters
@@ -867,6 +891,9 @@ function WorkItemRowItem({
       </td>
       <td className="px-3 py-2.5 text-[13px] text-slate-600">
         {item.rooms.length > 0 ? item.rooms.map((r) => r.name).join(", ") : "—"}
+      </td>
+      <td className="px-3 py-2.5 text-[13px] text-slate-600">
+        {item.vendor?.name ?? "—"}
       </td>
       <td className="px-3 py-2.5">
         <span
