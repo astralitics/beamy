@@ -9,7 +9,7 @@ import {
   type BidStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 import { Button, Icon, Pill } from "../../components/ui";
 
 const STATUS_TONE: Record<
@@ -28,9 +28,7 @@ type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type BidRow = inferRouterOutputs<AppRouter>["bids"]["list"][number];
 type VendorRow = inferRouterOutputs<AppRouter>["vendors"]["list"][number];
 
-const KNOWN_FLAGS: Array<{ slug: string; label: string }> = Object.entries(
-  BID_FLAG_LABELS,
-).map(([slug, label]) => ({ slug, label }));
+const KNOWN_FLAG_SLUGS: string[] = Object.keys(BID_FLAG_LABELS);
 
 /** The bill auto-created on approval, joined onto each quote row. */
 type BidBill = NonNullable<BidRow["bill"]>;
@@ -297,6 +295,7 @@ function BidTableRow({
   projectId: string;
 }) {
   const fmt = useFormatters();
+  const L = useLabels();
   const [expanded, setExpanded] = useState(false);
   // Only fetch line items when the user expands the row — saves a roundtrip
   // per collapsed row. Cached afterward via tRPC.
@@ -360,7 +359,7 @@ function BidTableRow({
         <Td>
           <div className="flex flex-wrap items-center gap-1.5">
             <Pill tone={STATUS_TONE[bid.status]} dot>
-              {BID_STATUS_LABELS[bid.status]}
+              {L.bidStatus(bid.status)}
             </Pill>
             {validityExpired &&
               bid.status !== "accepted" &&
@@ -631,6 +630,7 @@ function BidForm({
   defaultCurrency: string;
   onClose: () => void;
 }) {
+  const L = useLabels();
   const [vendorId, setVendorId] = useState(existing?.vendorId ?? "");
   const [trade, setTrade] = useState(existing?.trade ?? "");
   const [bidNumber, setBidNumber] = useState(existing?.bidNumber ?? "");
@@ -757,7 +757,7 @@ function BidForm({
           >
             {(Object.keys(BID_STATUS_LABELS) as BidStatus[]).map((s) => (
               <option key={s} value={s}>
-                {BID_STATUS_LABELS[s]}
+                {L.bidStatus(s)}
               </option>
             ))}
           </select>
@@ -839,7 +839,7 @@ function BidForm({
           Flags
         </p>
         <div className="mt-1 flex flex-wrap gap-1.5">
-          {KNOWN_FLAGS.map(({ slug, label }) => {
+          {KNOWN_FLAG_SLUGS.map((slug) => {
             const on = flags.includes(slug);
             return (
               <button
@@ -853,7 +853,7 @@ function BidForm({
                 }`}
               >
                 {on ? "✓ " : ""}
-                {label}
+                {L.bidFlag(slug)}
               </button>
             );
           })}

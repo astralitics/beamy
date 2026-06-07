@@ -10,7 +10,7 @@ import {
   type AssetStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -58,6 +58,7 @@ export default function ProjectAssets() {
   });
   const rooms = trpc.projects.listRooms.useQuery({ projectId: project.id });
   const fmt = useFormatters();
+  const L = useLabels();
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -87,7 +88,7 @@ export default function ProjectAssets() {
             <option value="">All statuses</option>
             {(Object.keys(ASSET_STATUS_LABELS) as AssetStatus[]).map((s) => (
               <option key={s} value={s}>
-                {ASSET_STATUS_LABELS[s]}
+                {L.assetStatus(s)}
               </option>
             ))}
           </Select>
@@ -102,7 +103,7 @@ export default function ProjectAssets() {
             <option value="">All categories</option>
             {(Object.keys(ASSET_CATEGORY_LABELS) as AssetCategory[]).map((c) => (
               <option key={c} value={c}>
-                {ASSET_CATEGORY_LABELS[c]}
+                {L.assetCategory(c)}
               </option>
             ))}
           </Select>
@@ -198,12 +199,12 @@ export default function ProjectAssets() {
                       </Link>
                     </Td>
                     <Td className="text-ink-600">
-                      {ASSET_CATEGORY_LABELS[a.category]}
+                      {L.assetCategory(a.category)}
                     </Td>
                     <Td className="text-ink-600">{a.room?.name ?? "—"}</Td>
                     <Td>
                       <Pill tone={STATUS_TONE[a.status]} dot>
-                        {ASSET_STATUS_LABELS[a.status]}
+                        {L.assetStatus(a.status)}
                       </Pill>
                     </Td>
                     <Td className="text-ink-600 tnum">
@@ -323,6 +324,7 @@ function AssetFormModal({
   onClose: () => void;
 }) {
   const isEdit = mode === "edit";
+  const L = useLabels();
 
   const [name, setName] = useState(existing?.name ?? "");
   const [category, setCategory] = useState<AssetCategory>(
@@ -442,7 +444,7 @@ function AssetFormModal({
           >
             {(Object.keys(ASSET_CATEGORY_LABELS) as AssetCategory[]).map((c) => (
               <option key={c} value={c}>
-                {ASSET_CATEGORY_LABELS[c]}
+                {L.assetCategory(c)}
               </option>
             ))}
           </Select>
@@ -454,7 +456,7 @@ function AssetFormModal({
           >
             {(Object.keys(ASSET_STATUS_LABELS) as AssetStatus[]).map((s) => (
               <option key={s} value={s}>
-                {ASSET_STATUS_LABELS[s]}
+                {L.assetStatus(s)}
               </option>
             ))}
           </Select>
@@ -466,7 +468,7 @@ function AssetFormModal({
               <option key={r.id} value={r.id}>
                 {r.name}
                 {r.roomType
-                  ? ` (${ROOM_TYPE_LABELS[r.roomType as keyof typeof ROOM_TYPE_LABELS] ?? r.roomType})`
+                  ? ` (${L.roomType(r.roomType as keyof typeof ROOM_TYPE_LABELS)})`
                   : ""}
               </option>
             ))}

@@ -2,13 +2,9 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
-import {
-  BID_FLAG_LABELS,
-  BID_STATUS_LABELS,
-  type BidStatus,
-} from "@beamy/shared";
+import { type BidStatus } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 import { Button, Icon, Pill } from "../../components/ui";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
@@ -31,6 +27,7 @@ export default function ProjectBidDetail() {
   const { bidId } = useParams<{ bidId: string }>();
   const navigate = useNavigate();
   const fmt = useFormatters();
+  const L = useLabels();
 
   const bid = trpc.bids.get.useQuery(
     { id: bidId ?? "" },
@@ -149,7 +146,7 @@ export default function ProjectBidDetail() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Pill tone={STATUS_TONE[b.status]} dot>
-                {BID_STATUS_LABELS[b.status]}
+                {L.bidStatus(b.status)}
               </Pill>
               {validityExpired &&
                 b.status !== "accepted" &&
@@ -259,7 +256,7 @@ export default function ProjectBidDetail() {
           <div className="mt-3 flex flex-wrap gap-1.5">
             {b.flags.map((f) => (
               <Pill key={f} tone="warn">
-                {BID_FLAG_LABELS[f] ?? f}
+                {L.bidFlag(f)}
               </Pill>
             ))}
           </div>

@@ -4,6 +4,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import { ROOM_TYPE_LABELS, type RoomType } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
+import { useLabels } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -17,6 +18,7 @@ type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 
 export default function ProjectRoomDetail() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
+  const L = useLabels();
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
 
@@ -104,7 +106,7 @@ export default function ProjectRoomDetail() {
         <div className="mt-3 flex items-start justify-between gap-6">
           <div className="min-w-0">
             <p className="text-[13px] text-ink-500">
-              {r.roomType ? ROOM_TYPE_LABELS[r.roomType] : "Room"}
+              {r.roomType ? L.roomType(r.roomType) : "Room"}
               {r.floor ? ` · ${r.floor}` : ""}
             </p>
             <h1 className="mt-2 font-display text-4xl font-normal leading-[1.1] tracking-tightest text-ink-900">
@@ -128,7 +130,7 @@ export default function ProjectRoomDetail() {
         <>
           <section className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
             <Fact label="Type">
-              {r.roomType ? ROOM_TYPE_LABELS[r.roomType] : "—"}
+              {r.roomType ? L.roomType(r.roomType) : "—"}
             </Fact>
             <Fact label="Floor">{r.floor ?? "—"}</Fact>
             <Fact label="Floor area">
@@ -203,7 +205,7 @@ export default function ProjectRoomDetail() {
                 <option value="">—</option>
                 {(Object.keys(ROOM_TYPE_LABELS) as RoomType[]).map((t) => (
                   <option key={t} value={t}>
-                    {ROOM_TYPE_LABELS[t]}
+                    {L.roomType(t)}
                   </option>
                 ))}
               </Select>

@@ -8,13 +8,11 @@ import {
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  CHANGE_ORDER_LINE_KIND_LABELS,
-  CHANGE_ORDER_STATUS_LABELS,
   type ChangeOrderLineKind,
   type ChangeOrderStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 
@@ -43,6 +41,7 @@ export default function ProjectChangeOrderDetail() {
   const { changeOrderId } = useParams<{ changeOrderId: string }>();
   const navigate = useNavigate();
   const fmt = useFormatters();
+  const L = useLabels();
   const utils = trpc.useUtils();
 
   const [decidedBy, setDecidedBy] = useState("");
@@ -104,7 +103,7 @@ export default function ProjectChangeOrderDetail() {
             className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[co.status]}`}
           >
             <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-            {CHANGE_ORDER_STATUS_LABELS[co.status]}
+            {L.changeOrderStatus(co.status)}
           </span>
         </div>
 
@@ -261,7 +260,7 @@ export default function ProjectChangeOrderDetail() {
                     <span
                       className={`inline-flex items-center rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${KIND_PILL_CLS[line.kind]}`}
                     >
-                      {CHANGE_ORDER_LINE_KIND_LABELS[line.kind]}
+                      {L.changeOrderKind(line.kind)}
                     </span>
                   </td>
                   <td className="px-3 py-2">

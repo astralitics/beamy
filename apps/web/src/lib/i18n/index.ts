@@ -4,6 +4,7 @@ export {
   useT,
   useFormatters,
 } from "./locale-context";
+export { useLabels } from "./labels";
 export {
   formatCurrency,
   formatDate,

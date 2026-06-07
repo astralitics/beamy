@@ -8,7 +8,7 @@ import {
   type ProjectType,
 } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
-import { useFormatters, useT } from "../lib/i18n";
+import { useFormatters, useLabels, useT } from "../lib/i18n";
 import {
   Button,
   Field,
@@ -43,6 +43,7 @@ const STATUS_TONE: Record<
 export default function ProjectsPage() {
   const fmt = useFormatters();
   const t = useT();
+  const L = useLabels();
   const [searchParams, setSearchParams] = useSearchParams();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [typeFilter, setTypeFilter] = useState<ProjectType | "">("");
@@ -102,7 +103,7 @@ export default function ProjectsPage() {
             <option value="">{t("projects.filter.all_types")}</option>
             {(Object.keys(PROJECT_TYPE_LABELS) as ProjectType[]).map((t) => (
               <option key={t} value={t}>
-                {PROJECT_TYPE_LABELS[t]}
+                {L.projectType(t)}
               </option>
             ))}
           </Select>
@@ -164,7 +165,7 @@ export default function ProjectsPage() {
                       </Pill>
                     </div>
                     <p className="mt-1 truncate text-[13px] text-ink-500">
-                      {PROJECT_TYPE_LABELS[p.projectType]}
+                      {L.projectType(p.projectType)}
                       {p.address && (
                         <>
                           <span className="mx-2 text-ink-300">·</span>
@@ -215,6 +216,7 @@ function ProjectFormModal({
 }) {
   const isEdit = state.mode === "edit";
   const initial = isEdit ? state.project : null;
+  const L = useLabels();
 
   const clients = trpc.clients.list.useQuery({ status: "active" });
 
@@ -331,7 +333,7 @@ function ProjectFormModal({
           >
             {(Object.keys(PROJECT_TYPE_LABELS) as ProjectType[]).map((t) => (
               <option key={t} value={t}>
-                {PROJECT_TYPE_LABELS[t]}
+                {L.projectType(t)}
               </option>
             ))}
           </Select>

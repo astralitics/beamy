@@ -10,6 +10,7 @@ import {
   type MaterialUnit,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
+import { useLabels } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type MaterialRow = inferRouterOutputs<AppRouter>["materials"]["list"][number];
@@ -21,6 +22,7 @@ type MaterialRow = inferRouterOutputs<AppRouter>["materials"]["list"][number];
  */
 export default function ProjectMaterials() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
+  const L = useLabels();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<MaterialRow | null>(null);
   const [roomFilter, setRoomFilter] = useState<string>("");
@@ -84,7 +86,7 @@ export default function ProjectMaterials() {
             {(Object.keys(MATERIAL_CATEGORY_LABELS) as MaterialCategory[]).map(
               (c) => (
                 <option key={c} value={c}>
-                  {MATERIAL_CATEGORY_LABELS[c]}
+                  {L.materialCategory(c)}
                 </option>
               ),
             )}
@@ -157,6 +159,7 @@ function MaterialRowItem({
   material: MaterialRow;
   onEdit: () => void;
 }) {
+  const L = useLabels();
   const utils = trpc.useUtils();
   const remove = trpc.materials.remove.useMutation({
     onSuccess: () =>
@@ -177,7 +180,7 @@ function MaterialRowItem({
               {material.name}
             </span>
             <span className="rounded-full bg-paper-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
-              {MATERIAL_CATEGORY_LABELS[material.category]}
+              {L.materialCategory(material.category)}
             </span>
             {material.room && (
               <span className="text-[10px] uppercase tracking-wide text-slate-400">
@@ -198,13 +201,13 @@ function MaterialRowItem({
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[10px] uppercase tracking-wider text-slate-400">
             {material.quantity && material.quantityUnit && (
               <span>
-                {material.quantity} {MATERIAL_UNIT_LABELS[material.quantityUnit]}
+                {material.quantity} {L.materialUnit(material.quantityUnit)}
               </span>
             )}
             {material.atticStockQuantity && material.quantityUnit && (
               <span>
                 attic stock · {material.atticStockQuantity}{" "}
-                {MATERIAL_UNIT_LABELS[material.quantityUnit]}
+                {L.materialUnit(material.quantityUnit)}
                 {material.atticStockLocation && (
                   <span> @ {material.atticStockLocation}</span>
                 )}
@@ -266,6 +269,7 @@ function MaterialForm({
   rooms: RoomLite[];
   onClose: () => void;
 }) {
+  const L = useLabels();
   const [name, setName] = useState(existing?.name ?? "");
   const [category, setCategory] = useState<MaterialCategory>(
     existing?.category ?? "paint",
@@ -369,7 +373,7 @@ function MaterialForm({
             {(Object.keys(MATERIAL_CATEGORY_LABELS) as MaterialCategory[]).map(
               (c) => (
                 <option key={c} value={c}>
-                  {MATERIAL_CATEGORY_LABELS[c]}
+                  {L.materialCategory(c)}
                 </option>
               ),
             )}
@@ -386,7 +390,7 @@ function MaterialForm({
               <option key={r.id} value={r.id}>
                 {r.name}
                 {r.roomType
-                  ? ` (${ROOM_TYPE_LABELS[r.roomType as keyof typeof ROOM_TYPE_LABELS] ?? r.roomType})`
+                  ? ` (${L.roomType(r.roomType as keyof typeof ROOM_TYPE_LABELS)})`
                   : ""}
               </option>
             ))}
@@ -444,7 +448,7 @@ function MaterialForm({
               {(Object.keys(MATERIAL_UNIT_LABELS) as MaterialUnit[]).map(
                 (u) => (
                   <option key={u} value={u}>
-                    {MATERIAL_UNIT_LABELS[u]}
+                    {L.materialUnit(u)}
                   </option>
                 ),
               )}

@@ -9,12 +9,11 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
   CHANGE_ORDER_LINE_KIND_LABELS,
-  CHANGE_ORDER_STATUS_LABELS,
   type ChangeOrderLineKind,
   type ChangeOrderStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type COSummary =
@@ -99,6 +98,7 @@ function COCard({
   co: COSummary;
 }) {
   const fmt = useFormatters();
+  const L = useLabels();
   const delta = parseFloat(co.totalDeltaAmount);
   const negative = delta < 0;
   return (
@@ -114,7 +114,7 @@ function COCard({
           className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[co.status]}`}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-          {CHANGE_ORDER_STATUS_LABELS[co.status]}
+          {L.changeOrderStatus(co.status)}
         </span>
         <span className="text-sm font-medium text-blueprint-900">{co.title}</span>
         <span
@@ -386,6 +386,7 @@ function LineRowEditor({
   onRemove: () => void;
   onWorkItemSelected: (line: DraftLine, id: string) => void;
 }) {
+  const L = useLabels();
   const showWorkItemPicker = line.kind === "modify" || line.kind === "remove";
   const showAfterFields = line.kind === "add" || line.kind === "modify";
 
@@ -403,7 +404,7 @@ function LineRowEditor({
             Object.keys(CHANGE_ORDER_LINE_KIND_LABELS) as ChangeOrderLineKind[]
           ).map((k) => (
             <option key={k} value={k}>
-              {CHANGE_ORDER_LINE_KIND_LABELS[k]}
+              {L.changeOrderKind(k)}
             </option>
           ))}
         </select>

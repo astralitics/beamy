@@ -25,7 +25,7 @@ import {
   type WorkItemStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type WorkItemRow = inferRouterOutputs<AppRouter>["workItems"]["list"][number];
@@ -533,6 +533,7 @@ function ScopeByRoom({
   blockedByItem: Map<string, WorkItemRow[]>;
   onEdit: (w: WorkItemRow) => void;
 }) {
+  const L = useLabels();
   const groups = useMemo(() => {
     type Group = { room: RoomRow | null; items: WorkItemRow[] };
     const byRoomId = new Map<string, Group>();
@@ -588,7 +589,7 @@ function ScopeByRoom({
               </h3>
               {g.room?.roomType && (
                 <span className="rounded-full bg-paper-100 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
-                  {ROOM_TYPE_LABELS[g.room.roomType]}
+                  {L.roomType(g.room.roomType)}
                 </span>
               )}
             </div>
@@ -635,6 +636,7 @@ function ScopeByRoomRow({
   blockedBy: WorkItemRow[] | null;
   onEdit: () => void;
 }) {
+  const L = useLabels();
   const otherRooms =
     currentRoomId == null
       ? []
@@ -692,7 +694,7 @@ function ScopeByRoomRow({
           className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[item.status]}`}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-          {WORK_ITEM_STATUS_LABELS[item.status].toLowerCase()}
+          {L.workItemStatus(item.status).toLowerCase()}
         </span>
       </td>
       <td className="whitespace-nowrap px-3 py-2 text-right">
@@ -878,6 +880,7 @@ function WorkItemRowItem({
   onClick: () => void;
 }) {
   const fmt = useFormatters();
+  const L = useLabels();
   return (
     <tr
       onClick={onClick}
@@ -903,7 +906,7 @@ function WorkItemRowItem({
           className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[item.status]}`}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-          {WORK_ITEM_STATUS_LABELS[item.status].toLowerCase()}
+          {L.workItemStatus(item.status).toLowerCase()}
         </span>
       </td>
       <td className="whitespace-nowrap px-3 py-2.5 text-[12px] text-slate-600">
@@ -1050,6 +1053,7 @@ function TimelineView({
   onEdit: (w: WorkItemRow) => void;
 }) {
   const fmt = useFormatters();
+  const L = useLabels();
   const dated = items.filter((w) => w.plannedStart && w.plannedEnd);
   const undated = items.filter((w) => !w.plannedStart || !w.plannedEnd);
 
@@ -1242,7 +1246,7 @@ function TimelineView({
                   {w.description}
                 </button>
                 <span className="ml-2 text-[10px] text-slate-500">
-                  {WORK_ITEM_STATUS_LABELS[w.status]}
+                  {L.workItemStatus(w.status)}
                 </span>
               </li>
             ))}
@@ -1528,6 +1532,7 @@ function CalendarView({
   colorForItem?: (w: WorkItemRow) => GroupColor;
   legend?: ItemGroup[];
 }) {
+  const L = useLabels();
   const { byDate, unscheduled, firstDate } = useMemo(() => {
     const byDate = new Map<string, WorkItemRow[]>();
     const unscheduled: WorkItemRow[] = [];
@@ -1720,7 +1725,7 @@ function CalendarView({
                 <span
                   className={`ml-auto inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide ring-1 ring-inset ${STATUS_PILL_CLS[w.status]}`}
                 >
-                  {WORK_ITEM_STATUS_LABELS[w.status].toLowerCase()}
+                  {L.workItemStatus(w.status).toLowerCase()}
                 </span>
               </li>
             ))}
@@ -1756,6 +1761,7 @@ export function WorkItemForm({
   defaultStatus?: WorkItemStatus;
   onClose: () => void;
 }) {
+  const L = useLabels();
   const [description, setDescription] = useState(existing?.description ?? "");
   const [trade, setTrade] = useState(existing?.trade ?? "");
   const [ref, setRef] = useState(existing?.ref ?? "");
@@ -1904,7 +1910,7 @@ export function WorkItemForm({
             {(Object.keys(WORK_ITEM_STATUS_LABELS) as WorkItemStatus[]).map(
               (s) => (
                 <option key={s} value={s}>
-                  {WORK_ITEM_STATUS_LABELS[s]}
+                  {L.workItemStatus(s)}
                 </option>
               ),
             )}
@@ -2029,6 +2035,7 @@ function DependenciesEditor({
   existingDeps: DepRow[];
   allItems: WorkItemRow[];
 }) {
+  const L = useLabels();
   const utils = trpc.useUtils();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickedId, setPickedId] = useState("");
@@ -2097,7 +2104,7 @@ function DependenciesEditor({
               >
                 <span
                   className="rounded-sm bg-paper-100 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200"
-                  title={WORK_ITEM_DEPENDENCY_KIND_LABELS[d.kind]}
+                  title={L.workItemDepKind(d.kind)}
                 >
                   {WORK_ITEM_DEPENDENCY_KIND_SHORT[d.kind]}
                 </span>
@@ -2113,7 +2120,7 @@ function DependenciesEditor({
                   <span
                     className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide ring-1 ring-inset ${STATUS_PILL_CLS[pred.status]}`}
                   >
-                    {WORK_ITEM_STATUS_LABELS[pred.status].toLowerCase()}
+                    {L.workItemStatus(pred.status).toLowerCase()}
                   </span>
                 )}
                 <button
@@ -2164,7 +2171,7 @@ function DependenciesEditor({
                 ) as WorkItemDependencyKind[]
               ).map((k) => (
                 <option key={k} value={k}>
-                  {WORK_ITEM_DEPENDENCY_KIND_LABELS[k]}
+                  {L.workItemDepKind(k)}
                 </option>
               ))}
             </select>
@@ -2290,6 +2297,7 @@ function RoomRowItem({
   room: RoomRow;
   onEdit: () => void;
 }) {
+  const L = useLabels();
   const utils = trpc.useUtils();
   const remove = trpc.projects.removeRoom.useMutation({
     onSuccess: () =>
@@ -2302,7 +2310,7 @@ function RoomRowItem({
           <span className="font-medium text-slate-900">{room.name}</span>
           {room.roomType && (
             <span className="rounded-full bg-paper-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
-              {ROOM_TYPE_LABELS[room.roomType]}
+              {L.roomType(room.roomType)}
             </span>
           )}
         </div>
@@ -2344,6 +2352,7 @@ function RoomForm({
   existing?: RoomRow;
   onClose: () => void;
 }) {
+  const L = useLabels();
   const [name, setName] = useState(existing?.name ?? "");
   const [roomType, setRoomType] = useState<RoomType | "">(
     existing?.roomType ?? "",
@@ -2408,7 +2417,7 @@ function RoomForm({
             <option value="">— (none)</option>
             {(Object.keys(ROOM_TYPE_LABELS) as RoomType[]).map((t) => (
               <option key={t} value={t}>
-                {ROOM_TYPE_LABELS[t]}
+                {L.roomType(t)}
               </option>
             ))}
           </select>

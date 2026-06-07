@@ -8,7 +8,7 @@ import {
   type InvoiceStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -39,6 +39,7 @@ export default function ProjectInvoiceDetail() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const navigate = useNavigate();
   const fmt = useFormatters();
+  const L = useLabels();
   const [editing, setEditing] = useState(false);
 
   const invoice = trpc.invoices.get.useQuery(
@@ -91,7 +92,7 @@ export default function ProjectInvoiceDetail() {
           <div className="min-w-0">
             <div className="flex items-center gap-3">
               <Pill tone={STATUS_TONE[i.status]} dot>
-                {INVOICE_STATUS_LABELS[i.status]}
+                {L.invoiceStatus(i.status)}
               </Pill>
               {overdue && (
                 <Pill tone="alert" dot>
@@ -214,6 +215,7 @@ function InvoiceEditModal({
   onClose: () => void;
 }) {
   const clientsQ = trpc.clients.list.useQuery({ status: "active" });
+  const L = useLabels();
   const [clientId, setClientId] = useState(invoice.clientId ?? "");
   const [invoiceNumber, setInvoiceNumber] = useState(
     invoice.invoiceNumber ?? "",
@@ -339,7 +341,7 @@ function InvoiceEditModal({
             {(Object.keys(INVOICE_STATUS_LABELS) as InvoiceStatus[]).map(
               (s) => (
                 <option key={s} value={s}>
-                  {INVOICE_STATUS_LABELS[s]}
+                  {L.invoiceStatus(s)}
                 </option>
               ),
             )}

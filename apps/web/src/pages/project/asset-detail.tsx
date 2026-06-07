@@ -3,14 +3,12 @@ import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  ASSET_CATEGORY_LABELS,
   ASSET_EVENT_TYPE_LABELS,
-  ASSET_STATUS_LABELS,
   type AssetEventType,
   type AssetStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -56,6 +54,7 @@ export default function ProjectAssetDetail() {
   const { assetId } = useParams<{ assetId: string }>();
   const navigate = useNavigate();
   const fmt = useFormatters();
+  const L = useLabels();
   const [addingEvent, setAddingEvent] = useState(false);
 
   const asset = trpc.assets.get.useQuery(
@@ -108,10 +107,10 @@ export default function ProjectAssetDetail() {
           <div className="min-w-0">
             <div className="flex items-center gap-3">
               <Pill tone={STATUS_TONE[a.status]} dot>
-                {ASSET_STATUS_LABELS[a.status]}
+                {L.assetStatus(a.status)}
               </Pill>
               <span className="text-[13px] text-ink-500">
-                {ASSET_CATEGORY_LABELS[a.category]}
+                {L.assetCategory(a.category)}
                 {a.room ? ` · ${a.room.name}` : ""}
               </span>
             </div>
@@ -325,6 +324,7 @@ function EventRow({
   onDeleted: () => void;
 }) {
   const fmt = useFormatters();
+  const L = useLabels();
   const remove = trpc.assets.events.remove.useMutation({
     onSuccess: onDeleted,
   });
@@ -340,7 +340,7 @@ function EventRow({
       <div className="flex items-baseline justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <span className="text-[15px] font-medium text-ink-900">
-            {ASSET_EVENT_TYPE_LABELS[event.eventType]}
+            {L.assetEvent(event.eventType)}
           </span>
           <span className="text-[12px] text-ink-400">
             · {fmt.date(event.occurredAt)}
@@ -404,6 +404,7 @@ function EventFormModal({
   assetId: string;
   onClose: () => void;
 }) {
+  const L = useLabels();
   const today = new Date().toISOString().slice(0, 10);
   const [eventType, setEventType] = useState<AssetEventType>("serviced");
   const [occurredAt, setOccurredAt] = useState(today);
@@ -479,7 +480,7 @@ function EventFormModal({
             {(Object.keys(ASSET_EVENT_TYPE_LABELS) as AssetEventType[]).map(
               (t) => (
                 <option key={t} value={t}>
-                  {ASSET_EVENT_TYPE_LABELS[t]}
+                  {L.assetEvent(t)}
                 </option>
               ),
             )}

@@ -3,14 +3,12 @@ import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  FURNITURE_CATEGORY_LABELS,
   FURNITURE_EVENT_TYPE_LABELS,
-  FURNITURE_STATUS_LABELS,
   type FurnitureEventType,
   type FurnitureStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -59,6 +57,7 @@ export default function ProjectFurnitureDetail() {
   const { furnitureId } = useParams<{ furnitureId: string }>();
   const navigate = useNavigate();
   const fmt = useFormatters();
+  const L = useLabels();
   const [addingEvent, setAddingEvent] = useState(false);
 
   const piece = trpc.furniture.get.useQuery(
@@ -104,10 +103,10 @@ export default function ProjectFurnitureDetail() {
           <div className="min-w-0">
             <div className="flex items-center gap-3">
               <Pill tone={STATUS_TONE[p.status]} dot>
-                {FURNITURE_STATUS_LABELS[p.status]}
+                {L.furnitureStatus(p.status)}
               </Pill>
               <span className="text-[13px] text-ink-500">
-                {FURNITURE_CATEGORY_LABELS[p.category]}
+                {L.furnitureCategory(p.category)}
                 {p.room ? ` · ${p.room.name}` : ""}
                 {p.quantity > 1 ? ` · qty ${p.quantity}` : ""}
               </span>
@@ -295,6 +294,7 @@ function EventRow({
   onDeleted: () => void;
 }) {
   const fmt = useFormatters();
+  const L = useLabels();
   const remove = trpc.furniture.events.remove.useMutation({
     onSuccess: onDeleted,
   });
@@ -310,7 +310,7 @@ function EventRow({
       <div className="flex items-baseline justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <span className="text-[15px] font-medium text-ink-900">
-            {FURNITURE_EVENT_TYPE_LABELS[event.eventType]}
+            {L.furnitureEvent(event.eventType)}
           </span>
           <span className="text-[12px] text-ink-400">
             · {fmt.date(event.occurredAt)}
@@ -372,6 +372,7 @@ function EventFormModal({
   onClose: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
+  const L = useLabels();
   const [eventType, setEventType] = useState<FurnitureEventType>("delivered");
   const [occurredAt, setOccurredAt] = useState(today);
   const [summary, setSummary] = useState("");
@@ -454,7 +455,7 @@ function EventFormModal({
               ) as FurnitureEventType[]
             ).map((t) => (
               <option key={t} value={t}>
-                {FURNITURE_EVENT_TYPE_LABELS[t]}
+                {L.furnitureEvent(t)}
               </option>
             ))}
           </Select>

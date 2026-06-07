@@ -11,7 +11,7 @@ import {
   type InvoiceStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -238,6 +238,7 @@ function BillsTab({
   const [statusFilter, setStatusFilter] = useState<BillStatus | "">("");
   const [search, setSearch] = useState("");
   const fmt = useFormatters();
+  const L = useLabels();
   const today = new Date().toISOString().slice(0, 10);
 
   const filtered = useMemo(() => {
@@ -279,7 +280,7 @@ function BillsTab({
             <option value="">All statuses</option>
             {(Object.keys(BILL_STATUS_LABELS) as BillStatus[]).map((s) => (
               <option key={s} value={s}>
-                {BILL_STATUS_LABELS[s]}
+                {L.billStatus(s)}
               </option>
             ))}
           </Select>
@@ -367,7 +368,7 @@ function BillsTab({
                     <Td>
                       <div className="flex items-center gap-1.5">
                         <Pill tone={BILL_TONE[b.status]} dot>
-                          {BILL_STATUS_LABELS[b.status]}
+                          {L.billStatus(b.status)}
                         </Pill>
                         {overdue && <Pill tone="alert">Overdue</Pill>}
                       </div>
@@ -421,6 +422,7 @@ function InvoicesTab({
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "">("");
   const [search, setSearch] = useState("");
   const fmt = useFormatters();
+  const L = useLabels();
   const today = new Date().toISOString().slice(0, 10);
 
   const filtered = useMemo(() => {
@@ -465,7 +467,7 @@ function InvoicesTab({
             {(Object.keys(INVOICE_STATUS_LABELS) as InvoiceStatus[]).map(
               (s) => (
                 <option key={s} value={s}>
-                  {INVOICE_STATUS_LABELS[s]}
+                  {L.invoiceStatus(s)}
                 </option>
               ),
             )}
@@ -553,7 +555,7 @@ function InvoicesTab({
                     <Td>
                       <div className="flex items-center gap-1.5">
                         <Pill tone={INVOICE_TONE[i.status]} dot>
-                          {INVOICE_STATUS_LABELS[i.status]}
+                          {L.invoiceStatus(i.status)}
                         </Pill>
                         {overdue && <Pill tone="alert">Overdue</Pill>}
                       </div>
@@ -637,6 +639,7 @@ function BillCreateModal({
   onClose: () => void;
 }) {
   const vendorsQ = trpc.vendors.list.useQuery({ status: "active" });
+  const L = useLabels();
   const [vendorId, setVendorId] = useState("");
   const [billNumber, setBillNumber] = useState("");
   const [description, setDescription] = useState("");
@@ -755,7 +758,7 @@ function BillCreateModal({
           >
             {(Object.keys(BILL_STATUS_LABELS) as BillStatus[]).map((s) => (
               <option key={s} value={s}>
-                {BILL_STATUS_LABELS[s]}
+                {L.billStatus(s)}
               </option>
             ))}
           </Select>
@@ -803,6 +806,7 @@ function InvoiceCreateModal({
   onClose: () => void;
 }) {
   const clientsQ = trpc.clients.list.useQuery({ status: "active" });
+  const L = useLabels();
   const [clientId, setClientId] = useState(defaultClientId);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [description, setDescription] = useState("");
@@ -924,7 +928,7 @@ function InvoiceCreateModal({
             {(Object.keys(INVOICE_STATUS_LABELS) as InvoiceStatus[]).map(
               (s) => (
                 <option key={s} value={s}>
-                  {INVOICE_STATUS_LABELS[s]}
+                  {L.invoiceStatus(s)}
                 </option>
               ),
             )}

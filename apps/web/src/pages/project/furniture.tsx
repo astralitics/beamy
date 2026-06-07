@@ -5,12 +5,12 @@ import type { AppRouter } from "@beamy/trpc";
 import {
   FURNITURE_CATEGORY_LABELS,
   FURNITURE_STATUS_LABELS,
-  ROOM_TYPE_LABELS,
   type FurnitureCategory,
   type FurnitureStatus,
+  type RoomType,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -62,6 +62,7 @@ export default function ProjectFurniture() {
   });
   const rooms = trpc.projects.listRooms.useQuery({ projectId: project.id });
   const fmt = useFormatters();
+  const L = useLabels();
 
   return (
     <div className="animate-fade">
@@ -92,7 +93,7 @@ export default function ProjectFurniture() {
             {(Object.keys(FURNITURE_STATUS_LABELS) as FurnitureStatus[]).map(
               (s) => (
                 <option key={s} value={s}>
-                  {FURNITURE_STATUS_LABELS[s]}
+                  {L.furnitureStatus(s)}
                 </option>
               ),
             )}
@@ -110,7 +111,7 @@ export default function ProjectFurniture() {
               Object.keys(FURNITURE_CATEGORY_LABELS) as FurnitureCategory[]
             ).map((c) => (
               <option key={c} value={c}>
-                {FURNITURE_CATEGORY_LABELS[c]}
+                {L.furnitureCategory(c)}
               </option>
             ))}
           </Select>
@@ -204,7 +205,7 @@ export default function ProjectFurniture() {
                     </Link>
                   </Td>
                   <Td className="text-ink-600">
-                    {FURNITURE_CATEGORY_LABELS[p.category]}
+                    {L.furnitureCategory(p.category)}
                   </Td>
                   <Td className="text-ink-600">{p.room?.name ?? "—"}</Td>
                   <Td align="right" className="tnum text-ink-700">
@@ -212,7 +213,7 @@ export default function ProjectFurniture() {
                   </Td>
                   <Td>
                     <Pill tone={STATUS_TONE[p.status]} dot>
-                      {FURNITURE_STATUS_LABELS[p.status]}
+                      {L.furnitureStatus(p.status)}
                     </Pill>
                   </Td>
                   <Td className="tnum text-ink-600">
@@ -311,6 +312,7 @@ function FurnitureFormModal({
   onClose: () => void;
 }) {
   const isEdit = mode === "edit";
+  const L = useLabels();
 
   const [name, setName] = useState(existing?.name ?? "");
   const [category, setCategory] = useState<FurnitureCategory>(
@@ -451,7 +453,7 @@ function FurnitureFormModal({
               Object.keys(FURNITURE_CATEGORY_LABELS) as FurnitureCategory[]
             ).map((c) => (
               <option key={c} value={c}>
-                {FURNITURE_CATEGORY_LABELS[c]}
+                {L.furnitureCategory(c)}
               </option>
             ))}
           </Select>
@@ -464,7 +466,7 @@ function FurnitureFormModal({
             {(Object.keys(FURNITURE_STATUS_LABELS) as FurnitureStatus[]).map(
               (s) => (
                 <option key={s} value={s}>
-                  {FURNITURE_STATUS_LABELS[s]}
+                  {L.furnitureStatus(s)}
                 </option>
               ),
             )}
@@ -477,7 +479,7 @@ function FurnitureFormModal({
               <option key={r.id} value={r.id}>
                 {r.name}
                 {r.roomType
-                  ? ` (${ROOM_TYPE_LABELS[r.roomType as keyof typeof ROOM_TYPE_LABELS] ?? r.roomType})`
+                  ? ` (${L.roomType(r.roomType as RoomType)})`
                   : ""}
               </option>
             ))}

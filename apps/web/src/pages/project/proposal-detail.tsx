@@ -3,11 +3,10 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
   PROPOSAL_STATUS_FLOW,
-  PROPOSAL_STATUS_LABELS,
   type ProposalStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 
@@ -28,6 +27,7 @@ export default function ProjectProposalDetail() {
   const { proposalId } = useParams<{ proposalId: string }>();
   const navigate = useNavigate();
   const fmt = useFormatters();
+  const L = useLabels();
   const utils = trpc.useUtils();
 
   const proposalQ = trpc.proposals.get.useQuery(
@@ -89,7 +89,7 @@ export default function ProjectProposalDetail() {
             className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[p.status]}`}
           >
             <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-            {PROPOSAL_STATUS_LABELS[p.status]}
+            {L.proposalStatus(p.status)}
           </span>
         </div>
 
@@ -135,7 +135,7 @@ export default function ProjectProposalDetail() {
             disabled={transition.isPending}
             className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-paper-50 disabled:opacity-50"
           >
-            Mark {PROPOSAL_STATUS_LABELS[advanceTo].toLowerCase()}
+            Mark {L.proposalStatus(advanceTo).toLowerCase()}
           </button>
         )}
         {p.status === "sent" && (

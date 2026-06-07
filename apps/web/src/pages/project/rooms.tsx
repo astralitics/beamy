@@ -4,6 +4,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import { ROOM_TYPE_LABELS, type RoomType } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
+import { useLabels } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -20,6 +21,7 @@ type RoomRow =
 
 export default function ProjectRooms() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
+  const L = useLabels();
   const [adding, setAdding] = useState(false);
   const [typeFilter, setTypeFilter] = useState<RoomType | "">("");
   const [search, setSearch] = useState("");
@@ -66,7 +68,7 @@ export default function ProjectRooms() {
             <option value="">All types</option>
             {(Object.keys(ROOM_TYPE_LABELS) as RoomType[]).map((t) => (
               <option key={t} value={t}>
-                {ROOM_TYPE_LABELS[t]}
+                {L.roomType(t)}
               </option>
             ))}
           </Select>
@@ -140,7 +142,7 @@ export default function ProjectRooms() {
                     </Link>
                   </Td>
                   <Td className="text-ink-600">
-                    {r.roomType ? ROOM_TYPE_LABELS[r.roomType] : "—"}
+                    {r.roomType ? L.roomType(r.roomType) : "—"}
                   </Td>
                   <Td className="text-ink-600">{r.floor ?? "—"}</Td>
                   <Td align="right" className="tnum text-ink-700">
@@ -218,6 +220,7 @@ function RoomCreateModal({
   projectId: string;
   onClose: () => void;
 }) {
+  const L = useLabels();
   const [name, setName] = useState("");
   const [roomType, setRoomType] = useState<RoomType | "">("");
   const [floor, setFloor] = useState("");
@@ -300,7 +303,7 @@ function RoomCreateModal({
             <option value="">—</option>
             {(Object.keys(ROOM_TYPE_LABELS) as RoomType[]).map((t) => (
               <option key={t} value={t}>
-                {ROOM_TYPE_LABELS[t]}
+                {L.roomType(t)}
               </option>
             ))}
           </Select>

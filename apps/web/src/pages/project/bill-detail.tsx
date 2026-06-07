@@ -8,7 +8,7 @@ import {
   type BillStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -35,6 +35,7 @@ export default function ProjectBillDetail() {
   const { billId } = useParams<{ billId: string }>();
   const navigate = useNavigate();
   const fmt = useFormatters();
+  const L = useLabels();
   const [editing, setEditing] = useState(false);
 
   const bill = trpc.bills.get.useQuery(
@@ -80,7 +81,7 @@ export default function ProjectBillDetail() {
           <div className="min-w-0">
             <div className="flex items-center gap-3">
               <Pill tone={STATUS_TONE[b.status]} dot>
-                {BILL_STATUS_LABELS[b.status]}
+                {L.billStatus(b.status)}
               </Pill>
               {overdue && (
                 <Pill tone="alert" dot>
@@ -244,6 +245,7 @@ function BillEditModal({
   onClose: () => void;
 }) {
   const vendorsQ = trpc.vendors.list.useQuery({ status: "active" });
+  const L = useLabels();
   const [vendorId, setVendorId] = useState(bill.vendorId ?? "");
   const [billNumber, setBillNumber] = useState(bill.billNumber ?? "");
   const [description, setDescription] = useState(bill.description ?? "");
@@ -364,7 +366,7 @@ function BillEditModal({
           >
             {(Object.keys(BILL_STATUS_LABELS) as BillStatus[]).map((s) => (
               <option key={s} value={s}>
-                {BILL_STATUS_LABELS[s]}
+                {L.billStatus(s)}
               </option>
             ))}
           </Select>

@@ -8,13 +8,11 @@ import {
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  ROOM_TYPE_LABELS,
   WORK_ITEM_DEPENDENCY_KIND_SHORT,
-  WORK_ITEM_STATUS_LABELS,
   type WorkItemStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 import { Button, Icon, Pill } from "../../components/ui";
 import { WorkItemForm, nextStatus } from "./work-plan";
 
@@ -38,6 +36,7 @@ export default function ProjectWorkItemDetail() {
   const { workItemId } = useParams<{ workItemId: string }>();
   const navigate = useNavigate();
   const fmt = useFormatters();
+  const L = useLabels();
   const [editing, setEditing] = useState(false);
 
   const item = trpc.workItems.get.useQuery(
@@ -110,7 +109,7 @@ export default function ProjectWorkItemDetail() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Pill tone={STATUS_TONE[w.status]} dot>
-                {WORK_ITEM_STATUS_LABELS[w.status]}
+                {L.workItemStatus(w.status)}
               </Pill>
               {blockerCount > 0 && <Pill tone="warn">Blocked · {blockerCount}</Pill>}
               {w.bid && (
@@ -141,7 +140,7 @@ export default function ProjectWorkItemDetail() {
                   }
                   disabled={transition.isPending}
                 >
-                  → {WORK_ITEM_STATUS_LABELS[advanceTo]}
+                  → {L.workItemStatus(advanceTo)}
                 </Button>
               )}
               <Button variant="secondary" onClick={() => setEditing(true)}>
@@ -188,7 +187,7 @@ export default function ProjectWorkItemDetail() {
                 {w.rooms.map((r) => (
                   <Pill key={r.id} tone="info">
                     {r.name}
-                    {r.roomType ? ` · ${ROOM_TYPE_LABELS[r.roomType]}` : ""}
+                    {r.roomType ? ` · ${L.roomType(r.roomType)}` : ""}
                   </Pill>
                 ))}
               </div>
@@ -230,7 +229,7 @@ export default function ProjectWorkItemDetail() {
                       {pred && (
                         <span className="ml-auto">
                           <Pill tone={STATUS_TONE[pred.status]}>
-                            {WORK_ITEM_STATUS_LABELS[pred.status]}
+                            {L.workItemStatus(pred.status)}
                           </Pill>
                         </span>
                       )}

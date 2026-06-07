@@ -3,14 +3,11 @@ import type { ReactNode } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  PROJECT_PHASE_LABELS,
   PROJECT_PHASE_ORDER,
-  PROJECT_SECTION_LABELS,
-  PROPOSAL_STATUS_LABELS,
   type ProjectSection,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters } from "../../lib/i18n";
+import { useFormatters, useLabels } from "../../lib/i18n";
 import { Pill } from "../../components/ui";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
@@ -310,6 +307,7 @@ function ProposalsSection({
   s: Stats;
   fmt: ReturnType<typeof useFormatters>;
 }) {
+  const L = useLabels();
   if (s.proposals.recent.length === 0) return null;
   return (
     <SubSection label="Recent proposals">
@@ -321,7 +319,7 @@ function ProposalsSection({
               className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-paper-50"
             >
               <span className="font-mono text-[12px] text-ink-500">{p.number}</span>
-              <Pill tone="muted">{PROPOSAL_STATUS_LABELS[p.status]}</Pill>
+              <Pill tone="muted">{L.proposalStatus(p.status)}</Pill>
               <span className="truncate text-[14px] text-ink-900">{p.title}</span>
               <span className="ml-auto num text-[16px] text-ink-900">
                 {p.totalAmount && p.totalCurrency
@@ -347,6 +345,7 @@ function ProposalsSection({
 // ────────────────────── phase bar ──────────────────────
 
 function PhaseBar({ data }: { data: Phase }) {
+  const L = useLabels();
   const { phase, phaseLabel, onHold, archived } = data;
   const currentIdx = PROJECT_PHASE_ORDER.indexOf(phase);
 
@@ -357,7 +356,7 @@ function PhaseBar({ data }: { data: Phase }) {
           const done = i < currentIdx;
           const current = i === currentIdx;
           const label =
-            current && phaseLabel ? phaseLabel : PROJECT_PHASE_LABELS[p];
+            current && phaseLabel ? phaseLabel : L.projectPhase(p);
           const isLast = i === PROJECT_PHASE_ORDER.length - 1;
           return (
             <li key={p} className="flex flex-1 items-center">
@@ -452,6 +451,7 @@ function CompletenessCard({
   id: ProjectSection;
   section: Phase["sections"][ProjectSection];
 }) {
+  const L = useLabels();
   const pct = Math.round(section.ratio * 100);
   const allDone = section.filled === section.total;
   const missing = section.checks.filter((c) => !c.passed);
@@ -460,7 +460,7 @@ function CompletenessCard({
     <div className="rounded-xl border border-ink-200/70 bg-white px-5 py-4">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-[13px] font-medium text-ink-800">
-          {PROJECT_SECTION_LABELS[id]}
+          {L.projectSection(id)}
         </p>
         <p className="num text-sm text-ink-400">
           {section.filled}/{section.total}
