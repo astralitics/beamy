@@ -4,7 +4,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import { ROOM_TYPE_LABELS, type RoomType } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useLabels } from "../../lib/i18n";
+import { useLabels, useT } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -19,6 +19,7 @@ type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 export default function ProjectRoomDetail() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const L = useLabels();
+  const t = useT();
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
 
@@ -68,7 +69,8 @@ export default function ProjectRoomDetail() {
   }, [room.data]);
 
   if (!roomId) return null;
-  if (room.isLoading) return <p className="text-sm text-ink-500">Loading…</p>;
+  if (room.isLoading)
+    return <p className="text-sm text-ink-500">{t("common.loading")}</p>;
   if (room.error)
     return <p className="text-sm text-rose-700">{room.error.message}</p>;
   if (!room.data) return null;
@@ -100,13 +102,13 @@ export default function ProjectRoomDetail() {
           className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-900"
         >
           <Icon name="chevron-left" className="h-3 w-3" />
-          Rooms
+          {t("rooms.title")}
         </Link>
 
         <div className="mt-3 flex items-start justify-between gap-6">
           <div className="min-w-0">
             <p className="text-[13px] text-ink-500">
-              {r.roomType ? L.roomType(r.roomType) : "Room"}
+              {r.roomType ? L.roomType(r.roomType) : t("room.fallback")}
               {r.floor ? ` · ${r.floor}` : ""}
             </p>
             <h1 className="mt-2 font-display text-4xl font-normal leading-[1.1] tracking-tightest text-ink-900">
@@ -120,7 +122,7 @@ export default function ProjectRoomDetail() {
           </div>
           {!editing && (
             <Button variant="secondary" onClick={() => setEditing(true)}>
-              Edit
+              {t("common.edit")}
             </Button>
           )}
         </div>
@@ -129,14 +131,14 @@ export default function ProjectRoomDetail() {
       {!editing && (
         <>
           <section className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
-            <Fact label="Type">
+            <Fact label={t("col.type")}>
               {r.roomType ? L.roomType(r.roomType) : "—"}
             </Fact>
-            <Fact label="Floor">{r.floor ?? "—"}</Fact>
-            <Fact label="Floor area">
+            <Fact label={t("rooms.col.floor")}>{r.floor ?? "—"}</Fact>
+            <Fact label={t("room.fact.floor_area")}>
               {r.floorAreaSqM ? `${r.floorAreaSqM} m²` : "—"}
             </Fact>
-            <Fact label="Ceiling height">
+            <Fact label={t("room.fact.ceiling_height")}>
               {r.ceilingHeightM ? `${r.ceilingHeightM} m` : "—"}
             </Fact>
           </section>
@@ -159,7 +161,7 @@ export default function ProjectRoomDetail() {
           {r.notes && (
             <section>
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-                Notes
+                {t("detail.notes")}
               </h3>
               <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink-700">
                 {r.notes}
@@ -171,17 +173,13 @@ export default function ProjectRoomDetail() {
             <button
               type="button"
               onClick={() => {
-                if (
-                  confirm(
-                    `Delete "${r.name}"? Items in this room (assets, furniture, materials) will be detached, not deleted.`,
-                  )
-                ) {
+                if (confirm(t("room.delete_confirm", { name: r.name }))) {
                   remove.mutate({ id: r.id });
                 }
               }}
               className="text-[13px] text-rose-600 hover:text-rose-800"
             >
-              Delete this room
+              {t("room.delete")}
             </button>
           </section>
         </>
@@ -190,14 +188,14 @@ export default function ProjectRoomDetail() {
       {editing && (
         <form onSubmit={onSubmit} className="space-y-6">
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Name" required wide>
+            <Field label={t("col.name")} required wide>
               <Input
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </Field>
-            <Field label="Type">
+            <Field label={t("col.type")}>
               <Select
                 value={roomType}
                 onChange={(e) => setRoomType(e.target.value as RoomType | "")}
@@ -210,14 +208,14 @@ export default function ProjectRoomDetail() {
                 ))}
               </Select>
             </Field>
-            <Field label="Floor / level">
+            <Field label={t("rooms.field.floor")}>
               <Input
                 value={floor}
                 onChange={(e) => setFloor(e.target.value)}
                 placeholder="P6"
               />
             </Field>
-            <Field label="Floor area (m²)">
+            <Field label={t("rooms.field.floor_area")}>
               <Input
                 value={floorAreaSqM}
                 onChange={(e) => setFloorAreaSqM(e.target.value)}
@@ -225,7 +223,7 @@ export default function ProjectRoomDetail() {
                 inputMode="decimal"
               />
             </Field>
-            <Field label="Ceiling height (m)">
+            <Field label={t("rooms.field.ceiling_height")}>
               <Input
                 value={ceilingHeightM}
                 onChange={(e) => setCeilingHeightM(e.target.value)}
@@ -233,14 +231,14 @@ export default function ProjectRoomDetail() {
                 inputMode="decimal"
               />
             </Field>
-            <Field label="Description" wide>
+            <Field label={t("col.description")} wide>
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
               />
             </Field>
-            <Field label="Photo URL" wide>
+            <Field label={t("rooms.field.photo_url")} wide>
               <Input
                 type="url"
                 value={photoUrl}
@@ -248,7 +246,7 @@ export default function ProjectRoomDetail() {
                 placeholder="https://…"
               />
             </Field>
-            <Field label="Notes" wide>
+            <Field label={t("detail.notes")} wide>
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -266,10 +264,10 @@ export default function ProjectRoomDetail() {
                 setError(null);
               }}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" variant="primary" disabled={update.isPending}>
-              {update.isPending ? "Saving…" : "Save changes"}
+              {update.isPending ? t("common.saving") : t("common.save_changes")}
             </Button>
           </div>
         </form>

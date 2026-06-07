@@ -9,7 +9,7 @@ import {
   type BidStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters, useLabels } from "../../lib/i18n";
+import { useFormatters, useLabels, useT, type MessageKey } from "../../lib/i18n";
 import { Button, Icon, Pill } from "../../components/ui";
 
 const STATUS_TONE: Record<
@@ -33,10 +33,13 @@ const KNOWN_FLAG_SLUGS: string[] = Object.keys(BID_FLAG_LABELS);
 /** The bill auto-created on approval, joined onto each quote row. */
 type BidBill = NonNullable<BidRow["bill"]>;
 
-function paymentLabel(bill: BidBill): string {
-  if (bill.status === "paid") return "Paid";
-  if (bill.status === "void") return "Void";
-  return isBillOverdue(bill.status, bill.dueAt) ? "Overdue" : "Unpaid";
+/** Returns a message key; resolve with `t()` at the render site. */
+function paymentLabelKey(bill: BidBill): MessageKey {
+  if (bill.status === "paid") return "bids.payment.paid";
+  if (bill.status === "void") return "bids.payment.void";
+  return isBillOverdue(bill.status, bill.dueAt)
+    ? "bids.payment.overdue"
+    : "bids.payment.unpaid";
 }
 
 function paymentTone(
@@ -60,14 +63,27 @@ function paymentTone(
  * Plan and drops a matching "money owed" bill into the Money tab; the
  * Payment column tracks that bill's status.
  */
-const SECTIONS: { key: string; label: string; statuses: BidStatus[] }[] = [
-  { key: "open", label: "Open · in review", statuses: ["received", "comparing"] },
-  { key: "ongoing", label: "Ongoing", statuses: ["accepted"] },
-  { key: "completed", label: "Completed", statuses: ["completed"] },
-  { key: "closed", label: "Rejected & expired", statuses: ["rejected", "expired"] },
+const SECTIONS: { key: string; labelKey: MessageKey; statuses: BidStatus[] }[] = [
+  {
+    key: "open",
+    labelKey: "bids.section.open",
+    statuses: ["received", "comparing"],
+  },
+  { key: "ongoing", labelKey: "bids.section.ongoing", statuses: ["accepted"] },
+  {
+    key: "completed",
+    labelKey: "bids.section.completed",
+    statuses: ["completed"],
+  },
+  {
+    key: "closed",
+    labelKey: "bids.section.closed",
+    statuses: ["rejected", "expired"],
+  },
 ];
 
 export default function ProjectBids() {
+  const t = useT();
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<BidRow | null>(null);
@@ -130,16 +146,16 @@ export default function ProjectBids() {
       <div className="flex items-start justify-between gap-6">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            Bids
+            {t("bids.title")}
           </h2>
           <p className="mt-1 text-sm text-ink-500">
-            Subcontractor quotes.
+            {t("bids.lede")}
           </p>
         </div>
         {!creating && !editing && (
           <Button variant="primary" onClick={() => setCreating(true)}>
             <Icon name="plus" className="h-4 w-4" />
-            New bid
+            {t("bids.new")}
           </Button>
         )}
       </div>
@@ -170,7 +186,7 @@ export default function ProjectBids() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search vendor, #, notes…"
+              placeholder={t("bids.search")}
               className="h-10 min-w-[220px] flex-1 rounded-md border border-ink-200 bg-white px-3.5 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
             />
             <select
@@ -178,7 +194,7 @@ export default function ProjectBids() {
               onChange={(e) => setTradeFilter(e.target.value)}
               className="h-10 rounded-md border border-ink-200 bg-white px-3 text-[14px] text-ink-700 focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
             >
-              <option value="">All trades</option>
+              <option value="">{t("bids.all_trades")}</option>
               {projectTrades.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -188,19 +204,21 @@ export default function ProjectBids() {
           </div>
 
           {list.isLoading ? (
-            <p className="mt-6 text-sm text-ink-500">Loading…</p>
+            <p className="mt-6 text-sm text-ink-500">{t("common.loading")}</p>
           ) : list.error ? (
             <p className="mt-6 text-sm text-rose-700">{list.error.message}</p>
           ) : filtered.length === 0 ? (
             <div className="mt-6 overflow-hidden rounded-xl border border-ink-200/70 bg-white px-6 py-12 text-center shadow-soft">
               <p className="font-display text-xl text-ink-900">
                 {hasActiveFilters
-                  ? "No quotes match these filters."
-                  : "No bids yet."}
+                  ? t("bids.empty_filtered")
+                  : t("bids.empty")}
               </p>
               {!hasActiveFilters && (
                 <p className="mt-2 text-[13px] text-ink-500">
-                  Click <strong>New bid</strong> when a vendor sends a quote.
+                  {t("bids.empty_hint_prefix")}{" "}
+                  <strong>{t("bids.new")}</strong>{" "}
+                  {t("bids.empty_hint_suffix")}
                 </p>
               )}
             </div>
@@ -210,7 +228,7 @@ export default function ProjectBids() {
                 sec.rows.length > 0 ? (
                   <BidSection
                     key={sec.key}
-                    label={sec.label}
+                    label={t(sec.labelKey)}
                     bids={sec.rows}
                     projectId={project.id}
                   />
@@ -235,6 +253,7 @@ function BidSection({
   bids: BidRow[];
   projectId: string;
 }) {
+  const t = useT();
   const subtotals = useMemo(() => {
     const m = new Map<string, number>();
     for (const b of bids) {
@@ -265,12 +284,12 @@ function BidSection({
           <thead className="border-b border-ink-100 bg-paper-50">
             <tr className="text-left">
               <Th align="right" />
-              <Th>Vendor</Th>
-              <Th>Trade</Th>
-              <Th>Status</Th>
-              <Th align="right">Total</Th>
-              <Th>Payment</Th>
-              <Th>Bid date</Th>
+              <Th>{t("col.vendor")}</Th>
+              <Th>{t("bids.col.trade")}</Th>
+              <Th>{t("col.status")}</Th>
+              <Th align="right">{t("bids.col.total")}</Th>
+              <Th>{t("bids.col.payment")}</Th>
+              <Th>{t("bids.col.bid_date")}</Th>
               <Th align="right" />
             </tr>
           </thead>
@@ -296,6 +315,7 @@ function BidTableRow({
 }) {
   const fmt = useFormatters();
   const L = useLabels();
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   // Only fetch line items when the user expands the row — saves a roundtrip
   // per collapsed row. Cached afterward via tRPC.
@@ -331,7 +351,7 @@ function BidTableRow({
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            aria-label={expanded ? "Collapse" : "Expand"}
+            aria-label={expanded ? t("bids.collapse") : t("bids.expand")}
             className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
           >
             <Icon
@@ -346,7 +366,7 @@ function BidTableRow({
             className="block text-left"
           >
             <span className="font-medium text-ink-900 hover:text-ink-900">
-              {bid.vendor?.name ?? "(vendor unassigned)"}
+              {bid.vendor?.name ?? t("bids.vendor_unassigned")}
             </span>
             {bid.bidNumber && (
               <span className="block font-mono text-[11px] text-ink-500">
@@ -363,7 +383,9 @@ function BidTableRow({
             </Pill>
             {validityExpired &&
               bid.status !== "accepted" &&
-              bid.status !== "completed" && <Pill tone="alert">Expired</Pill>}
+              bid.status !== "completed" && (
+                <Pill tone="alert">{t("bids.expired")}</Pill>
+              )}
           </div>
         </Td>
         <Td align="right" className="tnum text-ink-900 font-medium">
@@ -376,10 +398,10 @@ function BidTableRow({
             <Link
               to={`/projects/${projectId}/bills/${bid.bill.id}`}
               className="transition-opacity hover:opacity-80"
-              title="Open the linked bill in Money"
+              title={t("bids.open_linked_bill")}
             >
               <Pill tone={paymentTone(bid.bill)} dot>
-                {paymentLabel(bid.bill)}
+                {t(paymentLabelKey(bid.bill))}
               </Pill>
             </Link>
           ) : (
@@ -400,7 +422,7 @@ function BidTableRow({
                 disabled={decide.isPending}
                 className="rounded-md bg-emerald-600 px-2.5 py-1 text-[12px] font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
               >
-                {decide.isPending ? "Approving…" : "Approve"}
+                {decide.isPending ? t("bids.approving") : t("bids.approve")}
               </button>
             )}
             {canComplete && (
@@ -412,14 +434,14 @@ function BidTableRow({
                 disabled={complete.isPending}
                 className="rounded-md border border-ink-300 bg-white px-2.5 py-1 text-[12px] font-medium text-ink-700 transition-colors hover:bg-ink-50 disabled:opacity-50"
               >
-                {complete.isPending ? "Completing…" : "Complete"}
+                {complete.isPending ? t("bids.completing") : t("bids.complete")}
               </button>
             )}
             <Link
               to={`/projects/${projectId}/bids/${bid.id}`}
               className="text-[12px] text-ink-500 hover:text-ink-900"
             >
-              Open →
+              {t("bids.open")}
             </Link>
           </div>
         </Td>
@@ -458,8 +480,11 @@ function BidLineItems({
   currencyDefault: string | null;
 }) {
   const fmt = useFormatters();
+  const t = useT();
   if (loading) {
-    return <p className="px-2 py-3 text-xs text-ink-500">Loading lines…</p>;
+    return (
+      <p className="px-2 py-3 text-xs text-ink-500">{t("bids.loading_lines")}</p>
+    );
   }
   if (error) {
     return <p className="px-2 py-3 text-xs text-rose-700">{error}</p>;
@@ -467,12 +492,12 @@ function BidLineItems({
   if (lines.length === 0) {
     return (
       <p className="px-2 py-3 text-xs text-ink-500">
-        No itemized lines on this bid.{" "}
+        {t("bids.no_itemized_lines")}{" "}
         <Link
           to={`/projects/${projectId}/bids/${bidId}`}
           className="text-ink-700 underline-offset-2 hover:underline"
         >
-          Open bid →
+          {t("bids.open_bid")}
         </Link>
       </p>
     );
@@ -491,19 +516,19 @@ function BidLineItems({
         <thead className="border-b border-ink-100 bg-paper-50">
           <tr className="text-left">
             <th className="px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-              Ref
+              {t("bids.col.ref")}
             </th>
             <th className="px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-              Description
+              {t("col.description")}
             </th>
             <th className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-              Qty
+              {t("bids.col.qty")}
             </th>
             <th className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-              Unit
+              {t("bids.col.unit")}
             </th>
             <th className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-              Total
+              {t("bids.col.total")}
             </th>
           </tr>
         </thead>
@@ -540,7 +565,7 @@ function BidLineItems({
             <tr>
               <td className="px-4 py-2" colSpan={4}>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-                  Sum of lines
+                  {t("bids.sum_of_lines")}
                 </span>
               </td>
               <td className="px-4 py-2 text-right font-semibold text-ink-900 tnum">
@@ -631,6 +656,7 @@ function BidForm({
   onClose: () => void;
 }) {
   const L = useLabels();
+  const t = useT();
   const [vendorId, setVendorId] = useState(existing?.vendorId ?? "");
   const [trade, setTrade] = useState(existing?.trade ?? "");
   const [bidNumber, setBidNumber] = useState(existing?.bidNumber ?? "");
@@ -682,7 +708,7 @@ function BidForm({
     setError(null);
     const cur = currency.trim().toUpperCase();
     if (cur.length !== 3 && (subtotal || iva || total)) {
-      setError("Currency must be a 3-letter code when money is set.");
+      setError(t("bids.err_currency_money"));
       return;
     }
     const base = {
@@ -713,18 +739,18 @@ function BidForm({
       className="mt-4 rounded-md border border-paper-200 bg-white p-4"
     >
       <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
-        {mode === "edit" ? "Edit · bid" : "New · bid"}
+        {mode === "edit" ? t("bids.form.edit") : t("bids.form.new")}
       </p>
 
       <div className="mt-2 grid gap-3 sm:grid-cols-3">
-        <Field label="Vendor *">
+        <Field label={t("bids.field.vendor_req")}>
           <select
             required
             value={vendorId}
             onChange={(e) => setVendorId(e.target.value)}
             className={selectCls}
           >
-            <option value="">— pick a vendor</option>
+            <option value="">{t("bids.field.pick_vendor")}</option>
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
@@ -732,24 +758,24 @@ function BidForm({
             ))}
           </select>
         </Field>
-        <Field label="Trade">
+        <Field label={t("bids.field.trade")}>
           <input
             value={trade}
             onChange={(e) => setTrade(e.target.value)}
             className={inputCls}
-            placeholder="carpintería / electricidad / tile"
+            placeholder={t("bids.field.trade_ph")}
           />
         </Field>
-        <Field label="Bid number">
+        <Field label={t("bids.field.bid_number")}>
           <input
             value={bidNumber}
             onChange={(e) => setBidNumber(e.target.value)}
             className={inputCls}
-            placeholder="C-3636 / COTIZACION 10321-1"
+            placeholder={t("bids.field.bid_number_ph")}
           />
         </Field>
 
-        <Field label="Status">
+        <Field label={t("col.status")}>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as BidStatus)}
@@ -762,7 +788,7 @@ function BidForm({
             ))}
           </select>
         </Field>
-        <Field label="Bid date">
+        <Field label={t("bids.col.bid_date")}>
           <input
             type="date"
             value={bidDate}
@@ -770,7 +796,7 @@ function BidForm({
             className={inputCls}
           />
         </Field>
-        <Field label="Valid until">
+        <Field label={t("bids.field.valid_until")}>
           <input
             type="date"
             value={validUntil}
@@ -779,7 +805,7 @@ function BidForm({
           />
         </Field>
 
-        <Field label="Subtotal">
+        <Field label={t("bids.field.subtotal")}>
           <input
             value={subtotal}
             onChange={(e) => setSubtotal(e.target.value)}
@@ -787,7 +813,7 @@ function BidForm({
             inputMode="decimal"
           />
         </Field>
-        <Field label="IVA">
+        <Field label={t("bids.field.iva")}>
           <input
             value={iva}
             onChange={(e) => setIva(e.target.value)}
@@ -795,7 +821,7 @@ function BidForm({
             inputMode="decimal"
           />
         </Field>
-        <Field label="Total + currency">
+        <Field label={t("bids.field.total_currency")}>
           <div className="flex gap-2">
             <input
               value={total}
@@ -812,7 +838,7 @@ function BidForm({
           </div>
         </Field>
 
-        <Field label="IVA treatment" wide>
+        <Field label={t("bids.field.iva_treatment")} wide>
           <label className="inline-flex items-center gap-2 text-sm text-slate-700">
             <input
               type="checkbox"
@@ -820,23 +846,23 @@ function BidForm({
               onChange={(e) => setIvaIncluded(e.target.checked)}
               className="h-3.5 w-3.5"
             />
-            Total already includes IVA
+            {t("bids.field.iva_included")}
           </label>
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("bids.field.notes")} wide>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
             className={inputCls}
-            placeholder="Validity caveats, exclusions, deposit terms…"
+            placeholder={t("bids.field.notes_ph")}
           />
         </Field>
       </div>
 
       <div className="mt-3">
         <p className="text-[10px] uppercase tracking-wider text-slate-500">
-          Flags
+          {t("bids.flags")}
         </p>
         <div className="mt-1 flex flex-wrap gap-1.5">
           {KNOWN_FLAG_SLUGS.map((slug) => {
@@ -867,14 +893,18 @@ function BidForm({
           onClick={onClose}
           className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={submitting}
           className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {submitting ? "Saving…" : mode === "edit" ? "Save" : "Add"}
+          {submitting
+            ? t("common.saving")
+            : mode === "edit"
+              ? t("common.save")
+              : t("common.add")}
         </button>
       </div>
     </form>

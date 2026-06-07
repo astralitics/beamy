@@ -10,7 +10,7 @@ import {
   type MaterialUnit,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useLabels } from "../../lib/i18n";
+import { useLabels, useT } from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type MaterialRow = inferRouterOutputs<AppRouter>["materials"]["list"][number];
@@ -23,6 +23,7 @@ type MaterialRow = inferRouterOutputs<AppRouter>["materials"]["list"][number];
 export default function ProjectMaterials() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const L = useLabels();
+  const t = useT();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<MaterialRow | null>(null);
   const [roomFilter, setRoomFilter] = useState<string>("");
@@ -44,11 +45,9 @@ export default function ProjectMaterials() {
       <div className="flex items-start justify-between gap-6">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            Materials
+            {t("materials.title")}
           </h2>
-          <p className="mt-1 text-sm text-ink-500">
-            Lot-tracked finishes — paint, tile, flooring.
-          </p>
+          <p className="mt-1 text-sm text-ink-500">{t("materials.lede")}</p>
         </div>
         {!adding && !editing && (
           <button
@@ -56,7 +55,7 @@ export default function ProjectMaterials() {
             onClick={() => setAdding(true)}
             className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
           >
-            Add material
+            {t("materials.add")}
           </button>
         )}
       </div>
@@ -68,7 +67,7 @@ export default function ProjectMaterials() {
             onChange={(e) => setRoomFilter(e.target.value)}
             className={selectCls}
           >
-            <option value="">All rooms</option>
+            <option value="">{t("filter.all_rooms")}</option>
             {rooms.data?.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -82,7 +81,7 @@ export default function ProjectMaterials() {
             }
             className={selectCls}
           >
-            <option value="">All categories</option>
+            <option value="">{t("filter.all_categories")}</option>
             {(Object.keys(MATERIAL_CATEGORY_LABELS) as MaterialCategory[]).map(
               (c) => (
                 <option key={c} value={c}>
@@ -94,7 +93,7 @@ export default function ProjectMaterials() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, manufacturer, color, lot…"
+            placeholder={t("materials.search")}
             className="flex-1 rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
           />
         </div>
@@ -120,19 +119,20 @@ export default function ProjectMaterials() {
 
       <div className="mt-4">
         {list.isLoading ? (
-          <p className="text-xs text-slate-500">Loading…</p>
+          <p className="text-xs text-slate-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="text-xs text-rose-700">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
           <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
-            {search.trim() || roomFilter || categoryFilter
-              ? "No materials match these filters."
-              : (
-                <>
-                  No materials yet. Click <strong>Add material</strong> to log
-                  the first batch — paint code, tile lot, flooring sku.
-                </>
-              )}
+            {search.trim() || roomFilter || categoryFilter ? (
+              t("materials.empty_filtered")
+            ) : (
+              <>
+                {t("materials.empty_cta_pre")}{" "}
+                <strong>{t("materials.add")}</strong>{" "}
+                {t("materials.empty_cta_post")}
+              </>
+            )}
           </p>
         ) : (
           <div className="grid gap-2">
@@ -160,6 +160,7 @@ function MaterialRowItem({
   onEdit: () => void;
 }) {
   const L = useLabels();
+  const t = useT();
   const utils = trpc.useUtils();
   const remove = trpc.materials.remove.useMutation({
     onSuccess: () =>
@@ -195,7 +196,7 @@ function MaterialRowItem({
           )}
           {material.lotNumber && (
             <div className="mt-1 inline-flex items-center gap-1.5 rounded-sm bg-safety-50 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-safety-800 ring-1 ring-inset ring-safety-200">
-              lot · {material.lotNumber}
+              {t("materials.lot")} · {material.lotNumber}
             </div>
           )}
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[10px] uppercase tracking-wider text-slate-400">
@@ -206,14 +207,18 @@ function MaterialRowItem({
             )}
             {material.atticStockQuantity && material.quantityUnit && (
               <span>
-                attic stock · {material.atticStockQuantity}{" "}
+                {t("materials.attic_stock")} · {material.atticStockQuantity}{" "}
                 {L.materialUnit(material.quantityUnit)}
                 {material.atticStockLocation && (
                   <span> @ {material.atticStockLocation}</span>
                 )}
               </span>
             )}
-            {material.vendor && <span>vendor · {material.vendor.name}</span>}
+            {material.vendor && (
+              <span>
+                {t("col.vendor")} · {material.vendor.name}
+              </span>
+            )}
           </div>
           {material.coverageNotes && (
             <p className="mt-1.5 text-xs italic text-slate-500">
@@ -232,19 +237,19 @@ function MaterialRowItem({
             onClick={onEdit}
             className="text-xs text-slate-500 hover:text-slate-900"
           >
-            Edit
+            {t("common.edit")}
           </button>
           <button
             type="button"
             onClick={() => {
-              if (confirm(`Remove ${material.name}?`)) {
+              if (confirm(t("materials.remove_confirm", { name: material.name }))) {
                 remove.mutate({ id: material.id });
               }
             }}
             disabled={remove.isPending}
             className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
           >
-            {remove.isPending ? "…" : "Remove"}
+            {remove.isPending ? "…" : t("common.remove")}
           </button>
         </div>
       </div>
@@ -270,6 +275,7 @@ function MaterialForm({
   onClose: () => void;
 }) {
   const L = useLabels();
+  const t = useT();
   const [name, setName] = useState(existing?.name ?? "");
   const [category, setCategory] = useState<MaterialCategory>(
     existing?.category ?? "paint",
@@ -320,7 +326,7 @@ function MaterialForm({
     const q = quantity.trim();
     const aq = atticStockQuantity.trim();
     if ((q || aq) && !quantityUnit) {
-      setError("Pick a unit when entering a quantity.");
+      setError(t("materials.error_unit_required"));
       return;
     }
     const base = {
@@ -351,20 +357,22 @@ function MaterialForm({
       className="mt-4 rounded-md border border-paper-200 bg-white p-4"
     >
       <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
-        {mode === "edit" ? "Edit · material" : "New · material"}
+        {mode === "edit"
+          ? t("materials.form_title_edit")
+          : t("materials.form_title_new")}
       </p>
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
-        <Field label="Name *" wide>
+        <Field label={t("materials.field.name")} wide>
           <input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
             className={inputCls}
             autoFocus
-            placeholder="e.g. Benjamin Moore Decorator's White"
+            placeholder={t("materials.field.name_placeholder")}
           />
         </Field>
-        <Field label="Category">
+        <Field label={t("col.category")}>
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value as MaterialCategory)}
@@ -379,13 +387,13 @@ function MaterialForm({
             )}
           </select>
         </Field>
-        <Field label="Primary room">
+        <Field label={t("materials.field.primary_room")}>
           <select
             value={roomId}
             onChange={(e) => setRoomId(e.target.value)}
             className={selectCls}
           >
-            <option value="">— (none)</option>
+            <option value="">{t("materials.field.room_none")}</option>
             {rooms.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -396,7 +404,7 @@ function MaterialForm({
             ))}
           </select>
         </Field>
-        <Field label="Manufacturer">
+        <Field label={t("materials.field.manufacturer")}>
           <input
             value={manufacturer}
             onChange={(e) => setManufacturer(e.target.value)}
@@ -404,7 +412,7 @@ function MaterialForm({
             placeholder="Benjamin Moore"
           />
         </Field>
-        <Field label="Product code">
+        <Field label={t("materials.field.product_code")}>
           <input
             value={productCode}
             onChange={(e) => setProductCode(e.target.value)}
@@ -412,7 +420,7 @@ function MaterialForm({
             placeholder="OC-149"
           />
         </Field>
-        <Field label="Color / finish">
+        <Field label={t("materials.field.color")}>
           <input
             value={colorName}
             onChange={(e) => setColorName(e.target.value)}
@@ -420,7 +428,7 @@ function MaterialForm({
             placeholder="Decorator's White / matte"
           />
         </Field>
-        <Field label="Lot number">
+        <Field label={t("materials.field.lot_number")}>
           <input
             value={lotNumber}
             onChange={(e) => setLotNumber(e.target.value)}
@@ -428,7 +436,7 @@ function MaterialForm({
             placeholder="482-A"
           />
         </Field>
-        <Field label="Quantity">
+        <Field label={t("materials.field.quantity")}>
           <div className="flex gap-2">
             <input
               value={quantity}
@@ -444,7 +452,7 @@ function MaterialForm({
               }
               className={`${selectCls} w-28`}
             >
-              <option value="">unit</option>
+              <option value="">{t("materials.field.unit")}</option>
               {(Object.keys(MATERIAL_UNIT_LABELS) as MaterialUnit[]).map(
                 (u) => (
                   <option key={u} value={u}>
@@ -455,7 +463,7 @@ function MaterialForm({
             </select>
           </div>
         </Field>
-        <Field label="Attic stock left over">
+        <Field label={t("materials.field.attic_stock")}>
           <input
             value={atticStockQuantity}
             onChange={(e) => setAtticStockQuantity(e.target.value)}
@@ -464,23 +472,23 @@ function MaterialForm({
             inputMode="decimal"
           />
         </Field>
-        <Field label="Attic stock location" wide>
+        <Field label={t("materials.field.attic_stock_location")} wide>
           <input
             value={atticStockLocation}
             onChange={(e) => setAtticStockLocation(e.target.value)}
             className={inputCls}
-            placeholder="basement shelf · north wall"
+            placeholder={t("materials.field.attic_stock_location_placeholder")}
           />
         </Field>
-        <Field label="Coverage notes" wide>
+        <Field label={t("materials.field.coverage_notes")} wide>
           <input
             value={coverageNotes}
             onChange={(e) => setCoverageNotes(e.target.value)}
             className={inputCls}
-            placeholder="all kitchen + dining walls + ceiling"
+            placeholder={t("materials.field.coverage_notes_placeholder")}
           />
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("detail.notes")} wide>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -496,14 +504,18 @@ function MaterialForm({
           onClick={onClose}
           className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={submitting}
           className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {submitting ? "Saving…" : mode === "edit" ? "Save" : "Add"}
+          {submitting
+            ? t("common.saving")
+            : mode === "edit"
+              ? t("common.save")
+              : t("common.add")}
         </button>
       </div>
     </form>

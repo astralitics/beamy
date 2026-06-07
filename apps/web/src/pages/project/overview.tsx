@@ -7,7 +7,7 @@ import {
   type ProjectSection,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters, useLabels } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import { Pill } from "../../components/ui";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
@@ -27,9 +27,10 @@ export default function ProjectOverview() {
     projectId: project.id,
   });
   const fmt = useFormatters();
+  const t = useT();
 
   if (stats.isLoading) {
-    return <p className="text-sm text-ink-500">Loading…</p>;
+    return <p className="text-sm text-ink-500">{t("common.loading")}</p>;
   }
   if (stats.error) {
     return <p className="text-sm text-rose-700">{stats.error.message}</p>;
@@ -50,7 +51,7 @@ export default function ProjectOverview() {
       <ProposalsSection projectId={project.id} s={s} fmt={fmt} />
 
       {project.notes && (
-        <SubSection label="Notes">
+        <SubSection label={t("detail.notes")}>
           <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink-700">
             {project.notes}
           </p>
@@ -67,58 +68,68 @@ export default function ProjectOverview() {
  * then warning, then calm). One BIG number, secondary signals beneath it.
  */
 function TodayPanel({ projectId, s }: { projectId: string; s: Stats }) {
+  const t = useT();
   const baseUrl = `/projects/${projectId}`;
   const signals: Signal[] = [
     {
-      label: "Overdue work",
+      key: "overdue_work",
+      label: t("overview.signal.overdue_work"),
       value: s.workItems.overdueCount,
       to: `${baseUrl}/work-plan`,
       severity: 3,
     },
     {
-      label: "Overdue bills",
+      key: "overdue_bills",
+      label: t("overview.signal.overdue_bills"),
       value: s.billsInvoices.overdueBillsCount,
       to: `${baseUrl}/money`,
       severity: 3,
     },
     {
-      label: "Overdue invoices",
+      key: "overdue_invoices",
+      label: t("overview.signal.overdue_invoices"),
       value: s.billsInvoices.overdueInvoicesCount,
       to: `${baseUrl}/money`,
       severity: 3,
     },
     {
-      label: "Blocked work",
+      key: "blocked_work",
+      label: t("overview.signal.blocked_work"),
       value: s.workItems.blockedCount,
       to: `${baseUrl}/work-plan`,
       severity: 2,
     },
     {
-      label: "Expired bids",
+      key: "expired_bids",
+      label: t("overview.signal.expired_bids"),
       value: s.bids.expiringCount,
       to: `${baseUrl}/bids`,
       severity: 2,
     },
     {
-      label: "Bids to compare",
+      key: "bids_to_compare",
+      label: t("overview.signal.bids_to_compare"),
       value: s.bids.comparingCount,
       to: `${baseUrl}/bids`,
       severity: 2,
     },
     {
-      label: "COs awaiting decision",
+      key: "cos_awaiting_decision",
+      label: t("overview.signal.cos_awaiting_decision"),
       value: s.changeOrders.awaitingDecisionCount,
       to: `${baseUrl}/change-orders`,
       severity: 2,
     },
     {
-      label: "Scheduled this week",
+      key: "scheduled_this_week",
+      label: t("overview.signal.scheduled_this_week"),
       value: s.workItems.scheduledSoonCount,
       to: `${baseUrl}/work-plan`,
       severity: 1,
     },
     {
-      label: "In flight",
+      key: "in_flight",
+      label: t("overview.signal.in_flight"),
       value: s.workItems.inFlightCount,
       to: `${baseUrl}/work-plan`,
       severity: 1,
@@ -149,7 +160,7 @@ function TodayPanel({ projectId, s }: { projectId: string; s: Stats }) {
       <div className="grid gap-10 px-8 py-9 md:grid-cols-[1.1fr_1fr]">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-            Today
+            {t("overview.today")}
           </p>
           <Link
             to={hero.to}
@@ -162,18 +173,18 @@ function TodayPanel({ projectId, s }: { projectId: string; s: Stats }) {
               {hero.label}
             </p>
             <p className="mt-1 text-[13px] text-ink-500">
-              {heroBlurb(hero)}
+              {heroBlurb(hero, t)}
             </p>
           </Link>
         </div>
         {rest.length > 0 && (
           <div className="border-t border-ink-100 pt-6 md:border-l md:border-t-0 md:pl-8 md:pt-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-              Also today
+              {t("overview.also_today")}
             </p>
             <ul className="mt-3 divide-y divide-ink-100">
               {rest.slice(0, 4).map((sig) => (
-                <li key={sig.label}>
+                <li key={sig.key}>
                   <Link
                     to={sig.to}
                     className="flex items-center justify-between gap-4 py-2.5 hover:opacity-80"
@@ -198,49 +209,67 @@ function TodayPanel({ projectId, s }: { projectId: string; s: Stats }) {
 }
 
 function EmptyToday({ projectId }: { projectId: string }) {
+  const t = useT();
   return (
     <section className="relative overflow-hidden rounded-2xl border border-ink-200/70 bg-white px-8 py-12 text-center shadow-soft">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-        Today
+        {t("overview.today")}
       </p>
       <p className="mt-3 font-display text-3xl font-normal tracking-tight text-ink-900">
-        All quiet.
+        {t("overview.all_quiet")}
       </p>
       <p className="mt-2 text-[14px] text-ink-500">
-        No overdue work, no late invoices, no decisions waiting.
+        {t("overview.all_quiet_blurb")}
       </p>
       <Link
         to={`/projects/${projectId}/work-plan`}
         className="mt-5 inline-block text-[13px] font-medium text-accent-600 hover:text-accent-700"
       >
-        Plan some work →
+        {t("overview.plan_some_work")}
       </Link>
     </section>
   );
 }
 
-type Signal = { label: string; value: number; to: string; severity: 1 | 2 | 3 };
+type SignalKey =
+  | "overdue_work"
+  | "overdue_bills"
+  | "overdue_invoices"
+  | "blocked_work"
+  | "expired_bids"
+  | "bids_to_compare"
+  | "cos_awaiting_decision"
+  | "scheduled_this_week"
+  | "in_flight";
 
-function heroBlurb(s: Signal): string {
-  switch (s.label) {
-    case "Overdue work":
-      return "Work items past their planned end date.";
-    case "Overdue bills":
-      return "Vendor invoices past due.";
-    case "Overdue invoices":
-      return "Client invoices past due.";
-    case "Blocked work":
-      return "Items waiting on a predecessor.";
-    case "Expired bids":
-      return "Past validity — needs a fresh quote.";
-    case "Bids to compare":
-      return "Awaiting your decision.";
-    case "COs awaiting decision":
-      return "Change orders sent — no answer yet.";
-    case "Scheduled this week":
-      return "Starts within the next 7 days.";
-    case "In flight":
-      return "Scheduled + in progress.";
+type Signal = {
+  key: SignalKey;
+  label: string;
+  value: number;
+  to: string;
+  severity: 1 | 2 | 3;
+};
+
+function heroBlurb(s: Signal, t: ReturnType<typeof useT>): string {
+  switch (s.key) {
+    case "overdue_work":
+      return t("overview.signal.overdue_work_blurb");
+    case "overdue_bills":
+      return t("overview.signal.overdue_bills_blurb");
+    case "overdue_invoices":
+      return t("overview.signal.overdue_invoices_blurb");
+    case "blocked_work":
+      return t("overview.signal.blocked_work_blurb");
+    case "expired_bids":
+      return t("overview.signal.expired_bids_blurb");
+    case "bids_to_compare":
+      return t("overview.signal.bids_to_compare_blurb");
+    case "cos_awaiting_decision":
+      return t("overview.signal.cos_awaiting_decision_blurb");
+    case "scheduled_this_week":
+      return t("overview.signal.scheduled_this_week_blurb");
+    case "in_flight":
+      return t("overview.signal.in_flight_blurb");
     default:
       return "";
   }
@@ -256,33 +285,34 @@ function severityText(sev: number): string {
 
 function MoneySection({ projectId, s }: { projectId: string; s: Stats }) {
   const fmt = useFormatters();
-  const tiles: Array<{ label: string; values: MoneyByCurrency[] }> = [
-    { label: "Sold", values: s.proposals.soldByCurrency },
-    { label: "Committed", values: s.bids.committedByCurrency },
-    { label: "Billed", values: s.money.billedByCurrency },
-    { label: "Paid", values: s.money.paidByCurrency },
+  const t = useT();
+  const tiles: Array<{ key: string; label: string; values: MoneyByCurrency[] }> = [
+    { key: "sold", label: t("overview.money.sold"), values: s.proposals.soldByCurrency },
+    { key: "committed", label: t("overview.money.committed"), values: s.bids.committedByCurrency },
+    { key: "billed", label: t("overview.money.billed"), values: s.money.billedByCurrency },
+    { key: "paid", label: t("overview.money.paid"), values: s.money.paidByCurrency },
   ];
 
   return (
     <SubSection
-      label="Money"
-      hint="Top-line totals. Click any tile for the full ledger."
+      label={t("project_nav.money")}
+      hint={t("overview.money.hint")}
     >
       <div className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
-        {tiles.map((t) => (
+        {tiles.map((tile) => (
           <Link
-            key={t.label}
+            key={tile.key}
             to={`/projects/${projectId}/money`}
             className="bg-white px-5 py-5 transition-colors hover:bg-paper-50"
           >
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-              {t.label}
+              {tile.label}
             </p>
             <div className="mt-3 space-y-1">
-              {t.values.length === 0 ? (
+              {tile.values.length === 0 ? (
                 <p className="num text-3xl text-ink-300">—</p>
               ) : (
-                t.values.map((v) => (
+                tile.values.map((v) => (
                   <p key={v.currency} className="num text-2xl text-ink-900">
                     {fmt.currency(v.amount, v.currency)}
                   </p>
@@ -308,9 +338,10 @@ function ProposalsSection({
   fmt: ReturnType<typeof useFormatters>;
 }) {
   const L = useLabels();
+  const t = useT();
   if (s.proposals.recent.length === 0) return null;
   return (
-    <SubSection label="Recent proposals">
+    <SubSection label={t("overview.recent_proposals")}>
       <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200/70 bg-white">
         {s.proposals.recent.map((p) => (
           <li key={p.id}>
@@ -334,7 +365,7 @@ function ProposalsSection({
         to={`/projects/${projectId}/proposals`}
         className="mt-3 inline-block text-[13px] text-ink-500 hover:text-ink-900"
       >
-        All proposals →
+        {t("overview.all_proposals")}
       </Link>
     </SubSection>
   );
@@ -346,6 +377,7 @@ function ProposalsSection({
 
 function PhaseBar({ data }: { data: Phase }) {
   const L = useLabels();
+  const t = useT();
   const { phase, phaseLabel, onHold, archived } = data;
   const currentIdx = PROJECT_PHASE_ORDER.indexOf(phase);
 
@@ -388,8 +420,10 @@ function PhaseBar({ data }: { data: Phase }) {
         })}
         {(onHold || archived) && (
           <li className="ml-3 flex items-center gap-1.5">
-            {onHold && <Pill tone="warn">on hold</Pill>}
-            {archived && <Pill tone="neutral">archived</Pill>}
+            {onHold && <Pill tone="warn">{t("status.project.on_hold")}</Pill>}
+            {archived && (
+              <Pill tone="neutral">{t("status.project.archived")}</Pill>
+            )}
           </li>
         )}
       </ol>
@@ -425,6 +459,7 @@ function PhaseDot({ done, current }: { done: boolean; current: boolean }) {
 }
 
 function CompletenessSection({ phase }: { phase: Phase }) {
+  const t = useT();
   const sectionOrder: ProjectSection[] = [
     "property",
     "work_proposal",
@@ -432,8 +467,8 @@ function CompletenessSection({ phase }: { phase: Phase }) {
   ];
   return (
     <SubSection
-      label="Completeness"
-      hint="What's missing per workflow section."
+      label={t("overview.completeness")}
+      hint={t("overview.completeness_hint")}
     >
       <div className="grid gap-3 md:grid-cols-3">
         {sectionOrder.map((id) => (
@@ -452,6 +487,7 @@ function CompletenessCard({
   section: Phase["sections"][ProjectSection];
 }) {
   const L = useLabels();
+  const t = useT();
   const pct = Math.round(section.ratio * 100);
   const allDone = section.filled === section.total;
   const missing = section.checks.filter((c) => !c.passed);
@@ -479,7 +515,7 @@ function CompletenessCard({
         />
       </div>
       {missing.length === 0 ? (
-        <p className="mt-4 text-[12px] text-emerald-700">All set.</p>
+        <p className="mt-4 text-[12px] text-emerald-700">{t("overview.all_set")}</p>
       ) : (
         <ul className="mt-4 space-y-1.5">
           {missing.slice(0, 3).map((c) => (
@@ -498,7 +534,7 @@ function CompletenessCard({
           ))}
           {missing.length > 3 && (
             <li className="text-[12px] text-ink-400">
-              +{missing.length - 3} more
+              {t("overview.more", { count: missing.length - 3 })}
             </li>
           )}
         </ul>

@@ -9,7 +9,9 @@
  * automatically; consumers get autocomplete + compile-time errors for
  * unknown keys.
  */
-export const messagesEn = {
+import { pagesEn, pagesEs } from "./pages";
+
+const coreEn = {
   // ── sidebar nav (workspace mode) ──
   "nav.home": "Home",
   "nav.projects": "Projects",
@@ -234,7 +236,7 @@ export const messagesEn = {
   "common.optional": "Optional",
 } as const;
 
-export const messagesEsMx: Partial<Record<keyof typeof messagesEn, string>> = {
+const coreEs: Partial<Record<keyof typeof coreEn, string>> = {
   // ── workspace nav ──
   "nav.home": "Inicio",
   "nav.projects": "Proyectos",
@@ -454,6 +456,13 @@ export const messagesEsMx: Partial<Record<keyof typeof messagesEn, string>> = {
   "common.edit": "Editar",
   "common.add": "Agregar",
   "common.optional": "Opcional",
+};
+
+/** Full catalogs = core (this file) + page-level copy (./pages). */
+export const messagesEn = { ...coreEn, ...pagesEn };
+export const messagesEsMx: Partial<Record<keyof typeof messagesEn, string>> = {
+  ...coreEs,
+  ...pagesEs,
 };
 
 export type MessageKey = keyof typeof messagesEn;

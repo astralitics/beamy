@@ -12,7 +12,7 @@ import {
   type WorkItemStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters, useLabels } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import { Button, Icon, Pill } from "../../components/ui";
 import { WorkItemForm, nextStatus } from "./work-plan";
 
@@ -35,6 +35,7 @@ export default function ProjectWorkItemDetail() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const { workItemId } = useParams<{ workItemId: string }>();
   const navigate = useNavigate();
+  const t = useT();
   const fmt = useFormatters();
   const L = useLabels();
   const [editing, setEditing] = useState(false);
@@ -86,7 +87,8 @@ export default function ProjectWorkItemDetail() {
   );
 
   if (!workItemId) return null;
-  if (item.isLoading) return <p className="text-sm text-ink-500">Loading…</p>;
+  if (item.isLoading)
+    return <p className="text-sm text-ink-500">{t("common.loading")}</p>;
   if (item.error)
     return <p className="text-sm text-rose-700">{item.error.message}</p>;
   if (!item.data) return null;
@@ -102,7 +104,7 @@ export default function ProjectWorkItemDetail() {
           className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-900"
         >
           <Icon name="chevron-left" className="h-3 w-3" />
-          Plan
+          {t("work_item.back_to_plan")}
         </Link>
 
         <div className="mt-3 flex items-start justify-between gap-6">
@@ -111,13 +113,19 @@ export default function ProjectWorkItemDetail() {
               <Pill tone={STATUS_TONE[w.status]} dot>
                 {L.workItemStatus(w.status)}
               </Pill>
-              {blockerCount > 0 && <Pill tone="warn">Blocked · {blockerCount}</Pill>}
+              {blockerCount > 0 && (
+                <Pill tone="warn">
+                  {t("work_item.blocked", { count: blockerCount })}
+                </Pill>
+              )}
               {w.bid && (
                 <Link
                   to={`/projects/${project.id}/bids/${w.bid.id}`}
                   className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200 hover:bg-violet-100"
                 >
-                  ↗ Source quote{w.bid.bidNumber ? ` #${w.bid.bidNumber}` : ""}
+                  {w.bid.bidNumber
+                    ? `↗ ${t("work_item.source_quote_numbered", { number: w.bid.bidNumber })}`
+                    : `↗ ${t("work_item.source_quote")}`}
                 </Link>
               )}
             </div>
@@ -144,7 +152,7 @@ export default function ProjectWorkItemDetail() {
                 </Button>
               )}
               <Button variant="secondary" onClick={() => setEditing(true)}>
-                Edit
+                {t("common.edit")}
               </Button>
             </div>
           )}
@@ -166,21 +174,21 @@ export default function ProjectWorkItemDetail() {
       ) : (
         <>
           <section className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
-            <Fact label="Type of work">{w.trade ?? "—"}</Fact>
-            <Fact label="Quantity">
+            <Fact label={t("work_item.fact.type_of_work")}>{w.trade ?? "—"}</Fact>
+            <Fact label={t("work_item.fact.quantity")}>
               {w.qty ? `${trimZero(w.qty)}${w.unit ? ` ${w.unit}` : ""}` : "—"}
             </Fact>
-            <Fact label="Planned start">
+            <Fact label={t("work_item.field.planned_start")}>
               {w.plannedStart ? fmt.date(w.plannedStart) : "—"}
             </Fact>
-            <Fact label="Planned end">
+            <Fact label={t("work_item.field.planned_end")}>
               {w.plannedEnd ? fmt.date(w.plannedEnd) : "—"}
             </Fact>
           </section>
 
           <section>
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-              Rooms
+              {t("plan.col.rooms")}
             </h3>
             {w.rooms.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -192,14 +200,16 @@ export default function ProjectWorkItemDetail() {
                 ))}
               </div>
             ) : (
-              <p className="mt-2 text-sm text-ink-500">No rooms assigned.</p>
+              <p className="mt-2 text-sm text-ink-500">
+                {t("work_item.no_rooms_assigned")}
+              </p>
             )}
           </section>
 
           {existingDeps.length > 0 && (
             <section>
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-                Depends on
+                {t("work_item.depends_on")}
               </h3>
               <ul className="mt-3 divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200/70 bg-white text-sm">
                 {existingDeps.map((d) => {
@@ -211,7 +221,7 @@ export default function ProjectWorkItemDetail() {
                     >
                       <span
                         className="rounded-sm bg-paper-100 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-ink-500 ring-1 ring-inset ring-paper-200"
-                        title="Dependency kind"
+                        title={L.workItemDepKind(d.kind)}
                       >
                         {WORK_ITEM_DEPENDENCY_KIND_SHORT[d.kind]}
                       </span>
@@ -224,7 +234,9 @@ export default function ProjectWorkItemDetail() {
                           {pred.description}
                         </Link>
                       ) : (
-                        <span className="text-ink-500">(unknown item)</span>
+                        <span className="text-ink-500">
+                          {t("work_item.unknown_item")}
+                        </span>
                       )}
                       {pred && (
                         <span className="ml-auto">
@@ -238,7 +250,7 @@ export default function ProjectWorkItemDetail() {
                 })}
               </ul>
               <p className="mt-2 text-[12px] text-ink-400">
-                Edit dependencies from the Edit view.
+                {t("work_item.deps_edit_hint")}
               </p>
             </section>
           )}
@@ -246,7 +258,7 @@ export default function ProjectWorkItemDetail() {
           {w.notes && (
             <section>
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-                Notes
+                {t("detail.notes")}
               </h3>
               <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink-700">
                 {w.notes}
@@ -260,7 +272,9 @@ export default function ProjectWorkItemDetail() {
               onClick={() => {
                 if (
                   confirm(
-                    `Permanently delete "${w.description.slice(0, 50)}"?`,
+                    t("work_item.delete_confirm", {
+                      name: w.description.slice(0, 50),
+                    }),
                   )
                 ) {
                   remove.mutate({ id: w.id });
@@ -268,7 +282,7 @@ export default function ProjectWorkItemDetail() {
               }}
               className="text-[13px] text-rose-600 hover:text-rose-800"
             >
-              Delete this work item
+              {t("work_item.delete")}
             </button>
           </section>
         </>

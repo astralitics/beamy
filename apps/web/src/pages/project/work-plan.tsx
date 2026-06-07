@@ -25,7 +25,12 @@ import {
   type WorkItemStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters, useLabels } from "../../lib/i18n";
+import {
+  useFormatters,
+  useLabels,
+  useT,
+  type MessageKey,
+} from "../../lib/i18n";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type WorkItemRow = inferRouterOutputs<AppRouter>["workItems"]["list"][number];
@@ -95,18 +100,40 @@ type StatusFilter =
 /**
  * Status filter options — shared by the table's column-header filter and
  * the compact bar the non-table views use. Defaults to "all".
+ *
+ * Module-level, so labels can't call hooks here. Synthetic options carry a
+ * `labelKey` resolved with `t()` at render; the WORK_ITEM_STATUS_FLOW entries
+ * carry `status`, resolved with the (already-localized) enum label `L.*`.
  */
-const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: "all", label: "All statuses" },
-  { value: "open", label: "Open (not done)" },
-  { value: "scope_active", label: "Scope · approved" },
-  { value: "execution_active", label: "Execution" },
-  ...WORK_ITEM_STATUS_FLOW.map((s) => ({
-    value: s as StatusFilter,
-    label: WORK_ITEM_STATUS_LABELS[s],
-  })),
-  { value: "cancelled", label: "Cancelled" },
+type StatusFilterOption = {
+  value: StatusFilter;
+  labelKey?: MessageKey;
+  status?: WorkItemStatus;
+};
+const STATUS_FILTER_OPTIONS: StatusFilterOption[] = [
+  { value: "all", labelKey: "plan.filter.all" },
+  { value: "open", labelKey: "plan.filter.open" },
+  { value: "scope_active", labelKey: "plan.filter.scope" },
+  { value: "execution_active", labelKey: "plan.filter.execution" },
+  ...WORK_ITEM_STATUS_FLOW.map(
+    (s): StatusFilterOption => ({ value: s as StatusFilter, status: s }),
+  ),
+  { value: "cancelled", labelKey: "plan.filter.cancelled" },
 ];
+
+/**
+ * Resolve a status-filter option's display label at render. Synthetic
+ * options use the page catalog via `t`; status-flow options reuse the
+ * already-localized enum label via `L` (useLabels). Pass the hook results
+ * from inside a component — this is a pure helper, not a hook.
+ */
+function statusFilterLabel(
+  o: StatusFilterOption,
+  t: ReturnType<typeof useT>,
+  L: ReturnType<typeof useLabels>,
+): string {
+  return o.labelKey ? t(o.labelKey) : L.workItemStatus(o.status!);
+}
 
 /** Compact control styling for the table's per-column header filters. */
 const colFilterCls =
@@ -180,6 +207,8 @@ function defaultStatusForFilter(
 }
 
 function WorkItemsSection({ projectId }: { projectId: string }) {
+  const t = useT();
+  const L = useLabels();
   const [searchParams] = useSearchParams();
   const urlDefaults = useMemo(
     () => readUrlDefaults(searchParams),
@@ -297,8 +326,13 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
   const groupingActive =
     groupBy !== "none" && (view === "timeline" || view === "calendar");
   const grouping = useMemo(
-    () => buildGrouping(filtered, groupingActive ? groupBy : "none"),
-    [filtered, groupBy, groupingActive],
+    () =>
+      buildGrouping(
+        filtered,
+        groupingActive ? groupBy : "none",
+        t("plan.unassigned"),
+      ),
+    [filtered, groupBy, groupingActive, t],
   );
 
   return (
@@ -306,11 +340,9 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
       <div className="flex items-start justify-between gap-6">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            Work items
+            {t("plan.title")}
           </h2>
-          <p className="mt-1 text-sm text-ink-500">
-            Quoted → approved → scheduled → executed → billed.
-          </p>
+          <p className="mt-1 text-sm text-ink-500">{t("plan.lede")}</p>
         </div>
         {!adding && (
           <div className="flex items-center gap-2">
@@ -320,7 +352,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
               onClick={() => setAdding(true)}
               className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
             >
-              Add work item
+              {t("plan.add_item")}
             </button>
           </div>
         )}
@@ -335,11 +367,11 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
               value={groupBy}
               onChange={(e) => setGroupBy(e.target.value as GroupBy)}
               className={selectCls}
-              title="Group by"
+              title={t("plan.group_by")}
             >
-              <option value="none">No grouping</option>
-              <option value="room">Group by room</option>
-              <option value="vendor">Group by vendor</option>
+              <option value="none">{t("plan.group.none")}</option>
+              <option value="room">{t("plan.group.room")}</option>
+              <option value="vendor">{t("plan.group.vendor")}</option>
             </select>
           )}
           <select
@@ -349,7 +381,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
           >
             {STATUS_FILTER_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {statusFilterLabel(o, t, L)}
               </option>
             ))}
           </select>
@@ -358,10 +390,10 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             onChange={(e) => setTradeFilter(e.target.value)}
             className={selectCls}
           >
-            <option value="">All types</option>
-            {(trades.data ?? []).map((t) => (
-              <option key={t} value={t}>
-                {t}
+            <option value="">{t("plan.filter.all_types")}</option>
+            {(trades.data ?? []).map((tr) => (
+              <option key={tr} value={tr}>
+                {tr}
               </option>
             ))}
           </select>
@@ -370,7 +402,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             onChange={(e) => setRoomFilter(e.target.value)}
             className={selectCls}
           >
-            <option value="">All rooms</option>
+            <option value="">{t("filter.all_rooms")}</option>
             {rooms.data?.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -382,7 +414,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             onChange={(e) => setVendorFilter(e.target.value)}
             className={selectCls}
           >
-            <option value="">All vendors</option>
+            <option value="">{t("plan.filter.all_vendors")}</option>
             {vendors.data?.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
@@ -392,7 +424,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search description, ref, notes…"
+            placeholder={t("plan.search_placeholder")}
             className="flex-1 rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
           />
         </div>
@@ -412,7 +444,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
       )}
       <div className="mt-4">
         {list.isLoading ? (
-          <p className="text-xs text-slate-500">Loading…</p>
+          <p className="text-xs text-slate-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="text-xs text-rose-700">{list.error.message}</p>
         ) : view === "rooms" ? (
@@ -486,11 +518,12 @@ function ViewToggle({
   view: PlanView;
   onChange: (v: PlanView) => void;
 }) {
+  const t = useT();
   const opts: { value: PlanView; label: string }[] = [
-    { value: "table", label: "Table" },
-    { value: "rooms", label: "By room" },
-    { value: "timeline", label: "Timeline" },
-    { value: "calendar", label: "Calendar" },
+    { value: "table", label: t("plan.view.table") },
+    { value: "rooms", label: t("plan.view.rooms") },
+    { value: "timeline", label: t("plan.view.timeline") },
+    { value: "calendar", label: t("plan.view.calendar") },
   ];
   return (
     <div className="inline-flex rounded-md border border-paper-200 bg-white p-0.5 text-xs">
@@ -533,6 +566,7 @@ function ScopeByRoom({
   blockedByItem: Map<string, WorkItemRow[]>;
   onEdit: (w: WorkItemRow) => void;
 }) {
+  const t = useT();
   const L = useLabels();
   const groups = useMemo(() => {
     type Group = { room: RoomRow | null; items: WorkItemRow[] };
@@ -570,7 +604,7 @@ function ScopeByRoom({
   if (groups.length === 0) {
     return (
       <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
-        No work items to group.
+        {t("plan.empty_group")}
       </p>
     );
   }
@@ -585,7 +619,7 @@ function ScopeByRoom({
           <div className="flex items-baseline justify-between border-b border-paper-200 bg-paper-50 px-3 py-2">
             <div className="flex items-baseline gap-2">
               <h3 className="text-sm font-semibold text-blueprint-900">
-                {g.room?.name ?? "Unassigned"}
+                {g.room?.name ?? t("plan.unassigned")}
               </h3>
               {g.room?.roomType && (
                 <span className="rounded-full bg-paper-100 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
@@ -594,16 +628,21 @@ function ScopeByRoom({
               )}
             </div>
             <span className="text-[10px] uppercase tracking-wider text-slate-400">
-              {g.items.length} item{g.items.length === 1 ? "" : "s"}
+              {t(
+                g.items.length === 1
+                  ? "plan.item_count_one"
+                  : "plan.item_count_other",
+                { count: g.items.length },
+              )}
             </span>
           </div>
           <table className="w-full text-sm">
             <thead className="text-left">
               <tr className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-                <th className="px-3 py-1.5">Ref</th>
-                <th className="px-3 py-1.5">Description</th>
-                <th className="px-3 py-1.5 text-right">Qty</th>
-                <th className="px-3 py-1.5">Status</th>
+                <th className="px-3 py-1.5">{t("plan.col.ref")}</th>
+                <th className="px-3 py-1.5">{t("col.description")}</th>
+                <th className="px-3 py-1.5 text-right">{t("col.qty")}</th>
+                <th className="px-3 py-1.5">{t("col.status")}</th>
                 <th className="px-3 py-1.5"></th>
               </tr>
             </thead>
@@ -636,6 +675,7 @@ function ScopeByRoomRow({
   blockedBy: WorkItemRow[] | null;
   onEdit: () => void;
 }) {
+  const t = useT();
   const L = useLabels();
   const otherRooms =
     currentRoomId == null
@@ -660,7 +700,7 @@ function ScopeByRoomRow({
               className="rounded-full bg-blueprint-50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-blueprint-700 ring-1 ring-inset ring-blueprint-100"
               title={otherRooms.map((r) => r.name).join(", ")}
             >
-              also in {otherRooms.length} more
+              {t("plan.also_in_more", { count: otherRooms.length })}
             </span>
           )}
           {blockedBy && blockedBy.length > 0 && <BlockedPill blockers={blockedBy} />}
@@ -669,12 +709,12 @@ function ScopeByRoomRow({
               to={`/projects/${item.projectId}/bids/${item.bid.id}`}
               title={
                 item.bid.bidNumber
-                  ? `Bid #${item.bid.bidNumber}`
-                  : "Source bid"
+                  ? t("plan.bid_number", { number: item.bid.bidNumber })
+                  : t("plan.source_bid")
               }
               className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200 hover:bg-violet-100"
             >
-              ↗ {item.vendor?.name ?? "Bid"}
+              ↗ {item.vendor?.name ?? t("plan.bid_short")}
             </Link>
           )}
           {!item.bid && item.vendor && (
@@ -703,7 +743,7 @@ function ScopeByRoomRow({
           onClick={onEdit}
           className="text-xs text-slate-500 hover:text-slate-900"
         >
-          Edit
+          {t("common.edit")}
         </button>
       </td>
     </tr>
@@ -745,19 +785,21 @@ function WorkItemsTable({
   setSearch: (s: string) => void;
   hasActiveFilters: boolean;
 }) {
+  const t = useT();
+  const L = useLabels();
   return (
     <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
       <table className="w-full text-sm">
         <thead className="bg-paper-50">
           <tr className="text-left text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">
-            <th className="px-3 pt-2">Ref</th>
-            <th className="px-3 pt-2">Description</th>
-            <th className="px-3 pt-2">Type of work</th>
-            <th className="px-3 pt-2">Rooms</th>
-            <th className="px-3 pt-2">Vendor</th>
-            <th className="px-3 pt-2">Status</th>
-            <th className="px-3 pt-2">Start</th>
-            <th className="px-3 pt-2">End</th>
+            <th className="px-3 pt-2">{t("plan.col.ref")}</th>
+            <th className="px-3 pt-2">{t("col.description")}</th>
+            <th className="px-3 pt-2">{t("plan.col.type_of_work")}</th>
+            <th className="px-3 pt-2">{t("plan.col.rooms")}</th>
+            <th className="px-3 pt-2">{t("col.vendor")}</th>
+            <th className="px-3 pt-2">{t("col.status")}</th>
+            <th className="px-3 pt-2">{t("plan.col.start")}</th>
+            <th className="px-3 pt-2">{t("plan.col.end")}</th>
           </tr>
           <tr className="align-top">
             <th className="px-3 pb-2 pt-1.5" />
@@ -765,7 +807,7 @@ function WorkItemsTable({
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search…"
+                placeholder={t("plan.search_short")}
                 className={colFilterCls}
               />
             </th>
@@ -775,10 +817,10 @@ function WorkItemsTable({
                 onChange={(e) => setTradeFilter(e.target.value)}
                 className={colFilterCls}
               >
-                <option value="">All</option>
-                {trades.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                <option value="">{t("plan.filter.col_all")}</option>
+                {trades.map((tr) => (
+                  <option key={tr} value={tr}>
+                    {tr}
                   </option>
                 ))}
               </select>
@@ -789,7 +831,7 @@ function WorkItemsTable({
                 onChange={(e) => setRoomFilter(e.target.value)}
                 className={colFilterCls}
               >
-                <option value="">All</option>
+                <option value="">{t("plan.filter.col_all")}</option>
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name}
@@ -803,7 +845,7 @@ function WorkItemsTable({
                 onChange={(e) => setVendorFilter(e.target.value)}
                 className={colFilterCls}
               >
-                <option value="">All</option>
+                <option value="">{t("plan.filter.col_all")}</option>
                 {vendors.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.name}
@@ -821,7 +863,7 @@ function WorkItemsTable({
               >
                 {STATUS_FILTER_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
-                    {o.label}
+                    {statusFilterLabel(o, t, L)}
                   </option>
                 ))}
               </select>
@@ -838,8 +880,8 @@ function WorkItemsTable({
                 className="px-3 py-10 text-center text-xs text-slate-500"
               >
                 {hasActiveFilters
-                  ? "No work items match these filters."
-                  : "No work items yet. Click Add work item to start."}
+                  ? t("plan.empty_filtered")
+                  : t("plan.empty_table")}
               </td>
             </tr>
           ) : (
@@ -858,14 +900,16 @@ function WorkItemsTable({
 }
 
 function EmptyPlan({ hasActiveFilters }: { hasActiveFilters: boolean }) {
+  const t = useT();
   return (
     <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
       {hasActiveFilters ? (
-        "No work items match these filters."
+        t("plan.empty_filtered")
       ) : (
         <>
-          No work items yet. Click <strong>Add work item</strong> to start
-          sketching the plan — or upload a vendor bid once that lands.
+          {t("plan.empty_hint_prefix")}{" "}
+          <strong>{t("plan.add_item")}</strong>
+          {t("plan.empty_hint_suffix")}
         </>
       )}
     </p>
@@ -934,16 +978,23 @@ function trimQty(qty: string): string {
 }
 
 function BlockedPill({ blockers }: { blockers: WorkItemRow[] }) {
-  const title = blockers
+  const t = useT();
+  const list = blockers
     .map((b) => `${b.ref ? `${b.ref} — ` : ""}${b.description}`)
     .join("\n");
+  const heading = t(
+    blockers.length === 1
+      ? "plan.blocked_by_one"
+      : "plan.blocked_by_other",
+    { count: blockers.length },
+  );
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-200"
-      title={`Blocked by ${blockers.length} unfinished predecessor${blockers.length === 1 ? "" : "s"}:\n${title}`}
+      title={`${heading}\n${list}`}
     >
       <span className="h-1 w-1 rounded-full bg-current" />
-      blocked
+      {t("plan.blocked")}
       {blockers.length > 1 && <span>· {blockers.length}</span>}
     </span>
   );
@@ -998,6 +1049,7 @@ const UNGROUPED_COLOR: GroupColor = {
 function buildGrouping(
   items: WorkItemRow[],
   by: GroupBy,
+  unassignedLabel: string,
 ): { groups: ItemGroup[]; colorForItem: (w: WorkItemRow) => GroupColor } {
   if (by === "none") {
     return { groups: [], colorForItem: () => UNGROUPED_COLOR };
@@ -1014,9 +1066,9 @@ function buildGrouping(
       : (w.rooms[0]?.id ?? "__none");
   for (const w of items) {
     if (by === "vendor") {
-      add(w.vendor?.id ?? "__none", w.vendor?.name ?? "Unassigned", w);
+      add(w.vendor?.id ?? "__none", w.vendor?.name ?? unassignedLabel, w);
     } else if (w.rooms.length === 0) {
-      add("__none", "Unassigned", w);
+      add("__none", unassignedLabel, w);
     } else {
       for (const r of w.rooms) add(r.id, r.name, w);
     }
@@ -1052,6 +1104,7 @@ function TimelineView({
   blockedByItem: Map<string, WorkItemRow[]>;
   onEdit: (w: WorkItemRow) => void;
 }) {
+  const t = useT();
   const fmt = useFormatters();
   const L = useLabels();
   const dated = items.filter((w) => w.plannedStart && w.plannedEnd);
@@ -1115,7 +1168,7 @@ function TimelineView({
   if (sorted.length === 0 && undated.length === 0) {
     return (
       <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
-        No work items to plot.
+        {t("plan.empty_plot")}
       </p>
     );
   }
@@ -1228,7 +1281,13 @@ function TimelineView({
       {undated.length > 0 && (
         <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
           <div className="border-b border-paper-200 bg-paper-50 px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
-            Undated · {undated.length} item{undated.length === 1 ? "" : "s"}
+            {t("plan.undated")} ·{" "}
+            {t(
+              undated.length === 1
+                ? "plan.item_count_one"
+                : "plan.item_count_other",
+              { count: undated.length },
+            )}
           </div>
           <ul className="divide-y divide-paper-200 text-sm">
             {undated.map((w) => (
@@ -1292,6 +1351,7 @@ function GroupedTimeline({
   blockedByItem: Map<string, WorkItemRow[]>;
   onEdit: (w: WorkItemRow) => void;
 }) {
+  const t = useT();
   const ROW_H = 30;
   const BAR_H = 16;
   const HEADER_H = 24;
@@ -1460,7 +1520,7 @@ function GroupedTimeline({
       {undatedGroups.length > 0 && (
         <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
           <div className="border-b border-paper-200 bg-paper-50 px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
-            Undated — no planned dates
+            {t("plan.undated_no_dates")}
           </div>
           <div className="divide-y divide-paper-200">
             {undatedGroups.map(({ g, undated }) => (
@@ -1501,7 +1561,16 @@ function GroupedTimeline({
 
 // ───────────────────────────────────── calendar view ─────────
 
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// Weekday header keys (module-level, so resolved with `t()` at render).
+const WEEKDAY_KEYS: MessageKey[] = [
+  "plan.weekday.sun",
+  "plan.weekday.mon",
+  "plan.weekday.tue",
+  "plan.weekday.wed",
+  "plan.weekday.thu",
+  "plan.weekday.fri",
+  "plan.weekday.sat",
+];
 
 /** Primary calendar date: planned end (deadline), falling back to start. */
 function planDate(w: WorkItemRow): string | null {
@@ -1532,6 +1601,7 @@ function CalendarView({
   colorForItem?: (w: WorkItemRow) => GroupColor;
   legend?: ItemGroup[];
 }) {
+  const t = useT();
   const L = useLabels();
   const { byDate, unscheduled, firstDate } = useMemo(() => {
     const byDate = new Map<string, WorkItemRow[]>();
@@ -1605,7 +1675,7 @@ function CalendarView({
             type="button"
             onClick={() => shiftMonth(-1)}
             className="rounded-md border border-paper-200 px-2 py-1 text-xs text-slate-600 hover:bg-paper-50"
-            aria-label="Previous month"
+            aria-label={t("plan.prev_month")}
           >
             ‹
           </button>
@@ -1614,13 +1684,13 @@ function CalendarView({
             onClick={goToday}
             className="rounded-md border border-paper-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-paper-50"
           >
-            Today
+            {t("plan.today")}
           </button>
           <button
             type="button"
             onClick={() => shiftMonth(1)}
             className="rounded-md border border-paper-200 px-2 py-1 text-xs text-slate-600 hover:bg-paper-50"
-            aria-label="Next month"
+            aria-label={t("plan.next_month")}
           >
             ›
           </button>
@@ -1643,12 +1713,12 @@ function CalendarView({
 
       <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
         <div className="grid grid-cols-7 border-b border-paper-200 bg-paper-50">
-          {WEEKDAY_LABELS.map((d) => (
+          {WEEKDAY_KEYS.map((k) => (
             <div
-              key={d}
+              key={k}
               className="px-2 py-1.5 text-center text-[10px] font-medium uppercase tracking-wider text-slate-500"
             >
-              {d}
+              {t(k)}
             </div>
           ))}
         </div>
@@ -1691,7 +1761,7 @@ function CalendarView({
                   ))}
                   {dayItems.length > 3 && (
                     <div className="px-1 text-[9px] text-slate-400">
-                      +{dayItems.length - 3} more
+                      {t("plan.more_count", { count: dayItems.length - 3 })}
                     </div>
                   )}
                 </div>
@@ -1704,8 +1774,14 @@ function CalendarView({
       {unscheduled.length > 0 && (
         <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
           <div className="border-b border-paper-200 bg-paper-50 px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
-            Unscheduled · {unscheduled.length} item
-            {unscheduled.length === 1 ? "" : "s"} — no planned dates
+            {t("plan.unscheduled")} ·{" "}
+            {t(
+              unscheduled.length === 1
+                ? "plan.item_count_one"
+                : "plan.item_count_other",
+              { count: unscheduled.length },
+            )}{" "}
+            {t("plan.no_planned_dates")}
           </div>
           <ul className="divide-y divide-paper-200 text-sm">
             {unscheduled.map((w) => (
@@ -1761,6 +1837,7 @@ export function WorkItemForm({
   defaultStatus?: WorkItemStatus;
   onClose: () => void;
 }) {
+  const t = useT();
   const L = useLabels();
   const [description, setDescription] = useState(existing?.description ?? "");
   const [trade, setTrade] = useState(existing?.trade ?? "");
@@ -1837,10 +1914,10 @@ export function WorkItemForm({
       className="mt-4 rounded-md border border-paper-200 bg-white p-4"
     >
       <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
-        {mode === "edit" ? "Edit · work item" : "New · work item"}
+        {mode === "edit" ? t("work_item.eyebrow_edit") : t("work_item.eyebrow_new")}
       </p>
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
-        <Field label="Description *" wide>
+        <Field label={t("work_item.field.description")} wide>
           <textarea
             required
             rows={2}
@@ -1848,32 +1925,32 @@ export function WorkItemForm({
             onChange={(e) => setDescription(e.target.value)}
             className={inputCls}
             autoFocus
-            placeholder="e.g. Cambio de empaques de policarbonato en cancelería de baño"
+            placeholder={t("work_item.placeholder.description")}
           />
         </Field>
-        <Field label="Trade">
+        <Field label={t("work_item.field.trade")}>
           <input
             value={trade}
             onChange={(e) => setTrade(e.target.value)}
             className={inputCls}
-            placeholder="carpintería / electricidad / tile"
+            placeholder={t("work_item.placeholder.trade")}
           />
         </Field>
-        <Field label="Ref">
+        <Field label={t("work_item.field.ref")}>
           <input
             value={ref}
             onChange={(e) => setRef(e.target.value)}
             className={inputCls}
-            placeholder="V14, S1-01…"
+            placeholder={t("work_item.placeholder.ref")}
           />
         </Field>
-        <Field label="Vendor">
+        <Field label={t("col.vendor")}>
           <select
             value={vendorId}
             onChange={(e) => setVendorId(e.target.value)}
             className={selectCls}
           >
-            <option value="">— (none)</option>
+            <option value="">{t("work_item.option.none")}</option>
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
@@ -1881,17 +1958,17 @@ export function WorkItemForm({
             ))}
           </select>
         </Field>
-        <Field label="Source quote">
+        <Field label={t("work_item.field.source_quote")}>
           <select
             value={bidId}
             onChange={(e) => setBidId(e.target.value)}
             className={selectCls}
           >
-            <option value="">— (none)</option>
+            <option value="">{t("work_item.option.none")}</option>
             {bids.map((b) => (
               <option key={b.id} value={b.id}>
                 {[
-                  b.vendor?.name ?? "Quote",
+                  b.vendor?.name ?? t("work_item.quote_fallback"),
                   b.bidNumber ? `#${b.bidNumber}` : null,
                   b.trade,
                 ]
@@ -1901,7 +1978,7 @@ export function WorkItemForm({
             ))}
           </select>
         </Field>
-        <Field label="Status">
+        <Field label={t("col.status")}>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as WorkItemStatus)}
@@ -1916,10 +1993,10 @@ export function WorkItemForm({
             )}
           </select>
         </Field>
-        <Field label="Rooms" wide>
+        <Field label={t("work_item.field.rooms")} wide>
           {rooms.length === 0 ? (
             <p className="text-xs text-slate-500">
-              No rooms yet — add one in the Rooms section below.
+              {t("work_item.no_rooms_hint")}
             </p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
@@ -1944,24 +2021,24 @@ export function WorkItemForm({
             </div>
           )}
         </Field>
-        <Field label="Qty + unit">
+        <Field label={t("work_item.field.qty_unit")}>
           <div className="flex gap-2">
             <input
               value={qty}
               onChange={(e) => setQty(e.target.value)}
               className={`${inputCls} !w-auto flex-1`}
-              placeholder="1, 24, 12.5"
+              placeholder={t("work_item.placeholder.qty")}
               inputMode="decimal"
             />
             <input
               value={unit}
               onChange={(e) => setUnit(e.target.value)}
               className={`${inputCls} w-20`}
-              placeholder="ea, m², ml"
+              placeholder={t("work_item.placeholder.unit")}
             />
           </div>
         </Field>
-        <Field label="Planned start">
+        <Field label={t("work_item.field.planned_start")}>
           <input
             type="date"
             value={plannedStart}
@@ -1969,7 +2046,7 @@ export function WorkItemForm({
             className={inputCls}
           />
         </Field>
-        <Field label="Planned end">
+        <Field label={t("work_item.field.planned_end")}>
           <input
             type="date"
             value={plannedEnd}
@@ -1977,7 +2054,7 @@ export function WorkItemForm({
             className={inputCls}
           />
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("detail.notes")} wide>
           <textarea
             rows={2}
             value={notes}
@@ -1997,7 +2074,7 @@ export function WorkItemForm({
       )}
       {mode === "create" && (
         <p className="mt-3 rounded-md border border-paper-200 bg-paper-50 px-3 py-2 text-[10px] uppercase tracking-wider text-slate-500">
-          Save first, then add dependencies from the edit view.
+          {t("work_item.save_first_deps")}
         </p>
       )}
 
@@ -2008,14 +2085,18 @@ export function WorkItemForm({
           onClick={onClose}
           className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={submitting}
           className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {submitting ? "Saving…" : mode === "edit" ? "Save" : "Add"}
+          {submitting
+            ? t("common.saving")
+            : mode === "edit"
+              ? t("common.save")
+              : t("common.add")}
         </button>
       </div>
     </form>
@@ -2035,6 +2116,7 @@ function DependenciesEditor({
   existingDeps: DepRow[];
   allItems: WorkItemRow[];
 }) {
+  const t = useT();
   const L = useLabels();
   const utils = trpc.useUtils();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -2076,7 +2158,7 @@ function DependenciesEditor({
     <div className="mt-4 rounded-md border border-paper-200 bg-paper-50 p-3">
       <div className="flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-wider text-slate-500">
-          Depends on
+          {t("work_item.depends_on")}
         </p>
         {!pickerOpen && (
           <button
@@ -2084,14 +2166,14 @@ function DependenciesEditor({
             onClick={() => setPickerOpen(true)}
             className="text-xs text-slate-500 hover:text-slate-900"
           >
-            + Add dependency
+            {t("work_item.add_dependency")}
           </button>
         )}
       </div>
 
       {existingDeps.length === 0 && !pickerOpen ? (
         <p className="mt-1 text-xs text-slate-500">
-          None. Add a predecessor to block this item until that one's done.
+          {t("work_item.deps_empty")}
         </p>
       ) : (
         <ul className="mt-2 divide-y divide-paper-200 rounded-md border border-paper-200 bg-white">
@@ -2114,7 +2196,7 @@ function DependenciesEditor({
                       {pred.ref} · {" "}
                     </span>
                   )}
-                  {pred?.description ?? "(unknown item)"}
+                  {pred?.description ?? t("work_item.unknown_item")}
                 </span>
                 {pred && (
                   <span
@@ -2134,7 +2216,7 @@ function DependenciesEditor({
                   disabled={remove.isPending}
                   className="ml-auto text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
                 >
-                  Remove
+                  {t("common.remove")}
                 </button>
               </li>
             );
@@ -2150,7 +2232,7 @@ function DependenciesEditor({
               onChange={(e) => setPickedId(e.target.value)}
               className={`${selectCls} flex-1 min-w-[14rem]`}
             >
-              <option value="">— pick a predecessor work item</option>
+              <option value="">{t("work_item.pick_predecessor")}</option>
               {eligible.map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.ref ? `${w.ref} — ` : ""}
@@ -2187,7 +2269,7 @@ function DependenciesEditor({
               disabled={!pickedId || add.isPending}
               className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
             >
-              {add.isPending ? "…" : "Add"}
+              {add.isPending ? "…" : t("common.add")}
             </button>
             <button
               type="button"
@@ -2197,7 +2279,7 @@ function DependenciesEditor({
               }}
               className="text-xs text-slate-500 hover:text-slate-900"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
           {error && <p className="mt-1 text-xs text-rose-700">{error}</p>}
@@ -2210,6 +2292,7 @@ function DependenciesEditor({
 // ───────────────────────────────────── rooms (sub-section) ────
 
 function RoomsSection({ projectId }: { projectId: string }) {
+  const t = useT();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<RoomRow | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -2228,7 +2311,7 @@ function RoomsSection({ projectId }: { projectId: string }) {
               {collapsed ? "▸" : "▾"}
             </span>
             <h2 className="text-base font-semibold tracking-tight text-blueprint-900">
-              Rooms
+              {t("plan.rooms")}
             </h2>
             <span className="ml-1 rounded-full bg-paper-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 ring-1 ring-inset ring-paper-200">
               {list.data?.length ?? 0}
@@ -2236,8 +2319,7 @@ function RoomsSection({ projectId }: { projectId: string }) {
           </button>
           {!collapsed && (
             <p className="mt-0.5 text-xs text-slate-500">
-              Spatial anchor — each room hosts work items, assets, materials,
-              and documents.
+              {t("plan.rooms_lede")}
             </p>
           )}
         </div>
@@ -2247,7 +2329,7 @@ function RoomsSection({ projectId }: { projectId: string }) {
             onClick={() => setAdding(true)}
             className="rounded-md border border-paper-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-paper-50"
           >
-            Add room
+            {t("plan.add_room")}
           </button>
         )}
       </div>
@@ -2272,11 +2354,14 @@ function RoomsSection({ projectId }: { projectId: string }) {
 
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {list.isLoading ? (
-              <p className="col-span-full text-xs text-slate-500">Loading…</p>
+              <p className="col-span-full text-xs text-slate-500">
+                {t("common.loading")}
+              </p>
             ) : !list.data || list.data.length === 0 ? (
               <p className="col-span-full rounded-md border border-paper-200 bg-white p-3 text-xs text-slate-500">
-                No rooms yet. Click <strong>Add room</strong> to anchor the
-                spatial side of the project.
+                {t("plan.rooms_empty_prefix")}{" "}
+                <strong>{t("plan.add_room")}</strong>
+                {t("plan.rooms_empty_suffix")}
               </p>
             ) : (
               list.data.map((r) => (
@@ -2297,6 +2382,7 @@ function RoomRowItem({
   room: RoomRow;
   onEdit: () => void;
 }) {
+  const t = useT();
   const L = useLabels();
   const utils = trpc.useUtils();
   const remove = trpc.projects.removeRoom.useMutation({
@@ -2325,17 +2411,18 @@ function RoomRowItem({
         onClick={onEdit}
         className="text-xs text-slate-500 hover:text-slate-900"
       >
-        Edit
+        {t("common.edit")}
       </button>
       <button
         type="button"
         onClick={() => {
-          if (confirm(`Remove ${room.name}?`)) remove.mutate({ id: room.id });
+          if (confirm(t("plan.remove_room_confirm", { name: room.name })))
+            remove.mutate({ id: room.id });
         }}
         disabled={remove.isPending}
         className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
       >
-        {remove.isPending ? "…" : "Remove"}
+        {remove.isPending ? "…" : t("common.remove")}
       </button>
     </div>
   );
@@ -2352,6 +2439,7 @@ function RoomForm({
   existing?: RoomRow;
   onClose: () => void;
 }) {
+  const t = useT();
   const L = useLabels();
   const [name, setName] = useState(existing?.name ?? "");
   const [roomType, setRoomType] = useState<RoomType | "">(
@@ -2398,36 +2486,36 @@ function RoomForm({
       className="mt-3 rounded-md border border-paper-200 bg-white p-3"
     >
       <div className="grid gap-2 sm:grid-cols-2">
-        <Field label="Name *">
+        <Field label={t("plan.room.field.name")}>
           <input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
             className={inputCls}
             autoFocus
-            placeholder="Kitchen / Primary Bath / Office"
+            placeholder={t("plan.room.placeholder.name")}
           />
         </Field>
-        <Field label="Type">
+        <Field label={t("col.type")}>
           <select
             value={roomType}
             onChange={(e) => setRoomType(e.target.value as RoomType | "")}
             className={selectCls}
           >
-            <option value="">— (none)</option>
-            {(Object.keys(ROOM_TYPE_LABELS) as RoomType[]).map((t) => (
-              <option key={t} value={t}>
-                {L.roomType(t)}
+            <option value="">{t("work_item.option.none")}</option>
+            {(Object.keys(ROOM_TYPE_LABELS) as RoomType[]).map((rt) => (
+              <option key={rt} value={rt}>
+                {L.roomType(rt)}
               </option>
             ))}
           </select>
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("detail.notes")} wide>
           <input
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             className={inputCls}
-            placeholder="Square footage, ceiling height, scope notes…"
+            placeholder={t("plan.room.placeholder.notes")}
           />
         </Field>
       </div>
@@ -2438,14 +2526,18 @@ function RoomForm({
           onClick={onClose}
           className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={submitting}
           className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {submitting ? "Saving…" : mode === "edit" ? "Save" : "Add"}
+          {submitting
+            ? t("common.saving")
+            : mode === "edit"
+              ? t("common.save")
+              : t("common.add")}
         </button>
       </div>
     </form>

@@ -8,7 +8,7 @@ import {
   type BillStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters, useLabels } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -36,6 +36,7 @@ export default function ProjectBillDetail() {
   const navigate = useNavigate();
   const fmt = useFormatters();
   const L = useLabels();
+  const t = useT();
   const [editing, setEditing] = useState(false);
 
   const bill = trpc.bills.get.useQuery(
@@ -58,7 +59,8 @@ export default function ProjectBillDetail() {
   });
 
   if (!billId) return null;
-  if (bill.isLoading) return <p className="text-sm text-ink-500">Loading…</p>;
+  if (bill.isLoading)
+    return <p className="text-sm text-ink-500">{t("common.loading")}</p>;
   if (bill.error)
     return <p className="text-sm text-rose-700">{bill.error.message}</p>;
   if (!bill.data) return null;
@@ -74,7 +76,7 @@ export default function ProjectBillDetail() {
           className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-900"
         >
           <Icon name="chevron-left" className="h-3 w-3" />
-          Money
+          {t("nav.money")}
         </Link>
 
         <div className="mt-3 flex items-start justify-between gap-6">
@@ -85,19 +87,21 @@ export default function ProjectBillDetail() {
               </Pill>
               {overdue && (
                 <Pill tone="alert" dot>
-                  Overdue
+                  {t("common.overdue")}
                 </Pill>
               )}
               <span className="text-[13px] text-ink-500">
-                Bill
-                {b.vendor ? ` · ${b.vendor.name}` : " · Self-purchase"}
+                {t("bill.label")}
+                {b.vendor
+                  ? ` · ${b.vendor.name}`
+                  : ` · ${t("money.bills.self_purchase")}`}
               </span>
             </div>
             <p className="mt-4 num text-5xl leading-none text-ink-900">
               {fmt.currency(b.amount, b.currency)}
             </p>
             <h1 className="mt-3 font-display text-2xl font-normal tracking-tight text-ink-900">
-              {b.description || b.billNumber || "Untitled bill"}
+              {b.description || b.billNumber || t("bill.untitled")}
             </h1>
             {b.billNumber && b.description && (
               <p className="mt-1 font-mono text-[13px] text-ink-500">
@@ -112,29 +116,35 @@ export default function ProjectBillDetail() {
                 onClick={() => markPaid.mutate({ id: b.id })}
                 disabled={markPaid.isPending}
               >
-                {markPaid.isPending ? "Marking…" : "Mark paid"}
+                {markPaid.isPending ? t("common.marking") : t("detail.mark_paid")}
               </Button>
             )}
             <Button variant="secondary" onClick={() => setEditing(true)}>
-              Edit
+              {t("common.edit")}
             </Button>
           </div>
         </div>
       </header>
 
       <section className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
-        <Fact label="Issued">{b.issuedAt ? fmt.date(b.issuedAt) : "—"}</Fact>
-        <Fact label="Due" tone={overdue ? "alert" : undefined}>
+        <Fact label={t("bill.fact.issued")}>
+          {b.issuedAt ? fmt.date(b.issuedAt) : "—"}
+        </Fact>
+        <Fact label={t("col.due")} tone={overdue ? "alert" : undefined}>
           {b.dueAt ? fmt.date(b.dueAt) : "—"}
         </Fact>
-        <Fact label="Paid">{b.paidAt ? fmt.date(b.paidAt) : "—"}</Fact>
-        <Fact label="Vendor">{b.vendor?.name ?? "Self-purchase"}</Fact>
+        <Fact label={t("bill.fact.paid")}>
+          {b.paidAt ? fmt.date(b.paidAt) : "—"}
+        </Fact>
+        <Fact label={t("col.vendor")}>
+          {b.vendor?.name ?? t("money.bills.self_purchase")}
+        </Fact>
       </section>
 
       {b.source && (
         <section>
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-            Source
+            {t("detail.source")}
           </h2>
           <Link
             to={`/projects/${project.id}/assets/${b.source.asset.id}`}
@@ -142,7 +152,7 @@ export default function ProjectBillDetail() {
           >
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-                Asset event
+                {t("bill.source.asset_event")}
               </p>
               <p className="mt-1 text-[15px] font-medium text-ink-900">
                 {b.source.asset.name}
@@ -159,7 +169,7 @@ export default function ProjectBillDetail() {
       {b.sourceBid && (
         <section>
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-            Source
+            {t("detail.source")}
           </h2>
           <Link
             to={`/projects/${project.id}/bids/${b.sourceBid.id}`}
@@ -167,14 +177,14 @@ export default function ProjectBillDetail() {
           >
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-                Accepted quote
+                {t("bill.source.quote")}
               </p>
               <p className="mt-1 text-[15px] font-medium text-ink-900">
-                {b.sourceBid.trade ?? "Subcontractor quote"}
+                {b.sourceBid.trade ?? t("bill.source.subcontractor_quote")}
                 {b.sourceBid.bidNumber ? ` · #${b.sourceBid.bidNumber}` : ""}
               </p>
               <p className="mt-0.5 text-[13px] text-ink-600">
-                Created automatically when this quote was approved.
+                {t("bill.source.quote_note")}
               </p>
             </div>
             <Icon name="chevron-right" className="h-4 w-4 text-ink-400" />
@@ -185,7 +195,7 @@ export default function ProjectBillDetail() {
       {b.notes && (
         <section>
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-            Notes
+            {t("detail.notes")}
           </h2>
           <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink-700">
             {b.notes}
@@ -197,13 +207,13 @@ export default function ProjectBillDetail() {
         <button
           type="button"
           onClick={() => {
-            if (confirm(`Delete this bill? This cannot be undone.`)) {
+            if (confirm(t("bill.delete_confirm"))) {
               remove.mutate({ id: b.id });
             }
           }}
           className="text-[13px] text-rose-600 hover:text-rose-800"
         >
-          Delete this bill
+          {t("detail.delete_bill")}
         </button>
       </section>
 
@@ -246,6 +256,7 @@ function BillEditModal({
 }) {
   const vendorsQ = trpc.vendors.list.useQuery({ status: "active" });
   const L = useLabels();
+  const t = useT();
   const [vendorId, setVendorId] = useState(bill.vendorId ?? "");
   const [billNumber, setBillNumber] = useState(bill.billNumber ?? "");
   const [description, setDescription] = useState(bill.description ?? "");
@@ -272,7 +283,7 @@ function BillEditModal({
     e.preventDefault();
     setError(null);
     if (!amount.trim() || !currency.trim()) {
-      setError("Amount and currency are required.");
+      setError(t("money.error.amount_currency_required"));
       return;
     }
     update.mutate({
@@ -294,7 +305,7 @@ function BillEditModal({
 
   return (
     <Modal
-      title={`Edit bill`}
+      title={t("bill.edit_title")}
       onClose={onClose}
       size="lg"
       footer={
@@ -302,7 +313,7 @@ function BillEditModal({
           <p className="text-xs text-rose-600">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -310,7 +321,7 @@ function BillEditModal({
               variant="primary"
               disabled={update.isPending}
             >
-              {update.isPending ? "Saving…" : "Save changes"}
+              {update.isPending ? t("common.saving") : t("common.save_changes")}
             </Button>
           </div>
         </div>
@@ -321,20 +332,20 @@ function BillEditModal({
         onSubmit={onSubmit}
         className="grid gap-5 sm:grid-cols-2"
       >
-        <Field label="Description" wide>
+        <Field label={t("col.description")} wide>
           <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             autoFocus
-            placeholder="Tile installation — kitchen + primary bath"
+            placeholder={t("bill.ph.description")}
           />
         </Field>
-        <Field label="Vendor" hint="Optional">
+        <Field label={t("col.vendor")} hint={t("common.optional")}>
           <Select
             value={vendorId}
             onChange={(e) => setVendorId(e.target.value)}
           >
-            <option value="">— None (self-purchase)</option>
+            <option value="">{t("bill.opt.no_vendor")}</option>
             {vendorsQ.data?.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
@@ -342,14 +353,14 @@ function BillEditModal({
             ))}
           </Select>
         </Field>
-        <Field label="Bill number" hint="Vendor's invoice #">
+        <Field label={t("bill.field.number")} hint={t("bill.hint.number")}>
           <Input
             value={billNumber}
             onChange={(e) => setBillNumber(e.target.value)}
             placeholder="INV-12345"
           />
         </Field>
-        <Field label="Amount" required wide>
+        <Field label={t("col.amount")} required wide>
           <MoneyInput
             amount={amount}
             currency={currency}
@@ -359,7 +370,7 @@ function BillEditModal({
             required
           />
         </Field>
-        <Field label="Status">
+        <Field label={t("col.status")}>
           <Select
             value={status}
             onChange={(e) => setStatus(e.target.value as BillStatus)}
@@ -371,28 +382,28 @@ function BillEditModal({
             ))}
           </Select>
         </Field>
-        <Field label="Issued">
+        <Field label={t("bill.field.issued")}>
           <Input
             type="date"
             value={issuedAt as string}
             onChange={(e) => setIssuedAt(e.target.value)}
           />
         </Field>
-        <Field label="Due">
+        <Field label={t("col.due")}>
           <Input
             type="date"
             value={dueAt as string}
             onChange={(e) => setDueAt(e.target.value)}
           />
         </Field>
-        <Field label="Paid">
+        <Field label={t("bill.field.paid")}>
           <Input
             type="date"
             value={paidAt as string}
             onChange={(e) => setPaidAt(e.target.value)}
           />
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("detail.notes")} wide>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}

@@ -4,7 +4,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import { type BidStatus } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters, useLabels } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import { Button, Icon, Pill } from "../../components/ui";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
@@ -28,6 +28,7 @@ export default function ProjectBidDetail() {
   const navigate = useNavigate();
   const fmt = useFormatters();
   const L = useLabels();
+  const t = useT();
 
   const bid = trpc.bids.get.useQuery(
     { id: bidId ?? "" },
@@ -81,7 +82,8 @@ export default function ProjectBidDetail() {
   }, [lines.data]);
 
   if (!bidId) return null;
-  if (bid.isLoading) return <p className="text-sm text-ink-500">Loading…</p>;
+  if (bid.isLoading)
+    return <p className="text-sm text-ink-500">{t("common.loading")}</p>;
   if (bid.error)
     return <p className="text-sm text-rose-700">{bid.error.message}</p>;
   if (!bid.data) return null;
@@ -102,7 +104,7 @@ export default function ProjectBidDetail() {
           className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-900"
         >
           <Icon name="chevron-left" className="h-3 w-3" />
-          Bids
+          {t("bids.title")}
         </Link>
 
         {(b.version > 1 || b.supersedesBidId || superseded) && (
@@ -115,7 +117,7 @@ export default function ProjectBidDetail() {
                 to={`/projects/${project.id}/bids/${b.supersedesBidId}`}
                 className="text-ink-500 hover:text-ink-900"
               >
-                ← previous version
+                {t("bids.detail.previous_version")}
               </Link>
             )}
             {superseded && (
@@ -123,7 +125,7 @@ export default function ProjectBidDetail() {
                 to={`/projects/${project.id}/bids/${superseded.id}`}
                 className="text-ink-500 hover:text-ink-900"
               >
-                superseded by v{superseded.version} →
+                {t("bids.detail.superseded_by", { version: superseded.version })}
               </Link>
             )}
           </div>
@@ -131,14 +133,14 @@ export default function ProjectBidDetail() {
 
         {superseded && (
           <div className="mt-3 rounded-lg border border-ink-200 bg-paper-50 px-4 py-3 text-[13px] text-ink-600">
-            This version is read-only — it was superseded by{" "}
+            {t("bids.detail.readonly_prefix")}{" "}
             <Link
               to={`/projects/${project.id}/bids/${superseded.id}`}
               className="font-medium text-ink-900 underline-offset-2 hover:underline"
             >
               v{superseded.version}
             </Link>
-            . Open the latest version to make changes.
+            {t("bids.detail.readonly_suffix")}
           </div>
         )}
 
@@ -151,7 +153,7 @@ export default function ProjectBidDetail() {
               {validityExpired &&
                 b.status !== "accepted" &&
                 b.status !== "completed" && (
-                  <Pill tone="alert">Validity expired</Pill>
+                  <Pill tone="alert">{t("bids.detail.validity_expired")}</Pill>
                 )}
             </div>
             <p className="mt-4 num text-5xl leading-none text-ink-900">
@@ -160,12 +162,16 @@ export default function ProjectBidDetail() {
                 : "—"}
             </p>
             <h1 className="mt-3 font-display text-2xl font-normal tracking-tight text-ink-900">
-              {b.vendor?.name ?? "(vendor unassigned)"}
+              {b.vendor?.name ?? t("bids.vendor_unassigned")}
             </h1>
             <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[13px] text-ink-500">
               {b.bidNumber && <span className="font-mono">#{b.bidNumber}</span>}
               {b.trade && <span>{b.trade}</span>}
-              {b.ivaIncluded ? <span>IVA included</span> : <span>Pre-IVA</span>}
+              {b.ivaIncluded ? (
+                <span>{t("bids.detail.iva_included")}</span>
+              ) : (
+                <span>{t("bids.detail.pre_iva")}</span>
+              )}
             </p>
           </div>
           {!readOnly && (
@@ -176,7 +182,7 @@ export default function ProjectBidDetail() {
                   onClick={() => decide.mutate({ id: b.id, decision: "accepted" })}
                   disabled={decide.isPending}
                 >
-                  Approve
+                  {t("bids.approve")}
                 </Button>
               )}
               {b.status === "accepted" && (
@@ -187,36 +193,36 @@ export default function ProjectBidDetail() {
                   }
                   disabled={complete.isPending}
                 >
-                  {complete.isPending ? "Completing…" : "Mark complete"}
+                  {complete.isPending
+                    ? t("bids.completing")
+                    : t("bids.detail.mark_complete")}
                 </Button>
               )}
               {b.status !== "rejected" && b.status !== "completed" && (
                 <Button
                   variant="secondary"
                   onClick={() => {
-                    if (confirm("Reject this quote?")) {
+                    if (confirm(t("bids.detail.confirm_reject"))) {
                       decide.mutate({ id: b.id, decision: "rejected" });
                     }
                   }}
                   disabled={decide.isPending}
                 >
-                  Reject
+                  {t("bids.reject")}
                 </Button>
               )}
               <Button
                 variant="secondary"
                 onClick={() => {
-                  if (
-                    confirm(
-                      "Save the current quote as a new version? This version becomes read-only history and you'll edit the new one.",
-                    )
-                  ) {
+                  if (confirm(t("bids.detail.confirm_save_version"))) {
                     saveAsVersion.mutate({ id: b.id });
                   }
                 }}
                 disabled={saveAsVersion.isPending}
               >
-                {saveAsVersion.isPending ? "Saving…" : "Save as new version"}
+                {saveAsVersion.isPending
+                  ? t("common.saving")
+                  : t("bids.detail.save_as_version")}
               </Button>
               <Button
                 variant="secondary"
@@ -224,7 +230,7 @@ export default function ProjectBidDetail() {
                   navigate(`/projects/${project.id}/bids?edit=${b.id}`)
                 }
               >
-                Edit details
+                {t("bids.detail.edit_details")}
               </Button>
             </div>
           )}
@@ -232,16 +238,21 @@ export default function ProjectBidDetail() {
       </header>
 
       <section className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
-        <Fact label="Bid date">{b.bidDate ? fmt.date(b.bidDate) : "—"}</Fact>
-        <Fact label="Valid until" tone={validityExpired ? "alert" : undefined}>
+        <Fact label={t("bids.col.bid_date")}>
+          {b.bidDate ? fmt.date(b.bidDate) : "—"}
+        </Fact>
+        <Fact
+          label={t("bids.field.valid_until")}
+          tone={validityExpired ? "alert" : undefined}
+        >
           {b.validUntil ? fmt.date(b.validUntil) : "—"}
         </Fact>
-        <Fact label="Subtotal">
+        <Fact label={t("bids.field.subtotal")}>
           {b.subtotalAmount && b.currency
             ? fmt.currency(b.subtotalAmount, b.currency)
             : "—"}
         </Fact>
-        <Fact label="IVA">
+        <Fact label={t("bids.field.iva")}>
           {b.ivaAmount && b.currency
             ? fmt.currency(b.ivaAmount, b.currency)
             : "—"}
@@ -251,7 +262,7 @@ export default function ProjectBidDetail() {
       {b.flags.length > 0 && (
         <section>
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-            Flags
+            {t("bids.flags")}
           </h3>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {b.flags.map((f) => (
@@ -266,11 +277,13 @@ export default function ProjectBidDetail() {
       <section>
         <div className="flex items-baseline justify-between gap-4">
           <h2 className="font-display text-xl font-normal tracking-tight text-ink-900">
-            Itemized work
+            {t("bids.detail.itemized_work")}
           </h2>
           <div className="flex items-center gap-3">
             <p className="text-[12px] text-ink-400">
-              {lineRows.length} {lineRows.length === 1 ? "line" : "lines"}
+              {lineRows.length === 1
+                ? t("bids.detail.lines_count_one", { count: lineRows.length })
+                : t("bids.detail.lines_count", { count: lineRows.length })}
             </p>
             {!readOnly && !addingLine && (
               <Button
@@ -281,7 +294,7 @@ export default function ProjectBidDetail() {
                 }}
               >
                 <Icon name="plus" className="h-4 w-4" />
-                Add line
+                {t("bids.detail.add_line")}
               </Button>
             )}
           </div>
@@ -302,25 +315,25 @@ export default function ProjectBidDetail() {
 
         <div className="mt-3 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
           {lines.isLoading ? (
-            <p className="px-6 py-8 text-sm text-ink-500">Loading…</p>
+            <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
           ) : lines.error ? (
             <p className="px-6 py-8 text-sm text-rose-700">
               {lines.error.message}
             </p>
           ) : lineRows.length === 0 && !addingLine ? (
             <p className="px-6 py-8 text-sm text-ink-500">
-              This bid has no itemized lines yet.
-              {!readOnly && " Click Add line to start building the quote."}
+              {t("bids.detail.no_lines")}
+              {!readOnly && t("bids.detail.no_lines_hint")}
             </p>
           ) : (
             <table className="w-full text-[14px]">
               <thead className="border-b border-ink-100 bg-paper-50">
                 <tr className="text-left">
-                  <Th>Ref</Th>
-                  <Th>Description</Th>
-                  <Th align="right">Qty</Th>
-                  <Th align="right">Unit price</Th>
-                  <Th align="right">Total</Th>
+                  <Th>{t("bids.col.ref")}</Th>
+                  <Th>{t("col.description")}</Th>
+                  <Th align="right">{t("bids.col.qty")}</Th>
+                  <Th align="right">{t("bids.col.unit_price")}</Th>
+                  <Th align="right">{t("bids.col.total")}</Th>
                   {!readOnly && <Th align="right" />}
                 </tr>
               </thead>
@@ -362,7 +375,7 @@ export default function ProjectBidDetail() {
                       colSpan={4}
                       className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500"
                     >
-                      Sum of lines
+                      {t("bids.sum_of_lines")}
                     </td>
                     <td className="px-5 py-3 text-right tnum font-semibold text-ink-900">
                       {Array.from(linesTotal.entries())
@@ -381,7 +394,7 @@ export default function ProjectBidDetail() {
       {b.notes && (
         <section>
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-            Notes
+            {t("detail.notes")}
           </h3>
           <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink-700">
             {b.notes}
@@ -395,7 +408,7 @@ export default function ProjectBidDetail() {
           onClick={() => {
             if (
               confirm(
-                `Delete this bid? Its ${lineRows.length} work items detach but stay.`,
+                t("bids.detail.confirm_delete", { count: lineRows.length }),
               )
             ) {
               remove.mutate({ id: b.id });
@@ -403,7 +416,7 @@ export default function ProjectBidDetail() {
           }}
           className="text-[13px] text-rose-600 hover:text-rose-800"
         >
-          Delete this bid
+          {t("bids.detail.delete")}
         </button>
       </section>
     </div>
@@ -426,6 +439,7 @@ function BidLineDisplayRow({
   onEdit: () => void;
 }) {
   const fmt = useFormatters();
+  const t = useT();
   const utils = trpc.useUtils();
   const remove = trpc.workItems.remove.useMutation({
     onSuccess: () => utils.workItems.list.invalidate({ projectId, bidId }),
@@ -455,19 +469,25 @@ function BidLineDisplayRow({
               onClick={onEdit}
               className="text-[12px] text-ink-500 hover:text-ink-900"
             >
-              Edit
+              {t("common.edit")}
             </button>
             <button
               type="button"
               disabled={remove.isPending}
               onClick={() => {
-                if (confirm(`Remove "${li.description.slice(0, 40)}"?`)) {
+                if (
+                  confirm(
+                    t("bids.detail.confirm_remove_line", {
+                      description: li.description.slice(0, 40),
+                    }),
+                  )
+                ) {
                   remove.mutate({ id: li.id });
                 }
               }}
               className="text-[12px] text-rose-600 hover:text-rose-800 disabled:opacity-50"
             >
-              {remove.isPending ? "…" : "Remove"}
+              {remove.isPending ? "…" : t("common.remove")}
             </button>
           </div>
         </Td>
@@ -493,6 +513,7 @@ function BidLineForm({
   defaultTrade: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const [description, setDescription] = useState(existing?.description ?? "");
   const [ref, setRef] = useState(existing?.ref ?? "");
   const [qty, setQty] = useState(existing?.qty ?? "");
@@ -531,14 +552,14 @@ function BidLineForm({
     e.preventDefault();
     setError(null);
     if (!description.trim()) {
-      setError("Description is required.");
+      setError(t("bids.detail.err_description_required"));
       return;
     }
     const cur = currency.trim().toUpperCase();
     const up = unitPrice.trim();
     const tot = total.trim();
     if ((up || tot) && cur.length !== 3) {
-      setError("Currency must be a 3-letter code when a price is set.");
+      setError(t("bids.detail.err_currency_price"));
       return;
     }
     if (mode === "edit" && existing) {
@@ -579,67 +600,67 @@ function BidLineForm({
       className="rounded-lg border border-ink-200 bg-white p-4"
     >
       <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
-        {mode === "edit" ? "Edit · line" : "New · line"}
+        {mode === "edit" ? t("bids.detail.line_edit") : t("bids.detail.line_new")}
       </p>
       <div className="mt-2 grid gap-3 sm:grid-cols-6">
         <label className="block text-sm sm:col-span-4">
-          <span className="text-ink-700">Description *</span>
+          <span className="text-ink-700">{t("bids.detail.field.description_req")}</span>
           <input
             required
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className={`${inputCls} mt-1`}
             autoFocus
-            placeholder="e.g. Suministro e instalación de piso laminado"
+            placeholder={t("bids.detail.field.description_ph")}
           />
         </label>
         <label className="block text-sm sm:col-span-2">
-          <span className="text-ink-700">Ref</span>
+          <span className="text-ink-700">{t("bids.col.ref")}</span>
           <input
             value={ref}
             onChange={(e) => setRef(e.target.value)}
             className={`${inputCls} mt-1`}
-            placeholder="V14, S1-01…"
+            placeholder={t("bids.detail.field.ref_ph")}
           />
         </label>
         <label className="block text-sm sm:col-span-2">
-          <span className="text-ink-700">Qty + unit</span>
+          <span className="text-ink-700">{t("bids.detail.field.qty_unit")}</span>
           <div className="mt-1 flex gap-2">
             <input
               value={qty}
               onChange={(e) => setQty(e.target.value)}
               onBlur={autoTotal}
               className={`${inputCls} flex-1`}
-              placeholder="1, 24, 12.5"
+              placeholder={t("bids.detail.field.qty_ph")}
               inputMode="decimal"
             />
             <input
               value={unit}
               onChange={(e) => setUnit(e.target.value)}
               className={`${inputCls} w-20`}
-              placeholder="ea, m²"
+              placeholder={t("bids.detail.field.unit_ph")}
             />
           </div>
         </label>
         <label className="block text-sm sm:col-span-2">
-          <span className="text-ink-700">Unit price</span>
+          <span className="text-ink-700">{t("bids.col.unit_price")}</span>
           <input
             value={unitPrice}
             onChange={(e) => setUnitPrice(e.target.value)}
             onBlur={autoTotal}
             className={`${inputCls} mt-1`}
-            placeholder="1250.00"
+            placeholder={t("bids.detail.field.unit_price_ph")}
             inputMode="decimal"
           />
         </label>
         <label className="block text-sm sm:col-span-2">
-          <span className="text-ink-700">Total + currency</span>
+          <span className="text-ink-700">{t("bids.field.total_currency")}</span>
           <div className="mt-1 flex gap-2">
             <input
               value={total}
               onChange={(e) => setTotal(e.target.value)}
               className={`${inputCls} flex-1`}
-              placeholder="auto from qty × price"
+              placeholder={t("bids.detail.field.total_ph")}
               inputMode="decimal"
             />
             <input
@@ -654,10 +675,14 @@ function BidLineForm({
       {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
       <div className="mt-3 flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onClose}>
-          Cancel
+          {t("common.cancel")}
         </Button>
         <Button type="submit" variant="primary" disabled={submitting}>
-          {submitting ? "Saving…" : mode === "edit" ? "Save line" : "Add line"}
+          {submitting
+            ? t("common.saving")
+            : mode === "edit"
+              ? t("bids.detail.save_line")
+              : t("bids.detail.add_line")}
         </Button>
       </div>
     </form>

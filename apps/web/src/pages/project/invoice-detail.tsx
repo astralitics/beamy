@@ -8,7 +8,7 @@ import {
   type InvoiceStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
-import { useFormatters, useLabels } from "../../lib/i18n";
+import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import {
   Button,
   Field,
@@ -40,6 +40,7 @@ export default function ProjectInvoiceDetail() {
   const navigate = useNavigate();
   const fmt = useFormatters();
   const L = useLabels();
+  const t = useT();
   const [editing, setEditing] = useState(false);
 
   const invoice = trpc.invoices.get.useQuery(
@@ -69,7 +70,7 @@ export default function ProjectInvoiceDetail() {
 
   if (!invoiceId) return null;
   if (invoice.isLoading)
-    return <p className="text-sm text-ink-500">Loading…</p>;
+    return <p className="text-sm text-ink-500">{t("common.loading")}</p>;
   if (invoice.error)
     return <p className="text-sm text-rose-700">{invoice.error.message}</p>;
   if (!invoice.data) return null;
@@ -85,7 +86,7 @@ export default function ProjectInvoiceDetail() {
           className="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-900"
         >
           <Icon name="chevron-left" className="h-3 w-3" />
-          Money
+          {t("nav.money")}
         </Link>
 
         <div className="mt-3 flex items-start justify-between gap-6">
@@ -96,11 +97,11 @@ export default function ProjectInvoiceDetail() {
               </Pill>
               {overdue && (
                 <Pill tone="alert" dot>
-                  Overdue
+                  {t("common.overdue")}
                 </Pill>
               )}
               <span className="text-[13px] text-ink-500">
-                Invoice
+                {t("invoice.label")}
                 {i.client ? ` · ${i.client.name}` : ""}
               </span>
             </div>
@@ -108,7 +109,7 @@ export default function ProjectInvoiceDetail() {
               {fmt.currency(i.amount, i.currency)}
             </p>
             <h1 className="mt-3 font-display text-2xl font-normal tracking-tight text-ink-900">
-              {i.description || i.invoiceNumber || "Untitled invoice"}
+              {i.description || i.invoiceNumber || t("invoice.untitled")}
             </h1>
             {i.invoiceNumber && i.description && (
               <p className="mt-1 font-mono text-[13px] text-ink-500">
@@ -123,7 +124,7 @@ export default function ProjectInvoiceDetail() {
                 onClick={() => markSent.mutate({ id: i.id })}
                 disabled={markSent.isPending}
               >
-                {markSent.isPending ? "Marking…" : "Mark sent"}
+                {markSent.isPending ? t("common.marking") : t("detail.mark_sent")}
               </Button>
             )}
             {i.status === "sent" && (
@@ -132,30 +133,36 @@ export default function ProjectInvoiceDetail() {
                 onClick={() => markPaid.mutate({ id: i.id })}
                 disabled={markPaid.isPending}
               >
-                {markPaid.isPending ? "Marking…" : "Mark paid"}
+                {markPaid.isPending ? t("common.marking") : t("detail.mark_paid")}
               </Button>
             )}
             <Button variant="secondary" onClick={() => setEditing(true)}>
-              Edit
+              {t("common.edit")}
             </Button>
           </div>
         </div>
       </header>
 
       <section className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-5">
-        <Fact label="Issued">{i.issuedAt ? fmt.date(i.issuedAt) : "—"}</Fact>
-        <Fact label="Sent">{i.sentAt ? fmt.date(i.sentAt) : "—"}</Fact>
-        <Fact label="Due" tone={overdue ? "alert" : undefined}>
+        <Fact label={t("invoice.fact.issued")}>
+          {i.issuedAt ? fmt.date(i.issuedAt) : "—"}
+        </Fact>
+        <Fact label={t("invoice.fact.sent")}>
+          {i.sentAt ? fmt.date(i.sentAt) : "—"}
+        </Fact>
+        <Fact label={t("col.due")} tone={overdue ? "alert" : undefined}>
           {i.dueAt ? fmt.date(i.dueAt) : "—"}
         </Fact>
-        <Fact label="Paid">{i.paidAt ? fmt.date(i.paidAt) : "—"}</Fact>
-        <Fact label="Client">{i.client?.name ?? "—"}</Fact>
+        <Fact label={t("invoice.fact.paid")}>
+          {i.paidAt ? fmt.date(i.paidAt) : "—"}
+        </Fact>
+        <Fact label={t("col.client")}>{i.client?.name ?? "—"}</Fact>
       </section>
 
       {i.notes && (
         <section>
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
-            Notes
+            {t("detail.notes")}
           </h2>
           <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink-700">
             {i.notes}
@@ -167,13 +174,13 @@ export default function ProjectInvoiceDetail() {
         <button
           type="button"
           onClick={() => {
-            if (confirm(`Delete this invoice? This cannot be undone.`)) {
+            if (confirm(t("invoice.delete_confirm"))) {
               remove.mutate({ id: i.id });
             }
           }}
           className="text-[13px] text-rose-600 hover:text-rose-800"
         >
-          Delete this invoice
+          {t("detail.delete_invoice")}
         </button>
       </section>
 
@@ -216,6 +223,7 @@ function InvoiceEditModal({
 }) {
   const clientsQ = trpc.clients.list.useQuery({ status: "active" });
   const L = useLabels();
+  const t = useT();
   const [clientId, setClientId] = useState(invoice.clientId ?? "");
   const [invoiceNumber, setInvoiceNumber] = useState(
     invoice.invoiceNumber ?? "",
@@ -245,7 +253,7 @@ function InvoiceEditModal({
     e.preventDefault();
     setError(null);
     if (!amount.trim() || !currency.trim()) {
-      setError("Amount and currency are required.");
+      setError(t("money.error.amount_currency_required"));
       return;
     }
     update.mutate({
@@ -268,7 +276,7 @@ function InvoiceEditModal({
 
   return (
     <Modal
-      title="Edit invoice"
+      title={t("invoice.edit_title")}
       onClose={onClose}
       size="lg"
       footer={
@@ -276,7 +284,7 @@ function InvoiceEditModal({
           <p className="text-xs text-rose-600">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -284,7 +292,7 @@ function InvoiceEditModal({
               variant="primary"
               disabled={update.isPending}
             >
-              {update.isPending ? "Saving…" : "Save changes"}
+              {update.isPending ? t("common.saving") : t("common.save_changes")}
             </Button>
           </div>
         </div>
@@ -295,20 +303,20 @@ function InvoiceEditModal({
         onSubmit={onSubmit}
         className="grid gap-5 sm:grid-cols-2"
       >
-        <Field label="Description" wide>
+        <Field label={t("col.description")} wide>
           <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             autoFocus
-            placeholder="Progress invoice #3 — kitchen rough-in complete"
+            placeholder={t("invoice.ph.description")}
           />
         </Field>
-        <Field label="Client" hint="Optional">
+        <Field label={t("col.client")} hint={t("common.optional")}>
           <Select
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
           >
-            <option value="">— None</option>
+            <option value="">{t("invoice.opt.no_client")}</option>
             {clientsQ.data?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -316,14 +324,14 @@ function InvoiceEditModal({
             ))}
           </Select>
         </Field>
-        <Field label="Invoice number">
+        <Field label={t("invoice.field.number")}>
           <Input
             value={invoiceNumber}
             onChange={(e) => setInvoiceNumber(e.target.value)}
             placeholder="INV-2026-0001"
           />
         </Field>
-        <Field label="Amount" required wide>
+        <Field label={t("col.amount")} required wide>
           <MoneyInput
             amount={amount}
             currency={currency}
@@ -333,7 +341,7 @@ function InvoiceEditModal({
             required
           />
         </Field>
-        <Field label="Status">
+        <Field label={t("col.status")}>
           <Select
             value={status}
             onChange={(e) => setStatus(e.target.value as InvoiceStatus)}
@@ -347,35 +355,35 @@ function InvoiceEditModal({
             )}
           </Select>
         </Field>
-        <Field label="Issued">
+        <Field label={t("invoice.field.issued")}>
           <Input
             type="date"
             value={issuedAt as string}
             onChange={(e) => setIssuedAt(e.target.value)}
           />
         </Field>
-        <Field label="Sent">
+        <Field label={t("invoice.field.sent")}>
           <Input
             type="date"
             value={sentAt as string}
             onChange={(e) => setSentAt(e.target.value)}
           />
         </Field>
-        <Field label="Due">
+        <Field label={t("col.due")}>
           <Input
             type="date"
             value={dueAt as string}
             onChange={(e) => setDueAt(e.target.value)}
           />
         </Field>
-        <Field label="Paid">
+        <Field label={t("invoice.field.paid")}>
           <Input
             type="date"
             value={paidAt as string}
             onChange={(e) => setPaidAt(e.target.value)}
           />
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t("detail.notes")} wide>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
