@@ -155,6 +155,32 @@ export default function ProjectBillDetail() {
         </section>
       )}
 
+      {b.sourceBid && (
+        <section>
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+            Source
+          </h2>
+          <Link
+            to={`/projects/${project.id}/bids/${b.sourceBid.id}`}
+            className="mt-3 flex items-center justify-between gap-4 rounded-xl border border-ink-200/70 bg-white px-5 py-4 transition-colors hover:bg-paper-50"
+          >
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+                Accepted quote
+              </p>
+              <p className="mt-1 text-[15px] font-medium text-ink-900">
+                {b.sourceBid.trade ?? "Subcontractor quote"}
+                {b.sourceBid.bidNumber ? ` · #${b.sourceBid.bidNumber}` : ""}
+              </p>
+              <p className="mt-0.5 text-[13px] text-ink-600">
+                Created automatically when this quote was approved.
+              </p>
+            </div>
+            <Icon name="chevron-right" className="h-4 w-4 text-ink-400" />
+          </Link>
+        </section>
+      )}
+
       {b.notes && (
         <section>
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">

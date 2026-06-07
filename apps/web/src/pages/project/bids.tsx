@@ -5,6 +5,7 @@ import type { AppRouter } from "@beamy/trpc";
 import {
   BID_FLAG_LABELS,
   BID_STATUS_LABELS,
+  isBillOverdue,
   type BidStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
@@ -17,7 +18,8 @@ const STATUS_TONE: Record<
 > = {
   received: "info",
   comparing: "warn",
-  accepted: "success",
+  accepted: "info",
+  completed: "success",
   rejected: "alert",
   expired: "muted",
 };
@@ -26,48 +28,57 @@ type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type BidRow = inferRouterOutputs<AppRouter>["bids"]["list"][number];
 type VendorRow = inferRouterOutputs<AppRouter>["vendors"]["list"][number];
 
-const STATUS_PILL_CLS: Record<BidStatus, string> = {
-  received: "bg-sky-50 text-sky-800 ring-sky-200",
-  comparing: "bg-amber-50 text-amber-800 ring-amber-200",
-  accepted: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-  rejected: "bg-rose-50 text-rose-700 ring-rose-200",
-  expired: "bg-paper-100 text-slate-500 ring-paper-200",
-};
-
 const KNOWN_FLAGS: Array<{ slug: string; label: string }> = Object.entries(
   BID_FLAG_LABELS,
 ).map(([slug, label]) => ({ slug, label }));
 
-/** Compact control styling for the table's per-column header filters. */
-const colFilterCls =
-  "w-full rounded border border-ink-200 bg-white px-2 py-1 text-[12px] text-ink-700 focus:border-ink-400 focus:outline-none focus:ring-1 focus:ring-ink-400";
+/** The bill auto-created on approval, joined onto each quote row. */
+type BidBill = NonNullable<BidRow["bill"]>;
+
+function paymentLabel(bill: BidBill): string {
+  if (bill.status === "paid") return "Paid";
+  if (bill.status === "void") return "Void";
+  return isBillOverdue(bill.status, bill.dueAt) ? "Overdue" : "Unpaid";
+}
+
+function paymentTone(
+  bill: BidBill,
+): "success" | "muted" | "alert" | "warn" {
+  if (bill.status === "paid") return "success";
+  if (bill.status === "void") return "muted";
+  return isBillOverdue(bill.status, bill.dueAt) ? "alert" : "warn";
+}
 
 /**
  * Bids tab — inbound subcontractor quotes.
  *
- * Each row is one vendor PDF (or its data). v1 is read-write at the
- * header level (trade, dates, totals, flags) — the per-line item
- * breakdown lives on the Plan tab via `work_items.bid_id`. A later
- * PR will add an inline "Lines" expansion + an "Accept bid" verb
- * that auto-creates work_items from a bid's lines.
+ * Each row is one vendor PDF (or its data). Quotes are grouped into
+ * status sections (Open / Ongoing / Completed / Rejected & expired) so
+ * the whole picture is visible at a glance — nothing hidden behind a
+ * default filter. Header-level fields (trade, dates, totals, flags) are
+ * read-write here; the per-line breakdown lives on the Plan tab via
+ * `work_items.bid_id` and expands inline per row. Approving a quote —
+ * inline or from the detail page — promotes its line items into the
+ * Plan and drops a matching "money owed" bill into the Money tab; the
+ * Payment column tracks that bill's status.
  */
+const SECTIONS: { key: string; label: string; statuses: BidStatus[] }[] = [
+  { key: "open", label: "Open · in review", statuses: ["received", "comparing"] },
+  { key: "ongoing", label: "Ongoing", statuses: ["accepted"] },
+  { key: "completed", label: "Completed", statuses: ["completed"] },
+  { key: "closed", label: "Rejected & expired", statuses: ["rejected", "expired"] },
+];
+
 export default function ProjectBids() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<BidRow | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [statusFilter, setStatusFilter] = useState<BidStatus | "open" | "all">(
-    "open",
-  );
   const [tradeFilter, setTradeFilter] = useState<string>("");
   const [search, setSearch] = useState("");
-  const list = trpc.bids.list.useQuery({
-    projectId: project.id,
-    status:
-      statusFilter === "open" || statusFilter === "all"
-        ? undefined
-        : statusFilter,
-  });
+  // All quotes for the project — grouped into status sections below so
+  // nothing's hidden by default (Open / Accepted / Rejected & expired).
+  const list = trpc.bids.list.useQuery({ projectId: project.id });
   const vendors = trpc.vendors.list.useQuery({});
 
   // Detail page links here with ?edit=<bidId> to open the edit form.
@@ -91,11 +102,6 @@ export default function ProjectBids() {
 
   const filtered = useMemo(() => {
     let rows = list.data ?? [];
-    if (statusFilter === "open") {
-      rows = rows.filter(
-        (b) => b.status === "received" || b.status === "comparing",
-      );
-    }
     if (tradeFilter) rows = rows.filter((b) => b.trade === tradeFilter);
     const s = search.trim().toLowerCase();
     if (s) {
@@ -108,20 +114,18 @@ export default function ProjectBids() {
       });
     }
     return rows;
-  }, [list.data, statusFilter, tradeFilter, search]);
+  }, [list.data, tradeFilter, search]);
 
-  const hasActiveFilters =
-    !!search.trim() || !!tradeFilter || statusFilter !== "open";
+  const sections = useMemo(
+    () =>
+      SECTIONS.map((sec) => ({
+        ...sec,
+        rows: filtered.filter((b) => sec.statuses.includes(b.status)),
+      })),
+    [filtered],
+  );
 
-  const totalsByCurrency = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const b of filtered) {
-      if (b.totalAmount && b.currency) {
-        m.set(b.currency, (m.get(b.currency) ?? 0) + parseFloat(b.totalAmount));
-      }
-    }
-    return m;
-  }, [filtered]);
+  const hasActiveFilters = !!search.trim() || !!tradeFilter;
 
   return (
     <div>
@@ -163,112 +167,123 @@ export default function ProjectBids() {
       )}
 
       {!creating && !editing && (
-        <div className="mt-6 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
-          <table className="w-full text-[14px]">
-            <thead className="border-b border-ink-100 bg-paper-50">
-              <tr className="text-left">
-                <Th align="right" />
-                <Th>Vendor</Th>
-                <Th>Trade</Th>
-                <Th>Status</Th>
-                <Th align="right">Total</Th>
-                <Th>Bid date</Th>
-                <Th align="right" />
-              </tr>
-              <tr className="text-left">
-                <th className="px-5 pb-3" />
-                <th className="px-5 pb-3">
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search vendor, #, notes…"
-                    className={colFilterCls}
-                  />
-                </th>
-                <th className="px-5 pb-3">
-                  <select
-                    value={tradeFilter}
-                    onChange={(e) => setTradeFilter(e.target.value)}
-                    className={colFilterCls}
-                  >
-                    <option value="">All</option>
-                    {projectTrades.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </th>
-                <th className="px-5 pb-3">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) =>
-                      setStatusFilter(e.target.value as BidStatus | "open" | "all")
-                    }
-                    className={colFilterCls}
-                  >
-                    <option value="open">Open</option>
-                    <option value="all">All statuses</option>
-                    {(Object.keys(BID_STATUS_LABELS) as BidStatus[]).map((s) => (
-                      <option key={s} value={s}>
-                        {BID_STATUS_LABELS[s]}
-                      </option>
-                    ))}
-                  </select>
-                </th>
-                <th className="px-5 pb-3" />
-                <th className="px-5 pb-3" />
-                <th className="px-5 pb-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {list.isLoading ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-8 text-sm text-ink-500">
-                    Loading…
-                  </td>
-                </tr>
-              ) : list.error ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-8 text-sm text-rose-700">
-                    {list.error.message}
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
-                    <p className="font-display text-xl text-ink-900">
-                      {hasActiveFilters
-                        ? "No bids match these filters."
-                        : "No bids yet."}
-                    </p>
-                    {!hasActiveFilters && (
-                      <p className="mt-2 text-[13px] text-ink-500">
-                        Click <strong>New bid</strong> when a vendor sends a
-                        quote.
-                      </p>
-                    )}
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((b) => (
-                  <BidTableRow key={b.id} bid={b} projectId={project.id} />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+        <>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search vendor, #, notes…"
+              className="h-10 min-w-[220px] flex-1 rounded-md border border-ink-200 bg-white px-3.5 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
+            />
+            <select
+              value={tradeFilter}
+              onChange={(e) => setTradeFilter(e.target.value)}
+              className="h-10 rounded-md border border-ink-200 bg-white px-3 text-[14px] text-ink-700 focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
+            >
+              <option value="">All trades</option>
+              {projectTrades.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      {!creating && !editing && filtered.length > 0 && totalsByCurrency.size > 0 && (
-        <div className="mt-3 flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[10px] uppercase tracking-wider text-slate-500">
-          <span>filtered total ·</span>
-          {Array.from(totalsByCurrency.entries()).map(([cur, amt]) => (
-            <BidSubtotal key={cur} amount={amt.toFixed(2)} currency={cur} />
-          ))}
-        </div>
+          {list.isLoading ? (
+            <p className="mt-6 text-sm text-ink-500">Loading…</p>
+          ) : list.error ? (
+            <p className="mt-6 text-sm text-rose-700">{list.error.message}</p>
+          ) : filtered.length === 0 ? (
+            <div className="mt-6 overflow-hidden rounded-xl border border-ink-200/70 bg-white px-6 py-12 text-center shadow-soft">
+              <p className="font-display text-xl text-ink-900">
+                {hasActiveFilters
+                  ? "No quotes match these filters."
+                  : "No bids yet."}
+              </p>
+              {!hasActiveFilters && (
+                <p className="mt-2 text-[13px] text-ink-500">
+                  Click <strong>New bid</strong> when a vendor sends a quote.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="mt-6 space-y-8">
+              {sections.map((sec) =>
+                sec.rows.length > 0 ? (
+                  <BidSection
+                    key={sec.key}
+                    label={sec.label}
+                    bids={sec.rows}
+                    projectId={project.id}
+                  />
+                ) : null,
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+// ───────────────────────────────────── section ─────────────────
+
+function BidSection({
+  label,
+  bids,
+  projectId,
+}: {
+  label: string;
+  bids: BidRow[];
+  projectId: string;
+}) {
+  const subtotals = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const b of bids) {
+      if (b.totalAmount && b.currency) {
+        m.set(b.currency, (m.get(b.currency) ?? 0) + parseFloat(b.totalAmount));
+      }
+    }
+    return m;
+  }, [bids]);
+
+  return (
+    <section>
+      <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500">
+          {label}
+          <span className="ml-2 text-ink-400">{bids.length}</span>
+        </h3>
+        {subtotals.size > 0 && (
+          <span className="flex flex-wrap items-center gap-x-3 text-[11px]">
+            {Array.from(subtotals.entries()).map(([cur, amt]) => (
+              <BidSubtotal key={cur} amount={amt.toFixed(2)} currency={cur} />
+            ))}
+          </span>
+        )}
+      </div>
+      <div className="overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
+        <table className="w-full text-[14px]">
+          <thead className="border-b border-ink-100 bg-paper-50">
+            <tr className="text-left">
+              <Th align="right" />
+              <Th>Vendor</Th>
+              <Th>Trade</Th>
+              <Th>Status</Th>
+              <Th align="right">Total</Th>
+              <Th>Payment</Th>
+              <Th>Bid date</Th>
+              <Th align="right" />
+            </tr>
+          </thead>
+          <tbody>
+            {bids.map((b) => (
+              <BidTableRow key={b.id} bid={b} projectId={projectId} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -290,8 +305,23 @@ function BidTableRow({
     { enabled: expanded },
   );
 
+  const utils = trpc.useUtils();
+  const invalidate = () => {
+    utils.bids.list.invalidate({ projectId });
+    // Approving promotes the quote's line items into the Plan and books
+    // a payable in Money; both it and completing move the overview.
+    utils.workItems.list.invalidate({ projectId });
+    utils.bills.list.invalidate({ projectId });
+    utils.projects.overviewStats.invalidate({ projectId });
+    utils.projects.phaseAndCompleteness.invalidate({ projectId });
+  };
+  const decide = trpc.bids.decide.useMutation({ onSuccess: invalidate });
+  const complete = trpc.bids.update.useMutation({ onSuccess: invalidate });
+
   const today = new Date().toISOString().slice(0, 10);
   const validityExpired = bid.validUntil && bid.validUntil < today;
+  const canApprove = bid.status === "received" || bid.status === "comparing";
+  const canComplete = bid.status === "accepted";
 
   return (
     <>
@@ -332,9 +362,9 @@ function BidTableRow({
             <Pill tone={STATUS_TONE[bid.status]} dot>
               {BID_STATUS_LABELS[bid.status]}
             </Pill>
-            {validityExpired && bid.status !== "accepted" && (
-              <Pill tone="alert">Expired</Pill>
-            )}
+            {validityExpired &&
+              bid.status !== "accepted" &&
+              bid.status !== "completed" && <Pill tone="alert">Expired</Pill>}
           </div>
         </Td>
         <Td align="right" className="tnum text-ink-900 font-medium">
@@ -342,21 +372,62 @@ function BidTableRow({
             ? fmt.currency(bid.totalAmount, bid.currency)
             : "—"}
         </Td>
+        <Td>
+          {bid.bill ? (
+            <Link
+              to={`/projects/${projectId}/bills/${bid.bill.id}`}
+              className="transition-opacity hover:opacity-80"
+              title="Open the linked bill in Money"
+            >
+              <Pill tone={paymentTone(bid.bill)} dot>
+                {paymentLabel(bid.bill)}
+              </Pill>
+            </Link>
+          ) : (
+            <span className="text-ink-400">—</span>
+          )}
+        </Td>
         <Td className="tnum text-ink-600">
           {bid.bidDate ? fmt.date(bid.bidDate) : "—"}
         </Td>
         <Td align="right">
-          <Link
-            to={`/projects/${projectId}/bids/${bid.id}`}
-            className="text-[12px] text-ink-500 hover:text-ink-900"
-          >
-            Open →
-          </Link>
+          <div className="flex items-center justify-end gap-2">
+            {canApprove && (
+              <button
+                type="button"
+                onClick={() =>
+                  decide.mutate({ id: bid.id, decision: "accepted" })
+                }
+                disabled={decide.isPending}
+                className="rounded-md bg-emerald-600 px-2.5 py-1 text-[12px] font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {decide.isPending ? "Approving…" : "Approve"}
+              </button>
+            )}
+            {canComplete && (
+              <button
+                type="button"
+                onClick={() =>
+                  complete.mutate({ id: bid.id, patch: { status: "completed" } })
+                }
+                disabled={complete.isPending}
+                className="rounded-md border border-ink-300 bg-white px-2.5 py-1 text-[12px] font-medium text-ink-700 transition-colors hover:bg-ink-50 disabled:opacity-50"
+              >
+                {complete.isPending ? "Completing…" : "Complete"}
+              </button>
+            )}
+            <Link
+              to={`/projects/${projectId}/bids/${bid.id}`}
+              className="text-[12px] text-ink-500 hover:text-ink-900"
+            >
+              Open →
+            </Link>
+          </div>
         </Td>
       </tr>
       {expanded && (
         <tr className="border-b border-ink-100 bg-paper-50/60">
-          <td colSpan={7} className="px-5 pb-4 pt-1">
+          <td colSpan={8} className="px-5 pb-4 pt-1">
             <BidLineItems
               projectId={projectId}
               bidId={bid.id}

@@ -20,7 +20,8 @@ const STATUS_TONE: Record<
 > = {
   received: "info",
   comparing: "warn",
-  accepted: "success",
+  accepted: "info",
+  completed: "success",
   rejected: "alert",
   expired: "muted",
 };
@@ -44,8 +45,15 @@ export default function ProjectBidDetail() {
   const invalidateBid = () => {
     utils.bids.get.invalidate({ id: bidId ?? "" });
     utils.bids.list.invalidate({ projectId: project.id });
+    // Approving promotes line items into the Plan + books a payable;
+    // completing moves the committed rollup. Keep all of it fresh.
+    utils.workItems.list.invalidate({ projectId: project.id });
+    utils.bills.list.invalidate({ projectId: project.id });
+    utils.projects.overviewStats.invalidate({ projectId: project.id });
+    utils.projects.phaseAndCompleteness.invalidate({ projectId: project.id });
   };
   const decide = trpc.bids.decide.useMutation({ onSuccess: invalidateBid });
+  const complete = trpc.bids.update.useMutation({ onSuccess: invalidateBid });
   const saveAsVersion = trpc.bids.saveAsVersion.useMutation({
     onSuccess: (nb) => {
       utils.bids.list.invalidate({ projectId: project.id });
@@ -143,9 +151,11 @@ export default function ProjectBidDetail() {
               <Pill tone={STATUS_TONE[b.status]} dot>
                 {BID_STATUS_LABELS[b.status]}
               </Pill>
-              {validityExpired && b.status !== "accepted" && (
-                <Pill tone="alert">Validity expired</Pill>
-              )}
+              {validityExpired &&
+                b.status !== "accepted" &&
+                b.status !== "completed" && (
+                  <Pill tone="alert">Validity expired</Pill>
+                )}
             </div>
             <p className="mt-4 num text-5xl leading-none text-ink-900">
               {b.totalAmount && b.currency
@@ -163,7 +173,7 @@ export default function ProjectBidDetail() {
           </div>
           {!readOnly && (
             <div className="flex shrink-0 flex-wrap justify-end gap-2">
-              {b.status !== "accepted" && (
+              {b.status !== "accepted" && b.status !== "completed" && (
                 <Button
                   variant="primary"
                   onClick={() => decide.mutate({ id: b.id, decision: "accepted" })}
@@ -172,7 +182,18 @@ export default function ProjectBidDetail() {
                   Approve
                 </Button>
               )}
-              {b.status !== "rejected" && (
+              {b.status === "accepted" && (
+                <Button
+                  variant="primary"
+                  onClick={() =>
+                    complete.mutate({ id: b.id, patch: { status: "completed" } })
+                  }
+                  disabled={complete.isPending}
+                >
+                  {complete.isPending ? "Completing…" : "Mark complete"}
+                </Button>
+              )}
+              {b.status !== "rejected" && b.status !== "completed" && (
                 <Button
                   variant="secondary"
                   onClick={() => {
