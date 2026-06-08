@@ -98,7 +98,7 @@ export default function ProjectBidDetail() {
   const superseded = b.supersededBy;
   const readOnly = !!superseded;
   const lineRows = lines.data ?? [];
-  const colCount = readOnly ? 5 : 6;
+  const colCount = readOnly ? 6 : 7;
 
   return (
     <div className="animate-fade space-y-12">
@@ -327,6 +327,7 @@ export default function ProjectBidDetail() {
                 <tr className="text-left">
                   <Th>{t("bids.col.ref")}</Th>
                   <Th>{t("col.description")}</Th>
+                  <Th>{t("plan.col.rooms")}</Th>
                   <Th align="right">{t("bids.col.qty")}</Th>
                   <Th align="right">{t("bids.col.unit_price")}</Th>
                   <Th align="right">{t("bids.col.total")}</Th>
@@ -368,7 +369,7 @@ export default function ProjectBidDetail() {
                 <tfoot className="bg-paper-50">
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500"
                     >
                       {t("bids.sum_of_lines")}
@@ -482,6 +483,22 @@ function BidLineDisplayRow({
     <tr className="border-b border-ink-100 last:border-b-0">
       <Td className="font-mono text-[12px] text-ink-500">{li.ref ?? "—"}</Td>
       <Td className="text-ink-800">{li.description}</Td>
+      <Td className="text-ink-600">
+        {li.rooms.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {li.rooms.map((r) => (
+              <span
+                key={r.id}
+                className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px] text-ink-600"
+              >
+                {r.name}
+              </span>
+            ))}
+          </div>
+        ) : (
+          "—"
+        )}
+      </Td>
       <Td align="right" className="tnum text-ink-600">
         {li.qty ? `${trimZero(li.qty)}${li.unit ? ` ${li.unit}` : ""}` : "—"}
       </Td>
@@ -563,6 +580,15 @@ function BidLineForm({
     existing?.totalCurrency ?? existing?.unitPriceCurrency ?? defaultCurrency,
   );
   const [error, setError] = useState<string | null>(null);
+  const roomsQ = trpc.projects.listRooms.useQuery({ projectId });
+  const rooms = roomsQ.data ?? [];
+  const [roomIds, setRoomIds] = useState<string[]>(
+    existing?.rooms?.map((r) => r.id) ?? [],
+  );
+  const toggleRoom = (id: string) =>
+    setRoomIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
 
   const utils = trpc.useUtils();
   const onDone = () => {
@@ -616,6 +642,7 @@ function BidLineForm({
           unitPriceCurrency: up ? cur : null,
           totalAmount: tot || null,
           totalCurrency: tot ? cur : null,
+          roomIds,
         },
       });
     } else {
@@ -631,6 +658,7 @@ function BidLineForm({
         unitPriceCurrency: up ? cur : undefined,
         totalAmount: tot || undefined,
         totalCurrency: tot ? cur : undefined,
+        roomIds,
         status: "specified",
       });
     }
@@ -713,6 +741,35 @@ function BidLineForm({
             />
           </div>
         </label>
+        <div className="block text-sm sm:col-span-6">
+          <span className="text-ink-700">{t("work_item.field.rooms")}</span>
+          {rooms.length === 0 ? (
+            <p className="mt-1 text-xs text-ink-500">
+              {t("work_item.no_rooms_hint")}
+            </p>
+          ) : (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {rooms.map((r) => {
+                const on = roomIds.includes(r.id);
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => toggleRoom(r.id)}
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] uppercase tracking-wide ring-1 ring-inset transition-colors ${
+                      on
+                        ? "bg-blueprint-100 text-blueprint-900 ring-blueprint-300"
+                        : "bg-paper-50 text-slate-500 ring-paper-200 hover:bg-paper-100"
+                    }`}
+                  >
+                    {on ? "✓ " : ""}
+                    {r.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
       {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
       <div className="mt-3 flex justify-end gap-2">
