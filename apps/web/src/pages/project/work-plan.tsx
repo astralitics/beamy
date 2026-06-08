@@ -1639,32 +1639,13 @@ function ymd(year: number, month: number, day: number): string {
 }
 
 /**
- * Every YYYY-MM-DD from `from` to `to` inclusive, using local-date math
- * so there's no UTC / DST drift. Guarded against runaway ranges from
- * bad data.
- */
-function eachDateInclusive(from: string, to: string): string[] {
-  const [fy, fm, fd] = from.split("-").map(Number) as [number, number, number];
-  const [ty, tm, td] = to.split("-").map(Number) as [number, number, number];
-  const cur = new Date(fy, fm - 1, fd);
-  const end = new Date(ty, tm - 1, td);
-  const out: string[] = [];
-  let guard = 0;
-  while (cur <= end && guard < 1500) {
-    out.push(ymd(cur.getFullYear(), cur.getMonth(), cur.getDate()));
-    cur.setDate(cur.getDate() + 1);
-    guard += 1;
-  }
-  return out;
-}
-
-/**
- * Calendar — work items placed on a month grid across their full
- * planned window (every day from start to end), so a multi-day item
- * fills its whole span rather than only marking the endpoints. Items
- * with a single date land on that day; items with no planned dates
- * list in an "Unscheduled" panel below. Click a chip to open the
- * editor. Prev / Today / Next navigate months.
+ * Calendar — a month grid where each work item renders as a single
+ * continuous bar spanning its planned [start, end] window. Bars pack
+ * into lanes so overlapping items stack; a task that runs past the week
+ * boundary keeps a flat edge so it reads as continuous on the next row.
+ * Single-date items render as a one-day bar; items with no planned dates
+ * list in an "Unscheduled" panel below. Click a bar to open the editor.
+ * Prev / Today / Next navigate months.
  */
 function CalendarView({
   items,
@@ -1679,14 +1660,14 @@ function CalendarView({
 }) {
   const t = useT();
   const L = useLabels();
-  const { byDate, unscheduled, firstDate } = useMemo(() => {
-    const byDate = new Map<string, WorkItemRow[]>();
+  // Normalize each item to a [from, to] window (ordered; tolerant of a
+  // single-sided or reversed date). Items with no dates go to the
+  // "Unscheduled" panel. `dated` drives the spanning bars below.
+  const { dated, unscheduled, firstDate } = useMemo(() => {
+    const dated: { w: WorkItemRow; from: string; to: string }[] = [];
     const unscheduled: WorkItemRow[] = [];
     let firstDate: string | null = null;
     for (const w of items) {
-      // Fill every day across the item's [start, end] window so it reads
-      // as a span. One-sided items (only a start or only an end) land on
-      // that single day. Tolerate reversed dates by ordering the bounds.
       const a = w.plannedStart;
       const b = w.plannedEnd;
       if (!a && !b) {
@@ -1695,14 +1676,10 @@ function CalendarView({
       }
       const from = a && b ? (a <= b ? a : b) : (a ?? b!);
       const to = a && b ? (a <= b ? b : a) : (a ?? b!);
-      for (const d of eachDateInclusive(from, to)) {
-        const arr = byDate.get(d) ?? [];
-        arr.push(w);
-        byDate.set(d, arr);
-      }
+      dated.push({ w, from, to });
       if (!firstDate || from < firstDate) firstDate = from;
     }
-    return { byDate, unscheduled, firstDate };
+    return { dated, unscheduled, firstDate };
   }, [items]);
 
   // Cursor month — initialised to the earliest scheduled item's month,
@@ -1730,6 +1707,72 @@ function CalendarView({
       };
     });
   }, [cursor]);
+
+  // Split the 42 cells into 6 weeks and lay out each item's visible span
+  // as one continuous bar, packed into lanes so overlapping items stack.
+  // Only the true start/end gets a rounded cap, so a task that runs into
+  // the next week reads as continuous. Bars past MAX_LANES collapse into
+  // a per-day "+N" hint.
+  const MAX_LANES = 3;
+  const weeks = useMemo(() => {
+    type Seg = {
+      w: WorkItemRow;
+      startCol: number;
+      endCol: number;
+      span: number;
+      roundedLeft: boolean;
+      roundedRight: boolean;
+      lane: number;
+    };
+    return Array.from({ length: 6 }, (_, wk) => {
+      const weekCells = cells.slice(wk * 7, wk * 7 + 7);
+      const c0 = weekCells[0]!.date;
+      const c6 = weekCells[6]!.date;
+      const segs: Seg[] = [];
+      for (const it of dated) {
+        if (it.to < c0 || it.from > c6) continue;
+        let startCol = -1;
+        let endCol = -1;
+        for (let i = 0; i < weekCells.length; i++) {
+          const d = weekCells[i]!.date;
+          if (d >= it.from && d <= it.to) {
+            if (startCol === -1) startCol = i;
+            endCol = i;
+          }
+        }
+        if (startCol === -1) continue;
+        segs.push({
+          w: it.w,
+          startCol,
+          endCol,
+          span: endCol - startCol + 1,
+          roundedLeft: weekCells[startCol]!.date === it.from,
+          roundedRight: weekCells[endCol]!.date === it.to,
+          lane: 0,
+        });
+      }
+      // Greedy lane packing: earliest-starting (then longest) first.
+      segs.sort((a, b) => a.startCol - b.startCol || b.span - a.span);
+      const laneEnds: number[] = [];
+      for (const s of segs) {
+        let lane = 0;
+        while (lane < laneEnds.length && laneEnds[lane]! >= s.startCol) lane++;
+        if (lane === laneEnds.length) laneEnds.push(s.endCol);
+        else laneEnds[lane] = s.endCol;
+        s.lane = lane;
+      }
+      const hiddenByCol = Array<number>(7).fill(0);
+      for (const s of segs)
+        if (s.lane >= MAX_LANES)
+          for (let c = s.startCol; c <= s.endCol; c++)
+            hiddenByCol[c] = (hiddenByCol[c] ?? 0) + 1;
+      return {
+        weekCells,
+        segs: segs.filter((s) => s.lane < MAX_LANES),
+        hiddenByCol,
+      };
+    });
+  }, [cells, dated]);
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const monthLabel = new Date(cursor.year, cursor.month, 1).toLocaleDateString(
@@ -1806,52 +1849,71 @@ function CalendarView({
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-7">
-          {cells.map((cell) => {
-            const dayItems = byDate.get(cell.date) ?? [];
-            const isToday = cell.date === todayStr;
-            return (
-              <div
-                key={cell.date}
-                className={`min-h-[96px] border-b border-r border-paper-100 p-1 ${
-                  cell.inMonth ? "bg-white" : "bg-paper-50/40"
-                }`}
-              >
-                <div className="mb-1 flex justify-end">
-                  <span
-                    className={`inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[11px] ${
-                      isToday
-                        ? "bg-safety-700 font-semibold text-white"
-                        : cell.inMonth
-                          ? "text-slate-600"
-                          : "text-slate-300"
+        <div>
+          {weeks.map((week, wk) => (
+            <div key={wk} className="relative">
+              {/* Day cells: grid chrome + date badges + overflow hint. */}
+              <div className="grid grid-cols-7">
+                {week.weekCells.map((cell, ci) => {
+                  const isToday = cell.date === todayStr;
+                  const hidden = week.hiddenByCol[ci] ?? 0;
+                  return (
+                    <div
+                      key={cell.date}
+                      className={`relative min-h-[104px] border-b border-r border-paper-100 p-1 ${
+                        cell.inMonth ? "bg-white" : "bg-paper-50/40"
+                      }`}
+                    >
+                      <div className="flex justify-end">
+                        <span
+                          className={`inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[11px] ${
+                            isToday
+                              ? "bg-safety-700 font-semibold text-white"
+                              : cell.inMonth
+                                ? "text-slate-600"
+                                : "text-slate-300"
+                          }`}
+                        >
+                          {cell.day}
+                        </span>
+                      </div>
+                      {hidden > 0 && (
+                        <div className="absolute bottom-1 left-1.5 text-[9px] text-slate-400">
+                          {t("plan.more_count", { count: hidden })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Continuous spanning bars layered over the day cells. */}
+              <div className="pointer-events-none absolute inset-x-0 top-[28px]">
+                {week.segs.map((s) => (
+                  <button
+                    key={`${s.w.id}-${wk}`}
+                    type="button"
+                    onClick={() => onEdit(s.w)}
+                    title={`${s.w.ref ? `${s.w.ref} · ` : ""}${s.w.description}`}
+                    style={{
+                      left: `${(s.startCol / 7) * 100}%`,
+                      width: `${(s.span / 7) * 100}%`,
+                      top: `${s.lane * 20}px`,
+                    }}
+                    className={`pointer-events-auto absolute flex h-[18px] items-center overflow-hidden whitespace-nowrap px-1.5 text-left text-[10px] ring-1 ring-inset ${
+                      s.roundedLeft ? "rounded-l" : ""
+                    } ${s.roundedRight ? "rounded-r" : ""} ${
+                      colorForItem
+                        ? colorForItem(s.w).chip
+                        : STATUS_PILL_CLS[s.w.status]
                     }`}
                   >
-                    {cell.day}
-                  </span>
-                </div>
-                <div className="space-y-0.5">
-                  {dayItems.slice(0, 3).map((w) => (
-                    <button
-                      key={w.id}
-                      type="button"
-                      onClick={() => onEdit(w)}
-                      title={`${w.ref ? `${w.ref} · ` : ""}${w.description}`}
-                      className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] ring-1 ring-inset ${colorForItem ? colorForItem(w).chip : STATUS_PILL_CLS[w.status]}`}
-                    >
-                      {w.ref ? `${w.ref} · ` : ""}
-                      {w.description}
-                    </button>
-                  ))}
-                  {dayItems.length > 3 && (
-                    <div className="px-1 text-[9px] text-slate-400">
-                      {t("plan.more_count", { count: dayItems.length - 3 })}
-                    </div>
-                  )}
-                </div>
+                    {s.w.ref ? `${s.w.ref} · ` : ""}
+                    {s.w.description}
+                  </button>
+                ))}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
 
