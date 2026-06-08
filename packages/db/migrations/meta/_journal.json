@@ -162,6 +162,20 @@
       "when": 1780854141535,
       "tag": "0022_flashy_iron_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1780873232748,
+      "tag": "0023_dizzy_lila_cheney",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1780873470067,
+      "tag": "0024_amazing_dakota_north",
+      "breakpoints": true
     }
   ]
 }

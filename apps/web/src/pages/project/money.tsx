@@ -27,6 +27,7 @@ import {
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type BillRow = inferRouterOutputs<AppRouter>["bills"]["list"][number];
 type InvoiceRow = inferRouterOutputs<AppRouter>["invoices"]["list"][number];
+type ProposalRow = inferRouterOutputs<AppRouter>["proposals"]["list"][number];
 
 type Tab = "bills" | "invoices";
 
@@ -54,6 +55,17 @@ const INVOICE_TONE: Record<
  */
 export default function ProjectMoney() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
+  const [searchParams] = useSearchParams();
+  // The sidebar splits Money into two phases. The proposal phase shows
+  // receivables from accepted proposals; everything else is the live
+  // bills/invoices ledger.
+  if (searchParams.get("phase") === "proposal") {
+    return <ProposalMoney project={project} />;
+  }
+  return <ExecutionMoney project={project} />;
+}
+
+function ExecutionMoney({ project }: { project: ProjectDetail }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = (searchParams.get("tab") ?? "bills") as Tab;
   const [tab, setTab] = useState<Tab>(
@@ -113,6 +125,189 @@ export default function ProjectMoney() {
           error={invoices.error?.message}
         />
       )}
+    </div>
+  );
+}
+
+// ────────────────────── proposal phase (receivables) ──────────────────────
+
+/**
+ * Money · proposal phase — receivables born from accepted proposals.
+ * Each accepted proposal auto-creates a draft invoice (the AR) linked
+ * by `proposalId`; we join them here so the firm sees, per proposal,
+ * the accepted value and where its receivable stands.
+ */
+function ProposalMoney({ project }: { project: ProjectDetail }) {
+  const fmt = useFormatters();
+  const L = useLabels();
+  const t = useT();
+  const proposalsQ = trpc.proposals.list.useQuery({
+    projectId: project.id,
+    status: "accepted",
+  });
+  const invoicesQ = trpc.invoices.list.useQuery({ projectId: project.id });
+
+  const proposals = useMemo(() => proposalsQ.data ?? [], [proposalsQ.data]);
+  const arByProposal = useMemo(() => {
+    const m = new Map<string, InvoiceRow>();
+    for (const inv of invoicesQ.data ?? []) {
+      if (inv.proposalId) m.set(inv.proposalId, inv);
+    }
+    return m;
+  }, [invoicesQ.data]);
+
+  const summary = useMemo(() => {
+    const accepted = new Map<string, number>();
+    const outstanding = new Map<string, number>();
+    const collected = new Map<string, number>();
+    for (const p of proposals) {
+      if (p.totalAmount && p.totalCurrency) {
+        accepted.set(
+          p.totalCurrency,
+          (accepted.get(p.totalCurrency) ?? 0) + parseFloat(p.totalAmount),
+        );
+      }
+      const ar = arByProposal.get(p.id);
+      if (ar) {
+        const amt = parseFloat(ar.amount);
+        if (!isFinite(amt)) continue;
+        if (ar.status === "paid") {
+          collected.set(ar.currency, (collected.get(ar.currency) ?? 0) + amt);
+        } else if (ar.status !== "void") {
+          outstanding.set(
+            ar.currency,
+            (outstanding.get(ar.currency) ?? 0) + amt,
+          );
+        }
+      }
+    }
+    return {
+      accepted: [...accepted.entries()],
+      outstanding: [...outstanding.entries()],
+      collected: [...collected.entries()],
+    };
+  }, [proposals, arByProposal]);
+
+  function fmtCcyList(entries: Array<[string, number]>) {
+    if (entries.length === 0) return "—";
+    return entries.map(([c, a]) => fmt.currency(a.toFixed(2), c)).join(" · ");
+  }
+
+  return (
+    <div className="space-y-10 animate-fade">
+      <div className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-3">
+        <SummaryTile
+          label={t("money.proposal.tile_accepted")}
+          value={fmtCcyList(summary.accepted)}
+          meta={t("money.summary.total")}
+        />
+        <SummaryTile
+          label={t("money.proposal.tile_outstanding")}
+          value={fmtCcyList(summary.outstanding)}
+          meta={t("money.summary.total")}
+        />
+        <SummaryTile
+          label={t("money.proposal.tile_collected")}
+          value={fmtCcyList(summary.collected)}
+          meta={t("money.summary.total")}
+        />
+      </div>
+
+      <section>
+        <div>
+          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
+            {t("money.proposal.title")}
+          </h2>
+          <p className="mt-1 text-sm text-ink-500">
+            {t("money.proposal.lede")}
+          </p>
+        </div>
+
+        <div className="mt-6 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
+          {proposalsQ.isLoading ? (
+            <p className="px-6 py-8 text-sm text-ink-500">
+              {t("common.loading")}
+            </p>
+          ) : proposalsQ.error ? (
+            <p className="px-6 py-8 text-sm text-rose-700">
+              {proposalsQ.error.message}
+            </p>
+          ) : proposals.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <p className="font-display text-xl text-ink-900">
+                {t("money.proposal.empty")}
+              </p>
+            </div>
+          ) : (
+            <table className="w-full text-[14px]">
+              <thead className="border-b border-ink-100 bg-paper-50">
+                <tr className="text-left">
+                  <Th>{t("money.proposal.col.proposal")}</Th>
+                  <Th align="right">{t("col.amount")}</Th>
+                  <Th>{t("money.proposal.col.receivable")}</Th>
+                  <Th>{t("money.proposal.col.accepted")}</Th>
+                  <Th />
+                </tr>
+              </thead>
+              <tbody>
+                {proposals.map((p) => {
+                  const ar = arByProposal.get(p.id);
+                  return (
+                    <tr
+                      key={p.id}
+                      className="group border-b border-ink-100 transition-colors last:border-b-0 hover:bg-paper-50"
+                    >
+                      <Td>
+                        <Link
+                          to={`/projects/${project.id}/proposals/${p.id}`}
+                          className="block"
+                        >
+                          <span className="font-medium text-ink-900">
+                            {p.title}
+                          </span>
+                          <span className="block font-mono text-xs text-ink-500">
+                            {p.number}
+                          </span>
+                        </Link>
+                      </Td>
+                      <Td align="right" className="tnum font-medium text-ink-900">
+                        {p.totalAmount && p.totalCurrency
+                          ? fmt.currency(p.totalAmount, p.totalCurrency)
+                          : "—"}
+                      </Td>
+                      <Td>
+                        {ar ? (
+                          <Pill tone={INVOICE_TONE[ar.status]} dot>
+                            {L.invoiceStatus(ar.status)}
+                          </Pill>
+                        ) : (
+                          <span className="text-ink-400">
+                            {t("money.proposal.ar_none")}
+                          </span>
+                        )}
+                      </Td>
+                      <Td className="tnum text-ink-600">
+                        {p.decidedAt ? fmt.date(p.decidedAt) : "—"}
+                      </Td>
+                      <Td align="right">
+                        {ar && (
+                          <Link
+                            to={`/projects/${project.id}/invoices/${ar.id}`}
+                            aria-label={t("invoice.open")}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
+                          >
+                            <Icon name="chevron-right" className="h-4 w-4" />
+                          </Link>
+                        )}
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

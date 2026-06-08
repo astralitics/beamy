@@ -1,0 +1,1 @@
+ALTER TABLE "proposal_lines" ADD COLUMN "ref" text;

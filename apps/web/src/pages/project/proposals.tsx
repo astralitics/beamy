@@ -3,6 +3,7 @@ import { Link, useOutletContext } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
+  type ProposalGroupBy,
   type ProposalStatus,
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
@@ -159,6 +160,10 @@ function GenerateForm({
   const [introText, setIntroText] = useState("");
   const [currency, setCurrency] = useState(defaultCurrency);
   const [expiresAt, setExpiresAt] = useState("");
+  const [groupBy, setGroupBy] = useState<ProposalGroupBy>("work_type");
+  const [overallMarkup, setOverallMarkup] = useState("");
+  const [discountValue, setDiscountValue] = useState("");
+  const [discountUnit, setDiscountUnit] = useState<"pct" | "amount">("pct");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
@@ -177,6 +182,7 @@ function GenerateForm({
   );
   const allSelected =
     allEligible.length > 0 && allEligible.every((w) => selected.has(w.id));
+  const someSelected = selected.size > 0 && !allSelected;
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -191,21 +197,34 @@ function GenerateForm({
     else setSelected(new Set(allEligible.map((w) => w.id)));
   }
 
-  // Preview total uses each work item's own clientMarkupPct (the Plan
-  // is now the only place markup is set). Items with no markup default
-  // to 0% — i.e. internal cost only.
-  const previewTotal = useMemo(() => {
-    let total = 0;
+  // Live preview mirrors the server math: each line resolves its own
+  // price (per-item override → per-item Plan markup), summed into a
+  // subtotal, then the proposal-level markup and discount apply on top.
+  const preview = useMemo(() => {
+    let subtotal = 0;
     for (const w of allEligible) {
       if (!selected.has(w.id)) continue;
       const qty = w.qty ? parseFloat(w.qty) : null;
       const unit = w.unitPriceAmount ? parseFloat(w.unitPriceAmount) : null;
-      if (qty == null || unit == null) continue;
+      if (qty == null) continue;
       const m = w.clientMarkupPct ? parseFloat(w.clientMarkupPct) : 0;
-      total += qty * unit * (1 + m / 100);
+      const clientUnit =
+        w.clientUnitPrice != null
+          ? parseFloat(w.clientUnitPrice)
+          : unit != null
+            ? unit * (1 + m / 100)
+            : null;
+      if (clientUnit == null) continue;
+      subtotal += qty * clientUnit;
     }
-    return total;
-  }, [allEligible, selected]);
+    const markupPct = parseFloat(overallMarkup) || 0;
+    const markupAmount = subtotal * (markupPct / 100);
+    const afterMarkup = subtotal + markupAmount;
+    const dv = parseFloat(discountValue) || 0;
+    const discount = discountUnit === "amount" ? dv : afterMarkup * (dv / 100);
+    const total = afterMarkup - discount;
+    return { subtotal, markupPct, markupAmount, discount, total };
+  }, [allEligible, selected, overallMarkup, discountValue, discountUnit]);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -222,6 +241,8 @@ function GenerateForm({
       setError(t("proposals.err_currency_code"));
       return;
     }
+    const markupPct = parseFloat(overallMarkup) || 0;
+    const dv = parseFloat(discountValue) || 0;
     generate.mutate({
       projectId,
       workItemIds: Array.from(selected),
@@ -229,8 +250,14 @@ function GenerateForm({
       introText: introText.trim() || undefined,
       currency: currency.trim().toUpperCase(),
       expiresAt: expiresAt || undefined,
+      groupBy,
+      overallMarkupPct: markupPct > 0 ? markupPct : undefined,
+      discountPct: discountUnit === "pct" && dv > 0 ? dv : undefined,
+      discountAmount: discountUnit === "amount" && dv > 0 ? dv : undefined,
     });
   }
+
+  const cur = currency || defaultCurrency;
 
   return (
     <form
@@ -268,6 +295,55 @@ function GenerateForm({
             className={inputCls}
           />
         </Field>
+        <Field label={t("proposals.field_group_by")}>
+          <select
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value as ProposalGroupBy)}
+            className={inputCls}
+          >
+            <option value="work_type">{t("proposals.group.work_type")}</option>
+            <option value="vendor">{t("proposals.group.vendor")}</option>
+            <option value="room">{t("proposals.group.room")}</option>
+            <option value="none">{t("proposals.group.none")}</option>
+          </select>
+        </Field>
+        <Field label={t("proposals.field_markup")}>
+          <input
+            type="number"
+            min="0"
+            step="0.5"
+            inputMode="decimal"
+            value={overallMarkup}
+            onChange={(e) => setOverallMarkup(e.target.value)}
+            className={inputCls}
+            placeholder="0"
+          />
+        </Field>
+        <Field label={t("proposals.field_discount")}>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              inputMode="decimal"
+              value={discountValue}
+              onChange={(e) => setDiscountValue(e.target.value)}
+              className={inputCls}
+              placeholder="0"
+            />
+            <select
+              value={discountUnit}
+              onChange={(e) =>
+                setDiscountUnit(e.target.value as "pct" | "amount")
+              }
+              className={`${inputCls} w-24 px-2`}
+              aria-label={t("proposals.field_discount")}
+            >
+              <option value="pct">%</option>
+              <option value="amount">{currency || defaultCurrency}</option>
+            </select>
+          </div>
+        </Field>
         <Field label={t("proposals.field_intro")} wide>
           <textarea
             rows={3}
@@ -279,18 +355,31 @@ function GenerateForm({
         </Field>
       </div>
 
-      <div className="mt-4 rounded-md border border-paper-200">
+      <p className="mt-4 text-[10px] uppercase tracking-[0.12em] text-slate-500">
+        {t("proposals.picker_header")}
+      </p>
+      <div className="mt-1 rounded-md border border-paper-200">
         <div className="flex items-center justify-between border-b border-paper-200 px-3 py-2">
-          <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-            {t("proposals.picker_header")}
-          </p>
-          <button
-            type="button"
-            onClick={toggleAll}
-            className="text-xs text-slate-500 hover:text-slate-900"
-          >
-            {allSelected ? t("proposals.deselect_all") : t("proposals.select_all")}
-          </button>
+          <label className="flex cursor-pointer select-none items-center gap-2">
+            <input
+              type="checkbox"
+              ref={(el) => {
+                if (el) el.indeterminate = someSelected;
+              }}
+              checked={allSelected}
+              onChange={toggleAll}
+              disabled={allEligible.length === 0}
+              className="h-4 w-4 accent-ink-900"
+            />
+            <span className="text-xs font-medium text-slate-700">
+              {t("proposals.select_all")}
+            </span>
+          </label>
+          {selected.size > 0 && (
+            <span className="text-[10px] uppercase tracking-wider text-safety-700">
+              {t("proposals.selected_count", { count: selected.size })}
+            </span>
+          )}
         </div>
         <div className="max-h-72 overflow-y-auto divide-y divide-paper-200">
           {items.isLoading ? (
@@ -313,18 +402,28 @@ function GenerateForm({
       </div>
 
       {selected.size > 0 && (
-        <div className="mt-3 flex items-center justify-end gap-4 text-[11px] uppercase tracking-wider text-slate-500">
-          <span>
-            {t(
-              selected.size === 1
-                ? "proposals.markup_count_one"
-                : "proposals.markup_count_other",
-              { count: selected.size },
-            )}
-          </span>
-          <span className="text-base text-blueprint-900">
-            {fmt.currency(previewTotal.toFixed(2), currency || defaultCurrency)}
-          </span>
+        <div className="mt-3 ml-auto w-full max-w-xs space-y-1">
+          <SumRow
+            label={t("proposals.sum_subtotal")}
+            value={fmt.currency(preview.subtotal.toFixed(2), cur)}
+          />
+          {preview.markupPct > 0 && (
+            <SumRow
+              label={t("proposals.sum_markup", { pct: preview.markupPct })}
+              value={fmt.currency(preview.markupAmount.toFixed(2), cur)}
+            />
+          )}
+          {preview.discount > 0 && (
+            <SumRow
+              label={t("proposals.sum_discount")}
+              value={`−${fmt.currency(preview.discount.toFixed(2), cur)}`}
+            />
+          )}
+          <SumRow
+            label={t("proposals.sum_total")}
+            value={fmt.currency(preview.total.toFixed(2), cur)}
+            strong
+          />
         </div>
       )}
 
@@ -437,5 +536,32 @@ function Field({
       <span className="text-slate-700">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
+  );
+}
+
+function SumRow({
+  label,
+  value,
+  strong,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-baseline justify-between ${
+        strong
+          ? "border-t border-paper-200 pt-1.5 text-blueprint-900"
+          : "text-slate-500"
+      }`}
+    >
+      <span className="text-[11px] uppercase tracking-wider">{label}</span>
+      <span
+        className={`font-mono ${strong ? "text-base font-semibold" : "text-xs"}`}
+      >
+        {value}
+      </span>
+    </div>
   );
 }

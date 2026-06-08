@@ -6,11 +6,13 @@ import {
   clients,
   documents,
   getDb,
+  invoices,
   orgs,
   projects,
   proposalLines,
   proposals,
   rooms,
+  vendors,
   workItemRooms,
   workItems,
 } from "@beamy/db";
@@ -25,6 +27,7 @@ import {
 import { orgScopedProcedure, router } from "../init";
 import {
   renderProposalHtml,
+  type ProposalRenderInput,
   type ProposalRenderLine,
 } from "../lib/proposal-html";
 
@@ -88,6 +91,125 @@ export const proposalsRouter = router({
         .orderBy(asc(proposalLines.displayOrder), asc(proposalLines.id));
 
       return { ...proposal, lines };
+    }),
+
+  /**
+   * Re-render the client-facing HTML from the snapshot (proposal +
+   * lines + project/client/org names). Pure DB read — no object-storage
+   * fetch — so the in-app preview always renders regardless of how
+   * storage serves the stored artifact (Supabase forces a download on
+   * text/html). Powers the detail-page iframe + the .html download.
+   */
+  getHtml: orgScopedProcedure
+    .input(proposalIdInputSchema)
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const rows = await db
+        .select({
+          proposal: proposals,
+          project: projects,
+          client: clients,
+          org: orgs,
+        })
+        .from(proposals)
+        .leftJoin(projects, eq(proposals.projectId, projects.id))
+        .leftJoin(clients, eq(projects.clientId, clients.id))
+        .leftJoin(orgs, eq(proposals.orgId, orgs.id))
+        .where(
+          and(eq(proposals.id, input.id), eq(proposals.orgId, ctx.orgId)),
+        )
+        .limit(1);
+      const row = rows[0];
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      const { proposal, project, client, org } = row;
+
+      const lines = await db
+        .select()
+        .from(proposalLines)
+        .where(eq(proposalLines.proposalId, proposal.id))
+        .orderBy(asc(proposalLines.displayOrder), asc(proposalLines.id));
+
+      const currency = proposal.totalCurrency ?? "USD";
+      const renderLines: ProposalRenderLine[] = lines.map((l) => ({
+        ref: l.ref,
+        description: l.displayDescription,
+        qty: l.displayQty != null ? trimQty(parseFloat(l.displayQty)) : null,
+        unit: l.displayUnit,
+        unitPrice:
+          l.displayUnitPrice != null
+            ? fmtMoney(parseFloat(l.displayUnitPrice), l.currency)
+            : null,
+        total:
+          l.displayTotal != null
+            ? fmtMoney(parseFloat(l.displayTotal), l.currency)
+            : null,
+        totalNum: l.displayTotal != null ? parseFloat(l.displayTotal) : null,
+        rooms: l.roomNames ?? [],
+        vendorName: l.vendorName,
+        trade: l.trade,
+      }));
+
+      // Reconstruct the totals block. Legacy proposals (generated before
+      // the adjustment columns existed) fall back to the stored total.
+      const subtotal =
+        proposal.subtotalAmount != null
+          ? parseFloat(proposal.subtotalAmount)
+          : proposal.totalAmount != null
+            ? parseFloat(proposal.totalAmount)
+            : 0;
+      const overallMarkupPct =
+        proposal.overallMarkupPct != null
+          ? parseFloat(proposal.overallMarkupPct)
+          : 0;
+      const markupAmount = subtotal * (overallMarkupPct / 100);
+      const afterMarkup = subtotal + markupAmount;
+      const discountAmount =
+        proposal.discountAmount != null
+          ? parseFloat(proposal.discountAmount)
+          : proposal.discountPct != null
+            ? afterMarkup * (parseFloat(proposal.discountPct) / 100)
+            : 0;
+      const total =
+        proposal.totalAmount != null
+          ? parseFloat(proposal.totalAmount)
+          : afterMarkup - discountAmount;
+
+      const html = renderProposalHtml({
+        number: proposal.number,
+        projectName: project?.name ?? "",
+        projectAddress: project?.address ?? null,
+        clientName: client?.name ?? null,
+        title: proposal.title,
+        introText: proposal.introText,
+        expiresAt: proposal.expiresAt,
+        currency,
+        issuedOn: proposal.createdAt.toISOString().slice(0, 10),
+        lines: renderLines,
+        groupBy:
+          (proposal.groupBy as ProposalRenderInput["groupBy"] | null) ??
+          "work_type",
+        subtotalFormatted: fmtMoney(subtotal, currency),
+        markup:
+          overallMarkupPct > 0
+            ? {
+                label: `Markup (${overallMarkupPct}%)`,
+                amountFormatted: fmtMoney(markupAmount, currency),
+              }
+            : undefined,
+        discount:
+          discountAmount > 0
+            ? {
+                label:
+                  proposal.discountPct != null
+                    ? `Discount (${parseFloat(proposal.discountPct)}%)`
+                    : "Discount",
+                amountFormatted: `−${fmtMoney(discountAmount, currency)}`,
+              }
+            : undefined,
+        totalFormatted: fmtMoney(total, currency),
+        orgName: org?.name ?? "the firm",
+      });
+      return { html };
     }),
 
   /**
@@ -181,6 +303,28 @@ export const proposalsRouter = router({
         roomsByItem.set(link.workItemId, arr);
       }
 
+      // Vendor names for grouping + snapshot onto the lines.
+      const vendorIds = [
+        ...new Set(
+          items
+            .map((w) => w.vendorId)
+            .filter((v): v is string => v != null),
+        ),
+      ];
+      const vendorRows =
+        vendorIds.length > 0
+          ? await db
+              .select({ id: vendors.id, name: vendors.name })
+              .from(vendors)
+              .where(
+                and(
+                  inArray(vendors.id, vendorIds),
+                  eq(vendors.orgId, ctx.orgId),
+                ),
+              )
+          : [];
+      const vendorsById = new Map(vendorRows.map((v) => [v.id, v.name]));
+
       // 3. Compute per-line client totals from markup or per-item
       // override. Snapshot into proposal_lines.
       const orderedItems = input.workItemIds
@@ -219,12 +363,16 @@ export const proposalsRouter = router({
           qty != null && clientUnit != null ? qty * clientUnit : null;
         if (clientTotal != null) runningTotal += clientTotal;
 
-        const sectionLabel =
-          w.trade && input.sectionLabelsByTrade?.[w.trade]
-            ? input.sectionLabelsByTrade[w.trade]!
-            : w.trade
-              ? cap(w.trade)
-              : null;
+        const itemRooms = roomsByItem.get(w.id) ?? [];
+        const vendorName = w.vendorId
+          ? (vendorsById.get(w.vendorId) ?? null)
+          : null;
+        const sectionLabel = sectionLabelFor(input.groupBy, {
+          trade: w.trade,
+          vendorName,
+          rooms: itemRooms,
+          sectionLabelsByTrade: input.sectionLabelsByTrade,
+        });
 
         lineRows.push({
           proposalId: "", // patched after we have the proposal id
@@ -238,10 +386,13 @@ export const proposalsRouter = router({
           displayTotal: clientTotal != null ? clientTotal.toFixed(2) : null,
           currency: input.currency,
           markupPctApplied: itemMarkup.toFixed(2),
+          ref: w.ref,
+          roomNames: itemRooms,
+          vendorName,
+          trade: w.trade,
         });
 
         renderLines.push({
-          sectionLabel,
           ref: w.ref,
           description: w.description,
           qty: qty != null ? trimQty(qty) : null,
@@ -250,9 +401,26 @@ export const proposalsRouter = router({
             clientUnit != null ? fmtMoney(clientUnit, input.currency) : null,
           total:
             clientTotal != null ? fmtMoney(clientTotal, input.currency) : null,
-          rooms: roomsByItem.get(w.id) ?? [],
+          totalNum: clientTotal,
+          rooms: itemRooms,
+          vendorName,
+          trade: w.trade,
         });
       }
+
+      // Proposal-level adjustments: markup on the subtotal, then a
+      // discount (percent of the marked-up subtotal, or a flat amount).
+      const subtotal = runningTotal;
+      const overallMarkupPct = input.overallMarkupPct ?? 0;
+      const markupAmount = subtotal * (overallMarkupPct / 100);
+      const afterMarkup = subtotal + markupAmount;
+      const discountAmount =
+        input.discountAmount != null
+          ? input.discountAmount
+          : input.discountPct != null
+            ? afterMarkup * (input.discountPct / 100)
+            : 0;
+      const finalTotal = afterMarkup - discountAmount;
 
       // 4. Mint the next public number (PROP-YYYY-NNNN). Per-org-per-
       // year, sequential. Naive on concurrency; for v1's user volume
@@ -284,7 +452,26 @@ export const proposalsRouter = router({
         currency: input.currency,
         issuedOn,
         lines: renderLines,
-        totalFormatted: fmtMoney(runningTotal, input.currency),
+        groupBy: input.groupBy,
+        subtotalFormatted: fmtMoney(subtotal, input.currency),
+        markup:
+          overallMarkupPct > 0
+            ? {
+                label: `Markup (${overallMarkupPct}%)`,
+                amountFormatted: fmtMoney(markupAmount, input.currency),
+              }
+            : undefined,
+        discount:
+          discountAmount > 0
+            ? {
+                label:
+                  input.discountPct != null
+                    ? `Discount (${input.discountPct}%)`
+                    : "Discount",
+                amountFormatted: `−${fmtMoney(discountAmount, input.currency)}`,
+              }
+            : undefined,
+        totalFormatted: fmtMoney(finalTotal, input.currency),
         orgName: org?.name ?? "the firm",
       });
 
@@ -295,7 +482,7 @@ export const proposalsRouter = router({
       const storagePath = `${ctx.orgId}/${input.projectId}/${docId}.html`;
       const { error: uploadErr } = await storage.storage
         .from(BUCKET)
-        .upload(storagePath, html, {
+        .upload(storagePath, Buffer.from(html, "utf-8"), {
           contentType: "text/html; charset=utf-8",
           upsert: false,
         });
@@ -336,8 +523,20 @@ export const proposalsRouter = router({
             introText: input.introText ?? null,
             status: "drafted",
             expiresAt: input.expiresAt ?? null,
-            totalAmount: runningTotal.toFixed(2),
+            subtotalAmount: subtotal.toFixed(2),
+            overallMarkupPct:
+              input.overallMarkupPct != null
+                ? input.overallMarkupPct.toFixed(2)
+                : null,
+            discountPct:
+              input.discountPct != null ? input.discountPct.toFixed(2) : null,
+            discountAmount:
+              input.discountAmount != null
+                ? input.discountAmount.toFixed(2)
+                : null,
+            totalAmount: finalTotal.toFixed(2),
             totalCurrency: input.currency,
+            groupBy: input.groupBy,
             generatedDocumentId: doc.id,
             createdBy: ctx.actor,
             updatedBy: ctx.actor,
@@ -386,9 +585,13 @@ export const proposalsRouter = router({
           payload: {
             number,
             workItemIds: input.workItemIds,
-            markupPct: input.markupPct,
-            total: runningTotal.toFixed(2),
+            subtotal: subtotal.toFixed(2),
+            overallMarkupPct: input.overallMarkupPct ?? null,
+            discountPct: input.discountPct ?? null,
+            discountAmount: input.discountAmount ?? null,
+            total: finalTotal.toFixed(2),
             currency: input.currency,
+            groupBy: input.groupBy,
           },
         });
 
@@ -480,6 +683,86 @@ export const proposalsRouter = router({
           resourceId: input.id,
           payload: { from: existing[0].status, to: input.to, at: stampDate },
         });
+
+        // Accepting records an account receivable: a draft invoice for
+        // the bottom line, linked back to the proposal. Idempotent —
+        // re-accepting (or accepting an already-invoiced proposal)
+        // won't mint a second one.
+        if (input.to === "accepted") {
+          const prop = existing[0];
+          const existingAr = await tx
+            .select({ id: invoices.id })
+            .from(invoices)
+            .where(
+              and(
+                eq(invoices.proposalId, prop.id),
+                eq(invoices.orgId, ctx.orgId),
+              ),
+            )
+            .limit(1);
+          if (
+            !existingAr[0] &&
+            prop.totalAmount != null &&
+            prop.totalCurrency != null
+          ) {
+            const proj = await tx
+              .select({ clientId: projects.clientId })
+              .from(projects)
+              .where(eq(projects.id, prop.projectId))
+              .limit(1);
+            const [ar] = await tx
+              .insert(invoices)
+              .values({
+                orgId: ctx.orgId,
+                projectId: prop.projectId,
+                clientId: proj[0]?.clientId ?? null,
+                proposalId: prop.id,
+                description: `${prop.number} — ${prop.title}`.slice(0, 2000),
+                amount: prop.totalAmount,
+                currency: prop.totalCurrency,
+                issuedAt: stampDate,
+                status: "draft",
+                createdBy: ctx.actor,
+                updatedBy: ctx.actor,
+              })
+              .returning();
+            if (ar) {
+              await tx.insert(auditLog).values({
+                orgId: ctx.orgId,
+                actor: ctx.actor,
+                action: "invoice.created",
+                resourceType: "invoice",
+                resourceId: ar.id,
+                payload: {
+                  source: "proposal",
+                  proposalId: prop.id,
+                  amount: ar.amount,
+                  currency: ar.currency,
+                },
+              });
+            }
+          }
+        }
+
+        // Walking a proposal back out of "accepted" voids its still-
+        // draft receivable so the money view stays honest. A receivable
+        // already sent/paid is left alone.
+        if (input.to === "rejected" || input.to === "superseded") {
+          await tx
+            .update(invoices)
+            .set({
+              status: "void",
+              updatedAt: new Date(),
+              updatedBy: ctx.actor,
+            })
+            .where(
+              and(
+                eq(invoices.proposalId, input.id),
+                eq(invoices.orgId, ctx.orgId),
+                eq(invoices.status, "draft"),
+              ),
+            );
+        }
         return updated;
       });
     }),
@@ -566,6 +849,37 @@ function trimQty(qty: number): string {
 
 function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * The baked section label stored on a proposal_line, chosen by the
+ * generation-time grouping. The artifact's interactive toggle regroups
+ * client-side from the raw dimensions; this label drives the detail
+ * view's "Section" column and the no-JS fallback.
+ */
+function sectionLabelFor(
+  groupBy: "work_type" | "vendor" | "room" | "none",
+  line: {
+    trade: string | null;
+    vendorName: string | null;
+    rooms: string[];
+    sectionLabelsByTrade?: Record<string, string>;
+  },
+): string | null {
+  switch (groupBy) {
+    case "vendor":
+      return line.vendorName ?? "Unassigned";
+    case "room":
+      return line.rooms.length > 0 ? line.rooms.join(" + ") : "—";
+    case "none":
+      return null;
+    case "work_type":
+    default:
+      if (line.trade && line.sectionLabelsByTrade?.[line.trade]) {
+        return line.sectionLabelsByTrade[line.trade]!;
+      }
+      return line.trade ? cap(line.trade) : null;
+  }
 }
 
 let _storageClient: SupabaseClient | null = null;

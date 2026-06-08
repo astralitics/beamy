@@ -59,8 +59,24 @@ export const proposals = pgTable(
     sentAt: date("sent_at"),
     decidedAt: date("decided_at"),
     expiresAt: date("expires_at"),
+    /** Sum of the line totals before the proposal-level adjustments. */
+    subtotalAmount: numeric("subtotal_amount", { precision: 14, scale: 2 }),
+    /** Proposal-level markup applied to the subtotal (on top of per-item). */
+    overallMarkupPct: numeric("overall_markup_pct", { precision: 6, scale: 2 }),
+    /** Discount as a percentage of the marked-up subtotal. Mutually
+     * exclusive with discount_amount — exactly one (or neither) is set. */
+    discountPct: numeric("discount_pct", { precision: 6, scale: 2 }),
+    /** Discount as a flat amount in total_currency. */
+    discountAmount: numeric("discount_amount", { precision: 14, scale: 2 }),
+    /** The client-facing bottom line, after markup + discount. */
     totalAmount: numeric("total_amount", { precision: 14, scale: 2 }),
     totalCurrency: text("total_currency"),
+    /**
+     * Default grouping baked into the artifact: how lines are bucketed
+     * on the client-facing HTML ("vendor" | "room" | "work_type" |
+     * "none"). The artifact also ships an interactive toggle.
+     */
+    groupBy: text("group_by").default("work_type"),
     notes: text("notes"),
     /**
      * The artifact Beamy produced (HTML, later HTML→PDF). When set,
@@ -136,6 +152,15 @@ export const proposalLines = pgTable(
     currency: text("currency").notNull(),
     /** Snapshot of the markup % applied to this line at generation time. */
     markupPctApplied: numeric("markup_pct_applied", { precision: 6, scale: 2 }),
+    /**
+     * Snapshot grouping dimensions, frozen at generation. These let the
+     * detail view show rooms and let the artifact regroup by vendor /
+     * room / work type without re-reading the (mutable) work_item.
+     */
+    ref: text("ref"),
+    roomNames: text("room_names").array(),
+    vendorName: text("vendor_name"),
+    trade: text("trade"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
