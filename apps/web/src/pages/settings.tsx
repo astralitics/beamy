@@ -5,6 +5,7 @@ import type { InviteRole, OrgRole } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
 import { useAuth } from "../lib/auth";
 import { useT } from "../lib/i18n";
+import { ConfirmDialog } from "../components/ui";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type MemberRow = RouterOutputs["members"]["list"][number];
@@ -202,6 +203,7 @@ function InvitationItem({
 }) {
   const t = useT();
   const [copied, setCopied] = useState(false);
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
   const utils = trpc.useUtils();
   const revoke = trpc.members.revokeInvitation.useMutation({
     onSuccess: () => utils.members.listInvitations.invalidate(),
@@ -236,16 +238,25 @@ function InvitationItem({
       </button>
       {canRevoke && (
         <button
-          onClick={() => {
-            if (confirm(t("settings.revoke_confirm", { email: invitation.email }))) {
-              revoke.mutate({ id: invitation.id });
-            }
-          }}
+          onClick={() => setConfirmingRevoke(true)}
           disabled={revoke.isPending}
           className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
         >
           {revoke.isPending ? "…" : t("settings.revoke")}
         </button>
+      )}
+      {confirmingRevoke && (
+        <ConfirmDialog
+          title={t("settings.revoke_title")}
+          message={t("settings.revoke_confirm", { email: invitation.email })}
+          confirmLabel={t("settings.revoke")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={revoke.isPending}
+          error={revoke.error?.message}
+          onConfirm={() => revoke.mutate({ id: invitation.id })}
+          onClose={() => setConfirmingRevoke(false)}
+        />
       )}
     </div>
   );

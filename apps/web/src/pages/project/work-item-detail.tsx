@@ -13,7 +13,7 @@ import {
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useFormatters, useLabels, useT } from "../../lib/i18n";
-import { Button, Icon, Pill } from "../../components/ui";
+import { Button, ConfirmDialog, Icon, Pill } from "../../components/ui";
 import { WorkItemForm, nextStatus } from "./work-plan";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
@@ -39,6 +39,7 @@ export default function ProjectWorkItemDetail() {
   const fmt = useFormatters();
   const L = useLabels();
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const item = trpc.workItems.get.useQuery(
     { id: workItemId ?? "" },
@@ -269,22 +270,28 @@ export default function ProjectWorkItemDetail() {
           <section className="border-t border-ink-100 pt-8">
             <button
               type="button"
-              onClick={() => {
-                if (
-                  confirm(
-                    t("work_item.delete_confirm", {
-                      name: w.description.slice(0, 50),
-                    }),
-                  )
-                ) {
-                  remove.mutate({ id: w.id });
-                }
-              }}
+              onClick={() => setConfirmingDelete(true)}
               className="text-[13px] text-rose-600 hover:text-rose-800"
             >
               {t("work_item.delete")}
             </button>
           </section>
+
+          {confirmingDelete && (
+            <ConfirmDialog
+              title={t("work_item.delete_title")}
+              message={t("work_item.delete_confirm", {
+                name: w.description.slice(0, 50),
+              })}
+              confirmLabel={t("common.delete")}
+              cancelLabel={t("common.cancel")}
+              tone="danger"
+              loading={remove.isPending}
+              error={remove.error?.message}
+              onConfirm={() => remove.mutate({ id: w.id })}
+              onClose={() => setConfirmingDelete(false)}
+            />
+          )}
         </>
       )}
     </div>

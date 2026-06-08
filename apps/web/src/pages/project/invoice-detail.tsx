@@ -11,6 +11,7 @@ import { trpc } from "../../lib/trpc";
 import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import {
   Button,
+  ConfirmDialog,
   Field,
   Icon,
   Input,
@@ -42,6 +43,7 @@ export default function ProjectInvoiceDetail() {
   const L = useLabels();
   const t = useT();
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const invoice = trpc.invoices.get.useQuery(
     { id: invoiceId ?? "" },
@@ -173,15 +175,24 @@ export default function ProjectInvoiceDetail() {
       <section className="border-t border-ink-100 pt-8">
         <button
           type="button"
-          onClick={() => {
-            if (confirm(t("invoice.delete_confirm"))) {
-              remove.mutate({ id: i.id });
-            }
-          }}
+          onClick={() => setConfirmingDelete(true)}
           className="text-[13px] text-rose-600 hover:text-rose-800"
         >
           {t("detail.delete_invoice")}
         </button>
+        {confirmingDelete && (
+          <ConfirmDialog
+            title={t("detail.delete_invoice")}
+            message={t("invoice.delete_confirm")}
+            confirmLabel={t("common.delete")}
+            cancelLabel={t("common.cancel")}
+            tone="danger"
+            loading={remove.isPending}
+            error={remove.error?.message}
+            onConfirm={() => remove.mutate({ id: i.id })}
+            onClose={() => setConfirmingDelete(false)}
+          />
+        )}
       </section>
 
       {editing && (
