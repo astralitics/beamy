@@ -1633,22 +1633,37 @@ const WEEKDAY_KEYS: MessageKey[] = [
 ];
 
 /** Primary calendar date: planned end (deadline), falling back to start. */
-function planDate(w: WorkItemRow): string | null {
-  return w.plannedEnd ?? w.plannedStart ?? null;
-}
-
 function ymd(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 /**
- * Calendar — work items placed on a month grid by their planned date
- * (deadline; falls back to start). Click a chip to open the editor.
- * Items with no planned dates list in an "Unscheduled" panel below.
- * Prev / Today / Next navigate months.
- *
- * Deadline-based placement (one cell per item), not multi-day span
- * bars — a clean "what's due when" read. Spans are a follow-up.
+ * Every YYYY-MM-DD from `from` to `to` inclusive, using local-date math
+ * so there's no UTC / DST drift. Guarded against runaway ranges from
+ * bad data.
+ */
+function eachDateInclusive(from: string, to: string): string[] {
+  const [fy, fm, fd] = from.split("-").map(Number) as [number, number, number];
+  const [ty, tm, td] = to.split("-").map(Number) as [number, number, number];
+  const cur = new Date(fy, fm - 1, fd);
+  const end = new Date(ty, tm - 1, td);
+  const out: string[] = [];
+  let guard = 0;
+  while (cur <= end && guard < 1500) {
+    out.push(ymd(cur.getFullYear(), cur.getMonth(), cur.getDate()));
+    cur.setDate(cur.getDate() + 1);
+    guard += 1;
+  }
+  return out;
+}
+
+/**
+ * Calendar — work items placed on a month grid across their full
+ * planned window (every day from start to end), so a multi-day item
+ * fills its whole span rather than only marking the endpoints. Items
+ * with a single date land on that day; items with no planned dates
+ * list in an "Unscheduled" panel below. Click a chip to open the
+ * editor. Prev / Today / Next navigate months.
  */
 function CalendarView({
   items,
@@ -1668,15 +1683,23 @@ function CalendarView({
     const unscheduled: WorkItemRow[] = [];
     let firstDate: string | null = null;
     for (const w of items) {
-      const d = planDate(w);
-      if (!d) {
+      // Fill every day across the item's [start, end] window so it reads
+      // as a span. One-sided items (only a start or only an end) land on
+      // that single day. Tolerate reversed dates by ordering the bounds.
+      const a = w.plannedStart;
+      const b = w.plannedEnd;
+      if (!a && !b) {
         unscheduled.push(w);
         continue;
       }
-      const arr = byDate.get(d) ?? [];
-      arr.push(w);
-      byDate.set(d, arr);
-      if (!firstDate || d < firstDate) firstDate = d;
+      const from = a && b ? (a <= b ? a : b) : (a ?? b!);
+      const to = a && b ? (a <= b ? b : a) : (a ?? b!);
+      for (const d of eachDateInclusive(from, to)) {
+        const arr = byDate.get(d) ?? [];
+        arr.push(w);
+        byDate.set(d, arr);
+      }
+      if (!firstDate || from < firstDate) firstDate = from;
     }
     return { byDate, unscheduled, firstDate };
   }, [items]);
