@@ -176,6 +176,20 @@
       "when": 1780873470067,
       "tag": "0024_amazing_dakota_north",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1780929498538,
+      "tag": "0025_fuzzy_rocket_racer",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1780931449398,
+      "tag": "0026_robust_richard_fisk",
+      "breakpoints": true
     }
   ]
 }

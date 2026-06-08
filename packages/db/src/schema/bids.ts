@@ -67,7 +67,12 @@ export const bids = pgTable(
     subtotalAmount: numeric("subtotal_amount", { precision: 14, scale: 2 }),
     ivaAmount: numeric("iva_amount", { precision: 14, scale: 2 }),
     totalAmount: numeric("total_amount", { precision: 14, scale: 2 }),
-    /** Shared currency for subtotal / iva / total. */
+    /**
+     * Down payment / anticipo (enganche) required to start the work.
+     * Common on MX cotizaciones (often 50%). Shares `currency`.
+     */
+    depositAmount: numeric("deposit_amount", { precision: 14, scale: 2 }),
+    /** Shared currency for subtotal / iva / total / deposit. */
     currency: text("currency"),
     /**
      * Whether the vendor's price line already includes IVA. Affects

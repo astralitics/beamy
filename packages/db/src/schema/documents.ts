@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { assets } from "./assets";
 import { bids } from "./bids";
+import { bills } from "./bills";
 import { changeOrders } from "./change-orders";
 import { materials } from "./materials";
 import { orgs } from "./orgs";
@@ -57,6 +58,9 @@ export const documents = pgTable(
     bidId: uuid("bid_id").references(() => bids.id, {
       onDelete: "set null",
     }),
+    billId: uuid("bill_id").references(() => bills.id, {
+      onDelete: "set null",
+    }),
     proposalId: uuid("proposal_id").references(() => proposals.id, {
       onDelete: "set null",
     }),
@@ -88,6 +92,7 @@ export const documents = pgTable(
     byAsset: index("documents_by_asset").on(table.assetId),
     byMaterial: index("documents_by_material").on(table.materialId),
     byBid: index("documents_by_bid").on(table.bidId),
+    byBill: index("documents_by_bill").on(table.billId),
     byProposal: index("documents_by_proposal").on(table.proposalId),
     byChangeOrder: index("documents_by_change_order").on(table.changeOrderId),
   }),
