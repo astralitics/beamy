@@ -288,6 +288,71 @@ export function Modal({
   );
 }
 
+// ────────────────────── Confirm dialog ──────────────────────
+
+/**
+ * In-app confirmation dialog — a styled replacement for the native
+ * `confirm()`, which renders as an ugly system modal and is unreliable
+ * on touch devices (tablets in particular). Built on Modal so it
+ * inherits the blurred backdrop, focus trap, and touch-friendly
+ * buttons. Pass `tone="danger"` for destructive actions.
+ */
+export function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  cancelLabel,
+  tone = "default",
+  loading = false,
+  error,
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  message?: ReactNode;
+  confirmLabel: string;
+  cancelLabel: string;
+  tone?: "default" | "danger";
+  loading?: boolean;
+  error?: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      title={title}
+      onClose={() => {
+        if (!loading) onClose();
+      }}
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+            disabled={loading}
+          >
+            {cancelLabel}
+          </Button>
+          <Button
+            type="button"
+            variant={tone === "danger" ? "danger" : "primary"}
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? "…" : confirmLabel}
+          </Button>
+        </div>
+      }
+    >
+      {message && (
+        <p className="text-[15px] leading-relaxed text-ink-700">{message}</p>
+      )}
+      {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
+    </Modal>
+  );
+}
+
 // ────────────────────── Status pill ──────────────────────
 
 type Tone = "neutral" | "accent" | "success" | "warn" | "alert" | "info" | "muted";

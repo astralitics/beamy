@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
@@ -6,6 +6,7 @@ import {
   PROPOSAL_STATUS_FLOW,
   type ProposalStatus,
 } from "@beamy/shared";
+import { ConfirmDialog } from "../../components/ui";
 import { trpc } from "../../lib/trpc";
 import { useFormatters, useLabels, useT } from "../../lib/i18n";
 
@@ -53,6 +54,8 @@ export default function ProjectProposalDetail() {
       navigate(`/projects/${project.id}/proposals`);
     },
   });
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (!proposalId) return null;
   if (proposalQ.isLoading) {
@@ -168,16 +171,25 @@ export default function ProjectProposalDetail() {
         )}
         <button
           type="button"
-          onClick={() => {
-            if (confirm(t("proposal.confirm_delete", { number: p.number }))) {
-              remove.mutate({ id: p.id });
-            }
-          }}
+          onClick={() => setConfirmingDelete(true)}
           disabled={remove.isPending}
           className="ml-auto text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
         >
           {remove.isPending ? "…" : t("proposal.delete")}
         </button>
+        {confirmingDelete && (
+          <ConfirmDialog
+            title={t("proposal.delete")}
+            message={t("proposal.confirm_delete", { number: p.number })}
+            confirmLabel={t("common.delete")}
+            cancelLabel={t("common.cancel")}
+            tone="danger"
+            loading={remove.isPending}
+            error={remove.error?.message}
+            onConfirm={() => remove.mutate({ id: p.id })}
+            onClose={() => setConfirmingDelete(false)}
+          />
+        )}
       </div>
 
       {htmlQ.isLoading && (

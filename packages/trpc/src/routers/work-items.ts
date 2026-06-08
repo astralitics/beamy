@@ -239,6 +239,11 @@ export const workItemsRouter = router({
           resourceId: row.id,
           payload: input,
         });
+
+        // Bid line item → keep the parent quote's total in sync.
+        if (row.bidId) {
+          await recomputeBidTotals(tx, ctx.orgId, ctx.actor, row.bidId);
+        }
         return row;
       });
     }),
@@ -334,6 +339,15 @@ export const workItemsRouter = router({
           resourceId: input.id,
           payload: input.patch,
         });
+
+        // Keep parent quote totals in sync. Recompute both sides if the
+        // line was moved between quotes (rare, but cheap to be correct).
+        const bidIds = new Set<string>();
+        if (existing[0].bidId) bidIds.add(existing[0].bidId);
+        if (updated.bidId) bidIds.add(updated.bidId);
+        for (const id of bidIds) {
+          await recomputeBidTotals(tx, ctx.orgId, ctx.actor, id);
+        }
         return updated;
       });
     }),
@@ -579,6 +593,11 @@ export const workItemsRouter = router({
           resourceId: input.id,
           payload: existing[0],
         });
+
+        // Removing a bid line item shrinks the parent quote's total.
+        if (existing[0].bidId) {
+          await recomputeBidTotals(tx, ctx.orgId, ctx.actor, existing[0].bidId);
+        }
         return { ok: true as const };
       });
     }),
@@ -604,6 +623,75 @@ function dateColumnForStatus(
     default:
       return null;
   }
+}
+
+/** Mexican IVA — standard rate. Border-region 8% is out of scope. */
+const MX_IVA_RATE = 0.16;
+
+/**
+ * Recompute a quote's stored money (subtotal / IVA / total) from the
+ * sum of its line items, so the headline figure tracks adds / removes /
+ * edits. Lines are the source of truth (product decision). The bid's
+ * `iva_included` flag decides whether line totals already carry IVA.
+ * No-op when the quote has no line items — leaves typed figures alone
+ * rather than zeroing them out.
+ */
+async function recomputeBidTotals(
+  tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0],
+  orgId: string,
+  actor: string,
+  bidId: string,
+) {
+  const bidRows = await tx
+    .select()
+    .from(bids)
+    .where(and(eq(bids.id, bidId), eq(bids.orgId, orgId)))
+    .limit(1);
+  const bid = bidRows[0];
+  if (!bid) return;
+
+  const lines = await tx
+    .select({
+      totalAmount: workItems.totalAmount,
+      totalCurrency: workItems.totalCurrency,
+    })
+    .from(workItems)
+    .where(and(eq(workItems.bidId, bidId), eq(workItems.orgId, orgId)));
+  if (lines.length === 0) return; // nothing to drive the total — leave as-is
+
+  const currency =
+    bid.currency ?? lines.find((l) => l.totalCurrency)?.totalCurrency ?? null;
+  let sum = 0;
+  for (const l of lines) {
+    if (l.totalAmount == null) continue;
+    if (currency && l.totalCurrency && l.totalCurrency !== currency) continue;
+    sum += parseFloat(l.totalAmount);
+  }
+
+  let subtotal: number;
+  let iva: number;
+  let total: number;
+  if (bid.ivaIncluded) {
+    total = sum;
+    subtotal = sum / (1 + MX_IVA_RATE);
+    iva = total - subtotal;
+  } else {
+    subtotal = sum;
+    iva = sum * MX_IVA_RATE;
+    total = sum + iva;
+  }
+
+  await tx
+    .update(bids)
+    .set({
+      subtotalAmount: subtotal.toFixed(2),
+      ivaAmount: iva.toFixed(2),
+      totalAmount: total.toFixed(2),
+      currency: currency ?? bid.currency,
+      updatedAt: new Date(),
+      updatedBy: actor,
+    })
+    .where(eq(bids.id, bidId));
 }
 
 async function verifyOwnership(

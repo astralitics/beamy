@@ -11,6 +11,7 @@ import { trpc } from "../../lib/trpc";
 import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import {
   Button,
+  ConfirmDialog,
   Field,
   Icon,
   Input,
@@ -57,6 +58,7 @@ export default function ProjectAssetDetail() {
   const L = useLabels();
   const t = useT();
   const [addingEvent, setAddingEvent] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const asset = trpc.assets.get.useQuery(
     { id: assetId ?? "" },
@@ -271,11 +273,7 @@ export default function ProjectAssetDetail() {
       <section className="border-t border-ink-100 pt-8">
         <button
           type="button"
-          onClick={() => {
-            if (confirm(t("asset.delete_confirm", { name: a.name }))) {
-              remove.mutate({ id: a.id });
-            }
-          }}
+          onClick={() => setConfirmingDelete(true)}
           className="text-[13px] text-rose-600 hover:text-rose-800"
         >
           {t("detail.delete_asset")}
@@ -286,6 +284,20 @@ export default function ProjectAssetDetail() {
         <EventFormModal
           assetId={a.id}
           onClose={() => setAddingEvent(false)}
+        />
+      )}
+
+      {confirmingDelete && (
+        <ConfirmDialog
+          title={t("asset.delete_title")}
+          message={t("asset.delete_confirm", { name: a.name })}
+          confirmLabel={t("common.delete")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={remove.isPending}
+          error={remove.error?.message}
+          onConfirm={() => remove.mutate({ id: a.id })}
+          onClose={() => setConfirmingDelete(false)}
         />
       )}
     </div>
@@ -331,6 +343,7 @@ function EventRow({
   const fmt = useFormatters();
   const L = useLabels();
   const t = useT();
+  const [confirmingEvent, setConfirmingEvent] = useState(false);
   const remove = trpc.assets.events.remove.useMutation({
     onSuccess: onDeleted,
   });
@@ -354,17 +367,7 @@ function EventRow({
         </div>
         <button
           type="button"
-          onClick={() => {
-            if (
-              confirm(
-                trackedBill
-                  ? t("asset.event_delete_confirm_billed")
-                  : t("asset.event_delete_confirm"),
-              )
-            ) {
-              remove.mutate({ id: event.id });
-            }
-          }}
+          onClick={() => setConfirmingEvent(true)}
           className="text-[12px] text-ink-400 hover:text-rose-600"
         >
           {t("common.remove")}
@@ -396,6 +399,23 @@ function EventRow({
         <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-ink-600">
           {event.notes}
         </p>
+      )}
+      {confirmingEvent && (
+        <ConfirmDialog
+          title={t("asset.event_delete_title")}
+          message={
+            trackedBill
+              ? t("asset.event_delete_confirm_billed")
+              : t("asset.event_delete_confirm")
+          }
+          confirmLabel={t("common.delete")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={remove.isPending}
+          error={remove.error?.message}
+          onConfirm={() => remove.mutate({ id: event.id })}
+          onClose={() => setConfirmingEvent(false)}
+        />
       )}
     </li>
   );

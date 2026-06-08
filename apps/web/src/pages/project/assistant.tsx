@@ -10,6 +10,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import { trpc } from "../../lib/trpc";
 import { useFormatters, useT } from "../../lib/i18n";
+import { ConfirmDialog } from "../../components/ui";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type ChatMessage = inferRouterOutputs<AppRouter>["chat"]["list"][number];
@@ -27,6 +28,7 @@ export default function ProjectAssistant() {
   const t = useT();
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const [draft, setDraft] = useState("");
+  const [confirmingReset, setConfirmingReset] = useState(false);
   const messages = trpc.chat.list.useQuery({ projectId: project.id });
   const utils = trpc.useUtils();
   const send = trpc.chat.send.useMutation({
@@ -84,11 +86,7 @@ export default function ProjectAssistant() {
         {list.length > 0 && (
           <button
             type="button"
-            onClick={() => {
-              if (confirm(t("assistant.reset_confirm"))) {
-                reset.mutate({ projectId: project.id });
-              }
-            }}
+            onClick={() => setConfirmingReset(true)}
             disabled={reset.isPending}
             className="rounded-md border border-paper-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-paper-50 disabled:opacity-50"
           >
@@ -96,6 +94,23 @@ export default function ProjectAssistant() {
           </button>
         )}
       </div>
+
+      {confirmingReset && (
+        <ConfirmDialog
+          title={t("assistant.reset_title")}
+          message={t("assistant.reset_confirm")}
+          confirmLabel={t("assistant.reset")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={reset.isPending}
+          error={reset.error?.message}
+          onConfirm={() => {
+            reset.mutate({ projectId: project.id });
+            setConfirmingReset(false);
+          }}
+          onClose={() => setConfirmingReset(false)}
+        />
+      )}
 
       {/* Scrollable transcript */}
       <div

@@ -11,6 +11,7 @@ import {
   type ChangeOrderLineKind,
   type ChangeOrderStatus,
 } from "@beamy/shared";
+import { ConfirmDialog } from "../../components/ui";
 import { trpc } from "../../lib/trpc";
 import { useFormatters, useLabels, useT } from "../../lib/i18n";
 
@@ -52,6 +53,9 @@ export default function ProjectChangeOrderDetail() {
     { enabled: !!changeOrderId },
   );
 
+  const [confirmingVoid, setConfirmingVoid] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
   const transition = trpc.changeOrders.transition.useMutation({
     onSuccess: () => {
       utils.changeOrders.get.invalidate({ id: changeOrderId });
@@ -59,6 +63,7 @@ export default function ProjectChangeOrderDetail() {
       utils.workItems.list.invalidate({ projectId: project.id });
       utils.projects.overviewStats.invalidate({ projectId: project.id });
       setDecidedBy("");
+      setConfirmingVoid(false);
     },
   });
   const remove = trpc.changeOrders.remove.useMutation({
@@ -199,30 +204,48 @@ export default function ProjectChangeOrderDetail() {
         {canVoid && co.status !== "drafted" && (
           <button
             type="button"
-            onClick={() => {
-              if (confirm(t("co.confirm_void", { number: co.number }))) {
-                transition.mutate({ id: co.id, to: "void" });
-              }
-            }}
+            onClick={() => setConfirmingVoid(true)}
             disabled={transition.isPending}
             className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-paper-50 disabled:opacity-50"
           >
             {t("co.void")}
           </button>
         )}
+        {confirmingVoid && (
+          <ConfirmDialog
+            title={t("co.void_title")}
+            message={t("co.confirm_void", { number: co.number })}
+            confirmLabel={t("co.void")}
+            cancelLabel={t("common.cancel")}
+            tone="danger"
+            loading={transition.isPending}
+            error={transition.error?.message}
+            onConfirm={() => transition.mutate({ id: co.id, to: "void" })}
+            onClose={() => setConfirmingVoid(false)}
+          />
+        )}
         {canDelete && (
           <button
             type="button"
-            onClick={() => {
-              if (confirm(t("co.confirm_delete", { number: co.number }))) {
-                remove.mutate({ id: co.id });
-              }
-            }}
+            onClick={() => setConfirmingDelete(true)}
             disabled={remove.isPending}
             className="ml-auto text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
           >
             {remove.isPending ? "…" : t("co.delete")}
           </button>
+        )}
+        {confirmingDelete && (
+          <ConfirmDialog
+            title={t("co.delete_title")}
+            message={t("co.confirm_delete", { number: co.number })}
+            confirmLabel={t("co.delete")}
+            cancelLabel={t("common.cancel")}
+            tone="danger"
+            loading={remove.isPending}
+            error={remove.error?.message}
+            onConfirm={() => remove.mutate({ id: co.id })}
+            onClose={() => setConfirmingDelete(false)}
+          />
         )}
       </div>
 

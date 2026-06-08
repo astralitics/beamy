@@ -11,6 +11,7 @@ import { trpc } from "../../lib/trpc";
 import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import {
   Button,
+  ConfirmDialog,
   Field,
   Icon,
   Input,
@@ -60,6 +61,7 @@ export default function ProjectFurnitureDetail() {
   const L = useLabels();
   const t = useT();
   const [addingEvent, setAddingEvent] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const piece = trpc.furniture.get.useQuery(
     { id: furnitureId ?? "" },
@@ -252,11 +254,7 @@ export default function ProjectFurnitureDetail() {
       <section className="border-t border-ink-100 pt-8">
         <button
           type="button"
-          onClick={() => {
-            if (confirm(t("furniture.delete_confirm", { name: p.name }))) {
-              remove.mutate({ id: p.id });
-            }
-          }}
+          onClick={() => setConfirmingDelete(true)}
           className="text-[13px] text-rose-600 hover:text-rose-800"
         >
           {t("detail.delete_furniture")}
@@ -267,6 +265,20 @@ export default function ProjectFurnitureDetail() {
         <EventFormModal
           furnitureId={p.id}
           onClose={() => setAddingEvent(false)}
+        />
+      )}
+
+      {confirmingDelete && (
+        <ConfirmDialog
+          title={t("furniture.delete_title")}
+          message={t("furniture.delete_confirm", { name: p.name })}
+          confirmLabel={t("common.delete")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={remove.isPending}
+          error={remove.error?.message}
+          onConfirm={() => remove.mutate({ id: p.id })}
+          onClose={() => setConfirmingDelete(false)}
         />
       )}
     </div>
@@ -304,6 +316,7 @@ function EventRow({
   const fmt = useFormatters();
   const L = useLabels();
   const t = useT();
+  const [confirmingEvent, setConfirmingEvent] = useState(false);
   const remove = trpc.furniture.events.remove.useMutation({
     onSuccess: onDeleted,
   });
@@ -327,17 +340,7 @@ function EventRow({
         </div>
         <button
           type="button"
-          onClick={() => {
-            if (
-              confirm(
-                trackedBill
-                  ? t("furniture.event_delete_confirm_billed")
-                  : t("furniture.event_delete_confirm"),
-              )
-            ) {
-              remove.mutate({ id: event.id });
-            }
-          }}
+          onClick={() => setConfirmingEvent(true)}
           className="text-[12px] text-ink-400 hover:text-rose-600"
         >
           {t("common.remove")}
@@ -368,6 +371,23 @@ function EventRow({
         <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-ink-600">
           {event.notes}
         </p>
+      )}
+      {confirmingEvent && (
+        <ConfirmDialog
+          title={t("furniture.event_delete_title")}
+          message={
+            trackedBill
+              ? t("furniture.event_delete_confirm_billed")
+              : t("furniture.event_delete_confirm")
+          }
+          confirmLabel={t("common.delete")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={remove.isPending}
+          error={remove.error?.message}
+          onConfirm={() => remove.mutate({ id: event.id })}
+          onClose={() => setConfirmingEvent(false)}
+        />
       )}
     </li>
   );

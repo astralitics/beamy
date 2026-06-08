@@ -8,6 +8,7 @@ import { useOutletContext } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import { MAX_DOCUMENT_BYTES } from "@beamy/shared";
+import { ConfirmDialog } from "../../components/ui";
 import { trpc } from "../../lib/trpc";
 import { useFormatters, useT } from "../../lib/i18n";
 
@@ -183,6 +184,7 @@ function DocumentRowItem({ doc }: { doc: DocumentRow }) {
       utils.documents.list.invalidate({ projectId: doc.projectId }),
   });
   const downloadMutation = useDownloadDocument();
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <div className="flex items-center gap-3 rounded-md border border-paper-200 bg-white p-3">
@@ -238,16 +240,26 @@ function DocumentRowItem({ doc }: { doc: DocumentRow }) {
         </button>
         <button
           type="button"
-          onClick={() => {
-            if (confirm(t("documents.delete_confirm", { name: doc.name })))
-              remove.mutate({ id: doc.id });
-          }}
+          onClick={() => setConfirming(true)}
           disabled={remove.isPending}
           className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
         >
           {remove.isPending ? "…" : t("documents.delete")}
         </button>
       </div>
+      {confirming && (
+        <ConfirmDialog
+          title={t("documents.delete_title")}
+          message={t("documents.delete_confirm", { name: doc.name })}
+          confirmLabel={t("common.delete")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={remove.isPending}
+          error={remove.error?.message}
+          onConfirm={() => remove.mutate({ id: doc.id })}
+          onClose={() => setConfirming(false)}
+        />
+      )}
     </div>
   );
 }

@@ -31,6 +31,7 @@ import {
   useT,
   type MessageKey,
 } from "../../lib/i18n";
+import { ConfirmDialog } from "../../components/ui";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type WorkItemRow = inferRouterOutputs<AppRouter>["workItems"]["list"][number];
@@ -2467,6 +2468,7 @@ function RoomRowItem({
 }) {
   const t = useT();
   const L = useLabels();
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const utils = trpc.useUtils();
   const remove = trpc.projects.removeRoom.useMutation({
     onSuccess: () =>
@@ -2498,15 +2500,25 @@ function RoomRowItem({
       </button>
       <button
         type="button"
-        onClick={() => {
-          if (confirm(t("plan.remove_room_confirm", { name: room.name })))
-            remove.mutate({ id: room.id });
-        }}
+        onClick={() => setConfirmingRemove(true)}
         disabled={remove.isPending}
         className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
       >
         {remove.isPending ? "…" : t("common.remove")}
       </button>
+      {confirmingRemove && (
+        <ConfirmDialog
+          title={t("plan.remove_room_title")}
+          message={t("plan.remove_room_confirm", { name: room.name })}
+          confirmLabel={t("common.remove")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={remove.isPending}
+          error={remove.error?.message}
+          onConfirm={() => remove.mutate({ id: room.id })}
+          onClose={() => setConfirmingRemove(false)}
+        />
+      )}
     </div>
   );
 }

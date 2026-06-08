@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { ConfirmDialog } from "./ui";
 import { useT } from "../lib/i18n";
 
 /**
@@ -120,6 +121,7 @@ function ContactRow({
   removing: boolean;
 }) {
   const t = useT();
+  const [confirming, setConfirming] = useState(false);
   return (
     <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
       <div className="min-w-0 flex-1">
@@ -150,15 +152,24 @@ function ContactRow({
       </button>
       <button
         type="button"
-        onClick={() => {
-          if (confirm(t("contacts.remove_confirm", { name: contact.name })))
-            onRemove();
-        }}
+        onClick={() => setConfirming(true)}
         disabled={removing}
         className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
       >
         {removing ? "…" : t("common.remove")}
       </button>
+      {confirming && (
+        <ConfirmDialog
+          title={t("contacts.remove_title")}
+          message={t("contacts.remove_confirm", { name: contact.name })}
+          confirmLabel={t("common.remove")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={removing}
+          onConfirm={() => onRemove()}
+          onClose={() => setConfirming(false)}
+        />
+      )}
     </div>
   );
 }

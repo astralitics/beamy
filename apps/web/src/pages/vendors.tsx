@@ -9,6 +9,7 @@ import {
 import { trpc } from "../lib/trpc";
 import { useT } from "../lib/i18n";
 import { ContactsSection } from "../components/contacts-section";
+import { ConfirmDialog } from "../components/ui";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type VendorRow = RouterOutputs["vendors"]["list"][number];
@@ -596,6 +597,7 @@ function ComplianceRowItem({
   onEdit: () => void;
 }) {
   const t = useT();
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const utils = trpc.useUtils();
   const remove = trpc.vendors.removeCompliance.useMutation({
     onSuccess: () => utils.vendors.listCompliance.invalidate(),
@@ -642,16 +644,25 @@ function ComplianceRowItem({
       </button>
       <button
         type="button"
-        onClick={() => {
-          if (confirm(t("vendors.compliance.remove_confirm"))) {
-            remove.mutate({ id: compliance.id });
-          }
-        }}
+        onClick={() => setConfirmingRemove(true)}
         disabled={remove.isPending}
         className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
       >
         {remove.isPending ? "…" : t("common.remove")}
       </button>
+      {confirmingRemove && (
+        <ConfirmDialog
+          title={t("vendors.compliance.remove_title")}
+          message={t("vendors.compliance.remove_confirm")}
+          confirmLabel={t("common.remove")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={remove.isPending}
+          error={remove.error?.message}
+          onConfirm={() => remove.mutate({ id: compliance.id })}
+          onClose={() => setConfirmingRemove(false)}
+        />
+      )}
     </div>
   );
 }

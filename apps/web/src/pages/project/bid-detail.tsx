@@ -5,7 +5,7 @@ import type { AppRouter } from "@beamy/trpc";
 import { type BidStatus } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useFormatters, useLabels, useT } from "../../lib/i18n";
-import { Button, Icon, Pill } from "../../components/ui";
+import { Button, ConfirmDialog, Icon, Pill } from "../../components/ui";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type BidLine = inferRouterOutputs<AppRouter>["workItems"]["list"][number];
@@ -40,6 +40,9 @@ export default function ProjectBidDetail() {
   );
 
   const utils = trpc.useUtils();
+  const [confirmAction, setConfirmAction] = useState<
+    "reject" | "version" | "delete" | null
+  >(null);
   const invalidateBid = () => {
     utils.bids.get.invalidate({ id: bidId ?? "" });
     utils.bids.list.invalidate({ projectId: project.id });
@@ -49,6 +52,7 @@ export default function ProjectBidDetail() {
     utils.bills.list.invalidate({ projectId: project.id });
     utils.projects.overviewStats.invalidate({ projectId: project.id });
     utils.projects.phaseAndCompleteness.invalidate({ projectId: project.id });
+    setConfirmAction(null);
   };
   const decide = trpc.bids.decide.useMutation({ onSuccess: invalidateBid });
   const complete = trpc.bids.update.useMutation({ onSuccess: invalidateBid });
@@ -201,11 +205,7 @@ export default function ProjectBidDetail() {
               {b.status !== "rejected" && b.status !== "completed" && (
                 <Button
                   variant="secondary"
-                  onClick={() => {
-                    if (confirm(t("bids.detail.confirm_reject"))) {
-                      decide.mutate({ id: b.id, decision: "rejected" });
-                    }
-                  }}
+                  onClick={() => setConfirmAction("reject")}
                   disabled={decide.isPending}
                 >
                   {t("bids.reject")}
@@ -213,11 +213,7 @@ export default function ProjectBidDetail() {
               )}
               <Button
                 variant="secondary"
-                onClick={() => {
-                  if (confirm(t("bids.detail.confirm_save_version"))) {
-                    saveAsVersion.mutate({ id: b.id });
-                  }
-                }}
+                onClick={() => setConfirmAction("version")}
                 disabled={saveAsVersion.isPending}
               >
                 {saveAsVersion.isPending
@@ -405,20 +401,51 @@ export default function ProjectBidDetail() {
       <section className="border-t border-ink-100 pt-8">
         <button
           type="button"
-          onClick={() => {
-            if (
-              confirm(
-                t("bids.detail.confirm_delete", { count: lineRows.length }),
-              )
-            ) {
-              remove.mutate({ id: b.id });
-            }
-          }}
+          onClick={() => setConfirmAction("delete")}
           className="text-[13px] text-rose-600 hover:text-rose-800"
         >
           {t("bids.detail.delete")}
         </button>
       </section>
+
+      {confirmAction === "reject" && (
+        <ConfirmDialog
+          title={t("bids.detail.reject_title")}
+          message={t("bids.detail.confirm_reject")}
+          confirmLabel={t("bids.reject")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={decide.isPending}
+          error={decide.error?.message ?? undefined}
+          onConfirm={() => decide.mutate({ id: b.id, decision: "rejected" })}
+          onClose={() => setConfirmAction(null)}
+        />
+      )}
+      {confirmAction === "version" && (
+        <ConfirmDialog
+          title={t("bids.detail.save_as_version")}
+          message={t("bids.detail.confirm_save_version")}
+          confirmLabel={t("bids.detail.save_as_version")}
+          cancelLabel={t("common.cancel")}
+          loading={saveAsVersion.isPending}
+          error={saveAsVersion.error?.message ?? undefined}
+          onConfirm={() => saveAsVersion.mutate({ id: b.id })}
+          onClose={() => setConfirmAction(null)}
+        />
+      )}
+      {confirmAction === "delete" && (
+        <ConfirmDialog
+          title={t("bids.detail.delete_title")}
+          message={t("bids.detail.confirm_delete", { count: lineRows.length })}
+          confirmLabel={t("common.delete")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={remove.isPending}
+          error={remove.error?.message ?? undefined}
+          onConfirm={() => remove.mutate({ id: b.id })}
+          onClose={() => setConfirmAction(null)}
+        />
+      )}
     </div>
   );
 }
@@ -441,8 +468,15 @@ function BidLineDisplayRow({
   const fmt = useFormatters();
   const t = useT();
   const utils = trpc.useUtils();
+  const [confirming, setConfirming] = useState(false);
   const remove = trpc.workItems.remove.useMutation({
-    onSuccess: () => utils.workItems.list.invalidate({ projectId, bidId }),
+    onSuccess: () => {
+      utils.workItems.list.invalidate({ projectId, bidId });
+      // The server recomputes the quote total from its lines — refresh it.
+      utils.bids.get.invalidate({ id: bidId });
+      utils.bids.list.invalidate({ projectId });
+      setConfirming(false);
+    },
   });
   return (
     <tr className="border-b border-ink-100 last:border-b-0">
@@ -474,22 +508,27 @@ function BidLineDisplayRow({
             <button
               type="button"
               disabled={remove.isPending}
-              onClick={() => {
-                if (
-                  confirm(
-                    t("bids.detail.confirm_remove_line", {
-                      description: li.description.slice(0, 40),
-                    }),
-                  )
-                ) {
-                  remove.mutate({ id: li.id });
-                }
-              }}
+              onClick={() => setConfirming(true)}
               className="text-[12px] text-rose-600 hover:text-rose-800 disabled:opacity-50"
             >
-              {remove.isPending ? "…" : t("common.remove")}
+              {t("common.remove")}
             </button>
           </div>
+          {confirming && (
+            <ConfirmDialog
+              title={t("bids.detail.remove_line_title")}
+              message={t("bids.detail.confirm_remove_line", {
+                description: li.description.slice(0, 40),
+              })}
+              confirmLabel={t("common.remove")}
+              cancelLabel={t("common.cancel")}
+              tone="danger"
+              loading={remove.isPending}
+              error={remove.error?.message ?? undefined}
+              onConfirm={() => remove.mutate({ id: li.id })}
+              onClose={() => setConfirming(false)}
+            />
+          )}
         </Td>
       )}
     </tr>
@@ -528,6 +567,9 @@ function BidLineForm({
   const utils = trpc.useUtils();
   const onDone = () => {
     utils.workItems.list.invalidate({ projectId, bidId });
+    // The server recomputes the quote total from its lines — refresh it.
+    utils.bids.get.invalidate({ id: bidId });
+    utils.bids.list.invalidate({ projectId });
     onClose();
   };
   const create = trpc.workItems.create.useMutation({
