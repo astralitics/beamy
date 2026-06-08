@@ -155,6 +155,12 @@ export default function ProjectWorkItemDetail() {
               <Button variant="secondary" onClick={() => setEditing(true)}>
                 {t("common.edit")}
               </Button>
+              <Button
+                variant="danger"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                {t("work_item.delete")}
+              </Button>
             </div>
           )}
         </div>
@@ -267,32 +273,23 @@ export default function ProjectWorkItemDetail() {
             </section>
           )}
 
-          <section className="border-t border-ink-100 pt-8">
-            <button
-              type="button"
-              onClick={() => setConfirmingDelete(true)}
-              className="text-[13px] text-rose-600 hover:text-rose-800"
-            >
-              {t("work_item.delete")}
-            </button>
-          </section>
-
-          {confirmingDelete && (
-            <ConfirmDialog
-              title={t("work_item.delete_title")}
-              message={t("work_item.delete_confirm", {
-                name: w.description.slice(0, 50),
-              })}
-              confirmLabel={t("common.delete")}
-              cancelLabel={t("common.cancel")}
-              tone="danger"
-              loading={remove.isPending}
-              error={remove.error?.message}
-              onConfirm={() => remove.mutate({ id: w.id })}
-              onClose={() => setConfirmingDelete(false)}
-            />
-          )}
         </>
+      )}
+
+      {confirmingDelete && (
+        <ConfirmDialog
+          title={t("work_item.delete_title")}
+          message={t("work_item.delete_confirm", {
+            name: w.description.slice(0, 50),
+          })}
+          confirmLabel={t("common.delete")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={remove.isPending}
+          error={remove.error?.message}
+          onConfirm={() => remove.mutate({ id: w.id })}
+          onClose={() => setConfirmingDelete(false)}
+        />
       )}
     </div>
   );
