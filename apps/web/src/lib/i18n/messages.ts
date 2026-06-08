@@ -24,6 +24,8 @@ const coreEn = {
   "nav.workflows": "Workflows",
   "nav.prompts": "Prompts",
   "nav.settings": "Settings",
+  "nav.open_menu": "Open menu",
+  "nav.close_menu": "Close menu",
 
   // ── project picker ──
   "picker.label": "Project",
@@ -249,6 +251,8 @@ const coreEs: Partial<Record<keyof typeof coreEn, string>> = {
   "nav.workflows": "Flujos de trabajo",
   "nav.prompts": "Prompts",
   "nav.settings": "Configuración",
+  "nav.open_menu": "Abrir menú",
+  "nav.close_menu": "Cerrar menú",
 
   // ── project picker ──
   "picker.label": "Proyecto",

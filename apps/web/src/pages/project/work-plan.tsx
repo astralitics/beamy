@@ -337,7 +337,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             {t("plan.title")}
@@ -345,12 +345,12 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
           <p className="mt-1 text-sm text-ink-500">{t("plan.lede")}</p>
         </div>
         {!adding && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ViewToggle view={view} onChange={setView} />
             <button
               type="button"
               onClick={() => setAdding(true)}
-              className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
+              className="inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
             >
               {t("plan.add_item")}
             </button>
@@ -2383,7 +2383,7 @@ function RoomsSection({ projectId }: { projectId: string }) {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div>
           <button
             type="button"

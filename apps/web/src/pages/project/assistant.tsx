@@ -72,7 +72,7 @@ export default function ProjectAssistant() {
 
   return (
     <div className="flex h-[calc(100vh-280px)] min-h-[480px] flex-col">
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             {t("assistant.title")}

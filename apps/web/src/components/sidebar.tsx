@@ -88,28 +88,57 @@ const PROJECT_NAV: NavSection[] = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({
+  open = false,
+  onClose,
+}: {
+  open?: boolean;
+  onClose?: () => void;
+}) {
   const t = useT();
   const projectMatch = useMatch("/projects/:id/*");
   const inProject = Boolean(projectMatch);
   const projectId = projectMatch?.params.id;
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-ink-800 bg-ink-900 text-ink-200">
-      <div className="px-6 pb-4 pt-6">
-        <div className="flex items-center justify-between gap-3">
-          <Link to="/" className="inline-flex items-baseline gap-1.5">
-            <span className="font-display text-2xl font-normal leading-none tracking-tightest text-white">
-              Beamy
-            </span>
-            <span className="h-1 w-1 translate-y-[-2px] rounded-full bg-accent-300" />
-          </Link>
-          <LocaleToggle />
+    <>
+      {/* Backdrop — only below lg, only while the drawer is open. */}
+      <div
+        onClick={onClose}
+        aria-hidden
+        className={`fixed inset-0 z-40 bg-ink-950/50 backdrop-blur-sm transition-opacity duration-200 lg:hidden ${
+          open ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col border-r border-ink-800 bg-ink-900 text-ink-200 transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0 ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="px-6 pb-4 pt-6">
+          <div className="flex items-center justify-between gap-3">
+            <Link to="/" className="inline-flex items-baseline gap-1.5">
+              <span className="font-display text-2xl font-normal leading-none tracking-tightest text-white">
+                Beamy
+              </span>
+              <span className="h-1 w-1 translate-y-[-2px] rounded-full bg-accent-300" />
+            </Link>
+            <div className="flex items-center gap-2">
+              <LocaleToggle />
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label={t("nav.close_menu")}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 hover:bg-ink-800 hover:text-white lg:hidden"
+              >
+                <Icon name="x" className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          <div className="mt-5">
+            <ProjectPicker />
+          </div>
         </div>
-        <div className="mt-5">
-          <ProjectPicker />
-        </div>
-      </div>
 
       {inProject && (
         <div className="px-6 pb-2">
@@ -147,8 +176,9 @@ export function Sidebar() {
                 ))}
               </ul>
             ))}
-      </nav>
-    </aside>
+        </nav>
+      </aside>
+    </>
   );
 }
 

@@ -66,7 +66,7 @@ export default function ProjectsPage() {
   });
 
   return (
-    <div className="mx-auto max-w-6xl px-10 py-14 animate-rise">
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-10 lg:py-14 animate-rise">
       <PageHeader
         title={t("projects.title")}
         lede={t("projects.lede")}

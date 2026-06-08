@@ -348,6 +348,7 @@ type IconName =
   | "chevron-right"
   | "plus"
   | "search"
+  | "menu"
   | "x";
 
 const ICONS: Record<IconName, ReactNode> = {
@@ -371,6 +372,13 @@ const ICONS: Record<IconName, ReactNode> = {
     <>
       <circle cx="11" cy="11" r="7" />
       <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </>
+  ),
+  menu: (
+    <>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
     </>
   ),
   x: (

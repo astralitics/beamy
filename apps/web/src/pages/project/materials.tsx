@@ -42,7 +42,7 @@ export default function ProjectMaterials() {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             {t("materials.title")}
@@ -135,7 +135,7 @@ export default function ProjectMaterials() {
             )}
           </p>
         ) : (
-          <div className="grid gap-2">
+          <div className="grid grid-cols-1 gap-2">
             {list.data.map((m) => (
               <MaterialRowItem
                 key={m.id}

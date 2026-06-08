@@ -39,7 +39,7 @@ export default function HomePage() {
   const whoami = trpc.me.whoami.useQuery();
 
   return (
-    <div className="mx-auto max-w-3xl px-10 py-20 animate-rise">
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-10 lg:py-20 animate-rise">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
         {whoami.data?.org.name ?? "—"}
       </p>

@@ -104,7 +104,7 @@ export default function ProjectAssetDetail() {
           {t("assets.title")}
         </Link>
 
-        <div className="mt-3 flex items-start justify-between gap-6">
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
               <Pill tone={STATUS_TONE[a.status]} dot>
