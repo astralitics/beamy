@@ -34,8 +34,8 @@ export default function SettingsPage() {
     me.data && (me.data.role === "owner" || me.data.role === "admin");
 
   return (
-    <div className="mx-auto max-w-4xl p-10">
-      <div className="flex items-start justify-between gap-6">
+    <div className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-10">
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
             {t("settings.title")}

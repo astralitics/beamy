@@ -55,7 +55,7 @@ export default function ProjectShell() {
   const number = projectNumber(p.id, p.createdAt);
 
   return (
-    <div className="mx-auto max-w-5xl px-10 py-14 animate-rise">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10 lg:px-10 lg:py-14 animate-rise">
       <Header
         name={p.name}
         status={p.status}
@@ -109,7 +109,7 @@ function Header({
 
   return (
     <header>
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             <Pill tone={STATUS_TONE[status]} dot>

@@ -382,8 +382,8 @@ function PhaseBar({ data }: { data: Phase }) {
   const currentIdx = PROJECT_PHASE_ORDER.indexOf(phase);
 
   return (
-    <div>
-      <ol className="flex items-center">
+    <div className="-mx-1 overflow-x-auto px-1">
+      <ol className="flex min-w-max items-center sm:min-w-0">
         {PROJECT_PHASE_ORDER.map((p, i) => {
           const done = i < currentIdx;
           const current = i === currentIdx;

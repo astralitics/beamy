@@ -1,8 +1,10 @@
-import { useEffect, useRef } from "react";
-import { NavLink, Route, Routes } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./lib/auth";
+import { useT } from "./lib/i18n";
 import { Sidebar } from "./components/sidebar";
+import { Icon } from "./components/ui";
 import { RequireAuth } from "./components/require-auth";
 import { OrgGate } from "./components/org-gate";
 import HomePage from "./pages/home";
@@ -76,11 +78,21 @@ export default function App() {
 }
 
 function AppShell() {
+  const [navOpen, setNavOpen] = useState(false);
+  const location = useLocation();
+
+  // Close the mobile drawer whenever the route changes (tapping a nav link).
+  useEffect(() => {
+    setNavOpen(false);
+  }, [location.pathname, location.search]);
+
   return (
     <div className="flex h-full">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto">
-        <Routes>
+      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <MobileTopBar onOpen={() => setNavOpen(true)} />
+        <main className="flex-1 overflow-y-auto">
+          <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/vendors" element={<VendorsPage />} />
@@ -168,7 +180,30 @@ function AppShell() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </main>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function MobileTopBar({ onOpen }: { onOpen: () => void }) {
+  const t = useT();
+  return (
+    <div className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-ink-200 bg-paper-50/90 px-4 backdrop-blur lg:hidden">
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={t("nav.open_menu")}
+        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-ink-200 bg-white text-ink-700 transition-colors hover:bg-paper-100"
+      >
+        <Icon name="menu" className="h-5 w-5" />
+      </button>
+      <Link to="/" className="inline-flex items-baseline gap-1.5">
+        <span className="font-display text-xl font-normal leading-none tracking-tightest text-ink-900">
+          Beamy
+        </span>
+        <span className="h-1 w-1 translate-y-[-2px] rounded-full bg-accent-400" />
+      </Link>
     </div>
   );
 }

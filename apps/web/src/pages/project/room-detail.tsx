@@ -105,7 +105,7 @@ export default function ProjectRoomDetail() {
           {t("rooms.title")}
         </Link>
 
-        <div className="mt-3 flex items-start justify-between gap-6">
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div className="min-w-0">
             <p className="text-[13px] text-ink-500">
               {r.roomType ? L.roomType(r.roomType) : t("room.fallback")}

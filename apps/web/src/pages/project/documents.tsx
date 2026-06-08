@@ -31,7 +31,7 @@ export default function ProjectDocuments() {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div>
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
             {t("documents.title")}
@@ -64,7 +64,7 @@ export default function ProjectDocuments() {
               : t("documents.empty")}
           </p>
         ) : (
-          <div className="grid gap-2">
+          <div className="grid grid-cols-1 gap-2">
             {list.data.map((d) => (
               <DocumentRowItem key={d.id} doc={d} />
             ))}
@@ -192,7 +192,7 @@ function DocumentRowItem({ doc }: { doc: DocumentRow }) {
           <button
             type="button"
             onClick={() => downloadMutation.run(doc.id)}
-            className="truncate text-left font-medium text-blueprint-900 hover:text-safety-800"
+            className="block min-w-0 max-w-full truncate text-left font-medium text-blueprint-900 hover:text-safety-800"
             title={doc.name}
           >
             {doc.name}
