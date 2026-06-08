@@ -114,6 +114,7 @@ export const pagesEn = {
   "plan.rooms_empty_prefix": "No rooms yet. Click",
   "plan.rooms_empty_suffix": " to anchor the spatial side of the project.",
   "plan.remove_room_confirm": "Remove {name}?",
+  "plan.remove_room_title": "Remove room",
   "plan.view.table": "Table",
   "plan.view.rooms": "By room",
   "plan.view.timeline": "Timeline",
@@ -204,6 +205,7 @@ export const pagesEn = {
   "work_item.no_rooms_assigned": "No rooms assigned.",
   "work_item.deps_edit_hint": "Edit dependencies from the Edit view.",
   "work_item.delete": "Delete this work item",
+  "work_item.delete_title": "Delete work item",
   "work_item.delete_confirm": "Permanently delete \"{name}\"?",
 
   // ── money / bill detail / invoice detail ──
@@ -285,6 +287,7 @@ export const pagesEn = {
   "materials.lot": "lot",
   "materials.attic_stock": "attic stock",
   "materials.remove_confirm": "Remove {name}?",
+  "materials.remove_title": "Remove material",
   "materials.error_unit_required": "Pick a unit when entering a quantity.",
   "materials.form_title_edit": "Edit · material",
   "materials.form_title_new": "New · material",
@@ -449,6 +452,7 @@ export const pagesEs: Partial<Record<keyof typeof pagesEn, string>> = {
   "plan.rooms_empty_prefix": "Aún no hay espacios. Haz clic en",
   "plan.rooms_empty_suffix": " para anclar el lado espacial del proyecto.",
   "plan.remove_room_confirm": "¿Quitar {name}?",
+  "plan.remove_room_title": "Quitar espacio",
   "plan.view.table": "Tabla",
   "plan.view.rooms": "Por espacio",
   "plan.view.timeline": "Cronograma",
@@ -539,6 +543,7 @@ export const pagesEs: Partial<Record<keyof typeof pagesEn, string>> = {
   "work_item.no_rooms_assigned": "Sin espacios asignados.",
   "work_item.deps_edit_hint": "Edita las dependencias desde la vista de edición.",
   "work_item.delete": "Eliminar esta partida",
+  "work_item.delete_title": "Eliminar partida",
   "work_item.delete_confirm": "¿Eliminar permanentemente \"{name}\"?",
 
   // ── money / bill detail / invoice detail ──
@@ -620,6 +625,7 @@ export const pagesEs: Partial<Record<keyof typeof pagesEn, string>> = {
   "materials.lot": "lote",
   "materials.attic_stock": "material sobrante",
   "materials.remove_confirm": "¿Quitar {name}?",
+  "materials.remove_title": "Quitar material",
   "materials.error_unit_required": "Elige una unidad al ingresar una cantidad.",
   "materials.form_title_edit": "Editar · material",
   "materials.form_title_new": "Nuevo · material",

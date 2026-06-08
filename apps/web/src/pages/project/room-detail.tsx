@@ -7,6 +7,7 @@ import { trpc } from "../../lib/trpc";
 import { useLabels, useT } from "../../lib/i18n";
 import {
   Button,
+  ConfirmDialog,
   Field,
   Icon,
   Input,
@@ -46,6 +47,7 @@ export default function ProjectRoomDetail() {
 
   // Editable copies — populated when the room loads.
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [name, setName] = useState("");
   const [roomType, setRoomType] = useState<RoomType | "">("");
   const [floor, setFloor] = useState("");
@@ -172,15 +174,24 @@ export default function ProjectRoomDetail() {
           <section className="border-t border-ink-100 pt-8">
             <button
               type="button"
-              onClick={() => {
-                if (confirm(t("room.delete_confirm", { name: r.name }))) {
-                  remove.mutate({ id: r.id });
-                }
-              }}
+              onClick={() => setConfirmingDelete(true)}
               className="text-[13px] text-rose-600 hover:text-rose-800"
             >
               {t("room.delete")}
             </button>
+            {confirmingDelete && (
+              <ConfirmDialog
+                title={t("room.delete")}
+                message={t("room.delete_confirm", { name: r.name })}
+                confirmLabel={t("common.delete")}
+                cancelLabel={t("common.cancel")}
+                tone="danger"
+                loading={remove.isPending}
+                error={remove.error?.message}
+                onConfirm={() => remove.mutate({ id: r.id })}
+                onClose={() => setConfirmingDelete(false)}
+              />
+            )}
           </section>
         </>
       )}

@@ -9,6 +9,7 @@ import {
   type MaterialCategory,
   type MaterialUnit,
 } from "@beamy/shared";
+import { ConfirmDialog } from "../../components/ui";
 import { trpc } from "../../lib/trpc";
 import { useLabels, useT } from "../../lib/i18n";
 
@@ -166,6 +167,7 @@ function MaterialRowItem({
     onSuccess: () =>
       utils.materials.list.invalidate({ projectId: material.projectId }),
   });
+  const [confirming, setConfirming] = useState(false);
 
   const idLine: string[] = [];
   if (material.manufacturer) idLine.push(material.manufacturer);
@@ -241,11 +243,7 @@ function MaterialRowItem({
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (confirm(t("materials.remove_confirm", { name: material.name }))) {
-                remove.mutate({ id: material.id });
-              }
-            }}
+            onClick={() => setConfirming(true)}
             disabled={remove.isPending}
             className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
           >
@@ -253,6 +251,19 @@ function MaterialRowItem({
           </button>
         </div>
       </div>
+      {confirming && (
+        <ConfirmDialog
+          title={t("materials.remove_title")}
+          message={t("materials.remove_confirm", { name: material.name })}
+          confirmLabel={t("common.remove")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={remove.isPending}
+          error={remove.error?.message}
+          onConfirm={() => remove.mutate({ id: material.id })}
+          onClose={() => setConfirming(false)}
+        />
+      )}
     </div>
   );
 }
