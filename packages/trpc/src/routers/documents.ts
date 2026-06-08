@@ -1,4 +1,3 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
@@ -17,8 +16,8 @@ import {
   documentUpdateInputSchema,
 } from "@beamy/shared";
 import { orgScopedProcedure, router } from "../init";
+import { BUCKET, getStorageClient } from "../lib/storage";
 
-const BUCKET = "documents";
 const SIGNED_URL_EXPIRY_SECONDS = 60 * 10; // 10 minutes
 
 /**
@@ -292,29 +291,6 @@ export const documentsRouter = router({
 });
 
 // ────────────────────── helpers ──────────────────────
-
-/**
- * Lazy Supabase admin client. Built on demand so dev-from-zero (no
- * SUPABASE_URL / key set) doesn't crash at boot; the documents endpoints
- * throw a clear error instead.
- */
-let _storageClient: SupabaseClient | null = null;
-function getStorageClient(): SupabaseClient {
-  if (_storageClient) return _storageClient;
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message:
-        "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set on the server for the documents feature.",
-    });
-  }
-  _storageClient = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  return _storageClient;
-}
 
 /**
  * Derive a file extension (with leading dot, or empty string) from the

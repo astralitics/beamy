@@ -20,7 +20,8 @@
     "@supabase/supabase-js": "^2.105.4",
     "@trpc/server": "^11.0.0-rc.660",
     "drizzle-orm": "^0.36.4",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

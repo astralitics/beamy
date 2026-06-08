@@ -1,0 +1,1 @@
+ALTER TABLE "bids" ADD COLUMN "deposit_amount" numeric(14, 2);
