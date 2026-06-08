@@ -36,6 +36,7 @@ export default defineConfig(({ mode }) => {
     "SUPABASE_SERVICE_ROLE_KEY",
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_MODEL",
+    "EXTRACTION_MODEL",
   ]) {
     if (fileEnv[key]) process.env[key] = fileEnv[key];
   }

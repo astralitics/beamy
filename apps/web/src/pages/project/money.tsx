@@ -23,6 +23,7 @@ import {
   Select,
   Textarea,
 } from "../../components/ui";
+import { DocumentIntake } from "../../components/document-intake";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type BillRow = inferRouterOutputs<AppRouter>["bills"]["list"][number];
@@ -432,6 +433,7 @@ function BillsTab({
   error: string | undefined;
 }) {
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<BillStatus | "">("");
   const [search, setSearch] = useState("");
   const fmt = useFormatters();
@@ -463,10 +465,15 @@ function BillsTab({
           </h2>
           <p className="mt-1 text-sm text-ink-500">{t("money.bills.lede")}</p>
         </div>
-        <Button variant="primary" onClick={() => setAdding(true)}>
-          <Icon name="plus" className="h-4 w-4" />
-          {t("money.bills.new")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" onClick={() => setImporting(true)}>
+            {t("intake.bill.button")}
+          </Button>
+          <Button variant="primary" onClick={() => setAdding(true)}>
+            <Icon name="plus" className="h-4 w-4" />
+            {t("money.bills.new")}
+          </Button>
+        </div>
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -597,6 +604,13 @@ function BillsTab({
         <BillCreateModal
           projectId={projectId}
           onClose={() => setAdding(false)}
+        />
+      )}
+      {importing && (
+        <DocumentIntake
+          kind="bill"
+          projectId={projectId}
+          onClose={() => setImporting(false)}
         />
       )}
     </section>

@@ -7,7 +7,7 @@
  *   - One <PageHeader> shape per page so visual rhythm stays.
  */
 import type { ReactNode, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ButtonHTMLAttributes } from "react";
-import { forwardRef } from "react";
+import { forwardRef, useState } from "react";
 
 // ────────────────────── Page header ──────────────────────
 
@@ -211,6 +211,7 @@ export function MoneyInput({
   onCurrencyChange,
   placeholder = "0.00",
   required,
+  format = false,
 }: {
   amount: string;
   currency: string;
@@ -218,13 +219,22 @@ export function MoneyInput({
   onCurrencyChange: (v: string) => void;
   placeholder?: string;
   required?: boolean;
+  /** When true, show "$1,234.56" while not focused; emit clean digits. */
+  format?: boolean;
 }) {
+  const [focused, setFocused] = useState(false);
+  const amountValue =
+    format && !focused && amount ? formatMoneyDisplay(amount) : amount;
   return (
     <div className="flex gap-2">
       <div className="flex-1">
         <Input
-          value={amount}
-          onChange={(e) => onAmountChange(e.target.value)}
+          value={amountValue}
+          onChange={(e) =>
+            onAmountChange(format ? stripMoney(e.target.value) : e.target.value)
+          }
+          onFocus={format ? () => setFocused(true) : undefined}
+          onBlur={format ? () => setFocused(false) : undefined}
           placeholder={placeholder}
           inputMode="decimal"
           required={required}
@@ -243,6 +253,57 @@ export function MoneyInput({
   );
 }
 
+/** Strip everything but digits, dot, and minus — for money entry. */
+function stripMoney(v: string): string {
+  return v.replace(/[^0-9.\-]/g, "");
+}
+
+/** Format a raw decimal string for display as "$1,234.56". */
+export function formatMoneyDisplay(raw: string): string {
+  if (!raw) return "";
+  const n = Number(raw);
+  if (Number.isNaN(n)) return raw;
+  return (
+    "$" +
+    n.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  );
+}
+
+/**
+ * Amount input that shows "$1,234.56" when blurred and the raw digits
+ * while editing. Emits the clean digit string via onChange. Use for
+ * money fields that aren't paired with a currency selector.
+ */
+export const AmountInput = forwardRef<
+  HTMLInputElement,
+  {
+    value: string;
+    onChange: (v: string) => void;
+    className?: string;
+    placeholder?: string;
+  }
+>(function AmountInput(
+  { value, onChange, className, placeholder = "0.00" },
+  ref,
+) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      ref={ref}
+      value={focused || !value ? value : formatMoneyDisplay(value)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onChange={(e) => onChange(stripMoney(e.target.value))}
+      placeholder={placeholder}
+      inputMode="decimal"
+      className={className ?? inputBase}
+    />
+  );
+});
+
 // ────────────────────── Modal shell ──────────────────────
 
 export function Modal({
@@ -258,7 +319,7 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  size?: "md" | "lg";
+  size?: "md" | "lg" | "xl";
 }) {
   return (
     <div
@@ -267,7 +328,7 @@ export function Modal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`w-full ${size === "lg" ? "max-w-3xl" : "max-w-xl"} animate-rise overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-lift`}
+        className={`w-full ${size === "xl" ? "max-w-5xl" : size === "lg" ? "max-w-3xl" : "max-w-xl"} animate-rise overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-lift`}
       >
         <header className="border-b border-ink-100 px-7 pb-5 pt-6">
           <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
@@ -378,7 +439,7 @@ export function Pill({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${TONE[tone]}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${TONE[tone]}`}
     >
       {dot && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
       {children}

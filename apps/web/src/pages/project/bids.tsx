@@ -11,6 +11,7 @@ import {
 import { trpc } from "../../lib/trpc";
 import { useFormatters, useLabels, useT, type MessageKey } from "../../lib/i18n";
 import { Button, Icon, Pill } from "../../components/ui";
+import { DocumentIntake } from "../../components/document-intake";
 
 const STATUS_TONE: Record<
   BidStatus,
@@ -86,6 +87,7 @@ export default function ProjectBids() {
   const t = useT();
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [editing, setEditing] = useState<BidRow | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [tradeFilter, setTradeFilter] = useState<string>("");
@@ -153,12 +155,26 @@ export default function ProjectBids() {
           </p>
         </div>
         {!creating && !editing && (
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            <Icon name="plus" className="h-4 w-4" />
-            {t("bids.new")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={() => setImporting(true)}>
+              {t("intake.quote.button")}
+            </Button>
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              <Icon name="plus" className="h-4 w-4" />
+              {t("bids.new")}
+            </Button>
+          </div>
         )}
       </div>
+
+      {importing && (
+        <DocumentIntake
+          kind="quote"
+          projectId={project.id}
+          defaultCurrency={project.contractCurrency ?? "MXN"}
+          onClose={() => setImporting(false)}
+        />
+      )}
 
       {creating && (
         <BidForm
@@ -290,6 +306,7 @@ function BidSection({
               <Th align="right">{t("bids.col.total")}</Th>
               <Th>{t("bids.col.payment")}</Th>
               <Th>{t("bids.col.bid_date")}</Th>
+              <Th>{t("bids.col.valid_until")}</Th>
               <Th align="right" />
             </tr>
           </thead>
@@ -338,7 +355,12 @@ function BidTableRow({
   const complete = trpc.bids.update.useMutation({ onSuccess: invalidate });
 
   const today = new Date().toISOString().slice(0, 10);
-  const validityExpired = bid.validUntil && bid.validUntil < today;
+  const validityExpired = !!(bid.validUntil && bid.validUntil < today);
+  // Date-based expiry only matters while the quote is still in play.
+  const isExpired =
+    validityExpired &&
+    bid.status !== "accepted" &&
+    bid.status !== "completed";
   const canApprove = bid.status === "received" || bid.status === "comparing";
   const canComplete = bid.status === "accepted";
 
@@ -377,16 +399,9 @@ function BidTableRow({
         </Td>
         <Td className="text-ink-600">{bid.trade ?? "—"}</Td>
         <Td>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Pill tone={STATUS_TONE[bid.status]} dot>
-              {L.bidStatus(bid.status)}
-            </Pill>
-            {validityExpired &&
-              bid.status !== "accepted" &&
-              bid.status !== "completed" && (
-                <Pill tone="alert">{t("bids.expired")}</Pill>
-              )}
-          </div>
+          <Pill tone={STATUS_TONE[bid.status]} dot>
+            {L.bidStatus(bid.status)}
+          </Pill>
         </Td>
         <Td align="right" className="tnum text-ink-900 font-medium">
           {bid.totalAmount && bid.currency
@@ -410,6 +425,18 @@ function BidTableRow({
         </Td>
         <Td className="tnum text-ink-600">
           {bid.bidDate ? fmt.date(bid.bidDate) : "—"}
+        </Td>
+        <Td className="tnum whitespace-nowrap text-ink-600">
+          {bid.validUntil ? (
+            <div className="flex items-center gap-1.5">
+              <span className={isExpired ? "text-rose-600" : ""}>
+                {fmt.date(bid.validUntil)}
+              </span>
+              {isExpired && <Pill tone="alert">{t("bids.expired")}</Pill>}
+            </div>
+          ) : (
+            <span className="text-ink-400">—</span>
+          )}
         </Td>
         <Td align="right">
           <div className="flex items-center justify-end gap-2">
@@ -448,7 +475,7 @@ function BidTableRow({
       </tr>
       {expanded && (
         <tr className="border-b border-ink-100 bg-paper-50/60">
-          <td colSpan={8} className="px-5 pb-4 pt-1">
+          <td colSpan={9} className="px-5 pb-4 pt-1">
             <BidLineItems
               projectId={projectId}
               bidId={bid.id}
