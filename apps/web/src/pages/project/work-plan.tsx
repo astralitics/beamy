@@ -923,7 +923,6 @@ function WorkItemRowItem({
   item: WorkItemRow;
   onClick: () => void;
 }) {
-  const fmt = useFormatters();
   const L = useLabels();
   return (
     <tr
@@ -953,13 +952,74 @@ function WorkItemRowItem({
           {L.workItemStatus(item.status).toLowerCase()}
         </span>
       </td>
-      <td className="whitespace-nowrap px-3 py-2.5 text-[12px] text-slate-600">
-        {item.plannedStart ? fmt.date(item.plannedStart) : "—"}
+      <td
+        className="whitespace-nowrap px-2 py-1.5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <InlineDateCell item={item} field="plannedStart" />
       </td>
-      <td className="whitespace-nowrap px-3 py-2.5 text-[12px] text-slate-600">
-        {item.plannedEnd ? fmt.date(item.plannedEnd) : "—"}
+      <td
+        className="whitespace-nowrap px-2 py-1.5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <InlineDateCell item={item} field="plannedEnd" />
       </td>
     </tr>
+  );
+}
+
+const inlineDateCls =
+  "w-[122px] cursor-pointer rounded border border-transparent bg-transparent px-1.5 py-1 text-[12px] text-slate-600 hover:border-paper-300 focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:cursor-default disabled:opacity-50";
+
+/**
+ * Inline-editable planned date. Reads like plain text in the row until
+ * focused; picking a date commits a workItems.update right away (and
+ * refreshes the list so the timeline / calendar follow). Clicks are
+ * stopped from bubbling so editing a date never opens the row detail.
+ */
+function InlineDateCell({
+  item,
+  field,
+}: {
+  item: WorkItemRow;
+  field: "plannedStart" | "plannedEnd";
+}) {
+  const t = useT();
+  const utils = trpc.useUtils();
+  const current = item[field] ?? "";
+  const [value, setValue] = useState(current);
+  // Resync when the server value changes (e.g., after a refetch).
+  useEffect(() => {
+    setValue(current);
+  }, [current]);
+
+  const update = trpc.workItems.update.useMutation({
+    onSuccess: () => {
+      utils.workItems.list.invalidate({ projectId: item.projectId });
+    },
+    onError: () => setValue(current), // revert on failure
+  });
+
+  function commit(next: string) {
+    if (next === current) return;
+    setValue(next);
+    const patch =
+      field === "plannedStart"
+        ? { plannedStart: next || null }
+        : { plannedEnd: next || null };
+    update.mutate({ id: item.id, patch });
+  }
+
+  return (
+    <input
+      type="date"
+      value={value}
+      disabled={update.isPending}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => commit(e.target.value)}
+      aria-label={field === "plannedStart" ? t("plan.col.start") : t("plan.col.end")}
+      className={inlineDateCls}
+    />
   );
 }
 
