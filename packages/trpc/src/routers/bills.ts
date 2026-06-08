@@ -6,6 +6,7 @@ import {
   auditLog,
   bids,
   bills,
+  documents,
   getDb,
   projects,
   vendors,
@@ -153,6 +154,24 @@ export const billsRouter = router({
           })
           .returning();
         if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        // Provenance: link the uploaded source factura PDF to this bill.
+        if (input.sourceDocumentId) {
+          await tx
+            .update(documents)
+            .set({
+              billId: row.id,
+              updatedAt: new Date(),
+              updatedBy: ctx.actor,
+            })
+            .where(
+              and(
+                eq(documents.id, input.sourceDocumentId),
+                eq(documents.orgId, ctx.orgId),
+                eq(documents.projectId, input.projectId),
+              ),
+            );
+        }
 
         await tx.insert(auditLog).values({
           orgId: ctx.orgId,

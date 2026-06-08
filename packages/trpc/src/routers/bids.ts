@@ -5,8 +5,10 @@ import {
   bidPackages,
   bids,
   bills,
+  documents,
   getDb,
   projects,
+  rooms,
   vendors,
   workItemRooms,
   workItems,
@@ -14,6 +16,7 @@ import {
 import {
   bidAwardInputSchema,
   bidCreateInputSchema,
+  bidCreateWithLinesInputSchema,
   bidDecideInputSchema,
   bidIdInputSchema,
   bidListInputSchema,
@@ -147,6 +150,7 @@ export const bidsRouter = router({
             subtotalAmount: input.subtotalAmount ?? null,
             ivaAmount: input.ivaAmount ?? null,
             totalAmount: input.totalAmount ?? null,
+            depositAmount: input.depositAmount ?? null,
             currency: input.currency ?? null,
             ivaIncluded: input.ivaIncluded,
             status: input.status,
@@ -168,6 +172,150 @@ export const bidsRouter = router({
           payload: input,
         });
         return row;
+      });
+    }),
+
+  /**
+   * Create a quote header AND its line items (work_items) atomically —
+   * the destination for the document-extraction confirm flow. Mirrors
+   * `create`, then inserts one `work_items` row per line (status
+   * "specified", sharing the bid's currency). When `sourceDocumentId`
+   * is given, the uploaded PDF is linked back via `documents.bid_id`
+   * for the "ver original" affordance on the detail page.
+   */
+  createWithLines: orgScopedProcedure
+    .input(bidCreateWithLinesInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      return await db.transaction(async (tx) => {
+        await verifyOwnership(tx, ctx.orgId, {
+          projectId: input.projectId,
+          vendorId: input.vendorId,
+          packageId: input.packageId,
+        });
+
+        // Any room referenced by a line must belong to this project.
+        const lineRoomIds = [
+          ...new Set(
+            input.lines.map((l) => l.roomId).filter((x): x is string => !!x),
+          ),
+        ];
+        if (lineRoomIds.length > 0) {
+          const okRooms = await tx
+            .select({ id: rooms.id })
+            .from(rooms)
+            .where(
+              and(
+                eq(rooms.orgId, ctx.orgId),
+                eq(rooms.projectId, input.projectId),
+                inArray(rooms.id, lineRoomIds),
+              ),
+            );
+          if (okRooms.length !== lineRoomIds.length) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "A line references a room not in this project",
+            });
+          }
+        }
+
+        const [bid] = await tx
+          .insert(bids)
+          .values({
+            orgId: ctx.orgId,
+            projectId: input.projectId,
+            vendorId: input.vendorId ?? null,
+            packageId: input.packageId ?? null,
+            trade: input.trade ?? null,
+            bidNumber: input.bidNumber ?? null,
+            bidDate: input.bidDate ?? null,
+            validUntil: input.validUntil ?? null,
+            subtotalAmount: input.subtotalAmount ?? null,
+            ivaAmount: input.ivaAmount ?? null,
+            totalAmount: input.totalAmount ?? null,
+            depositAmount: input.depositAmount ?? null,
+            currency: input.currency ?? null,
+            ivaIncluded: input.ivaIncluded,
+            status: input.status,
+            flags: input.flags,
+            notes: input.notes ?? null,
+            createdBy: ctx.actor,
+            updatedBy: ctx.actor,
+          })
+          .returning();
+        if (!bid) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const currency = input.currency ?? null;
+        if (input.lines.length > 0) {
+          const inserted = await tx
+            .insert(workItems)
+            .values(
+              input.lines.map((line) => ({
+                orgId: ctx.orgId,
+                projectId: input.projectId,
+                bidId: bid.id,
+                vendorId: input.vendorId ?? null,
+                trade: line.trade ?? input.trade ?? null,
+                ref: line.ref ?? null,
+                description: line.description,
+                qty: line.qty ?? null,
+                unit: line.unit ?? null,
+                unitPriceAmount: line.unitPriceAmount ?? null,
+                unitPriceCurrency: line.unitPriceAmount ? currency : null,
+                totalAmount: line.totalAmount ?? null,
+                totalCurrency: line.totalAmount ? currency : null,
+                status: "specified" as const,
+                createdBy: ctx.actor,
+                updatedBy: ctx.actor,
+              })),
+            )
+            .returning({ id: workItems.id });
+
+          // Tag each line with its own room (work_item_rooms), by position.
+          const roomLinks = inserted
+            .map((w, i) => ({
+              workItemId: w.id,
+              roomId: input.lines[i]?.roomId,
+            }))
+            .filter(
+              (x): x is { workItemId: string; roomId: string } => !!x.roomId,
+            );
+          if (roomLinks.length > 0) {
+            await tx.insert(workItemRooms).values(roomLinks);
+          }
+        }
+
+        // Provenance: link the uploaded source PDF to this quote.
+        if (input.sourceDocumentId) {
+          await tx
+            .update(documents)
+            .set({
+              bidId: bid.id,
+              updatedAt: new Date(),
+              updatedBy: ctx.actor,
+            })
+            .where(
+              and(
+                eq(documents.id, input.sourceDocumentId),
+                eq(documents.orgId, ctx.orgId),
+                eq(documents.projectId, input.projectId),
+              ),
+            );
+        }
+
+        await tx.insert(auditLog).values({
+          orgId: ctx.orgId,
+          actor: ctx.actor,
+          action: "bid.created",
+          resourceType: "bid",
+          resourceId: bid.id,
+          payload: {
+            ...input,
+            lineCount: input.lines.length,
+            source: input.sourceDocumentId ? "extraction" : "manual",
+          },
+        });
+        return bid;
       });
     }),
 
@@ -204,6 +352,9 @@ export const bidsRouter = router({
         }
         if (p.ivaAmount !== undefined) setClause.ivaAmount = p.ivaAmount;
         if (p.totalAmount !== undefined) setClause.totalAmount = p.totalAmount;
+        if (p.depositAmount !== undefined) {
+          setClause.depositAmount = p.depositAmount;
+        }
         if (p.currency !== undefined) setClause.currency = p.currency;
         if (p.ivaIncluded !== undefined) setClause.ivaIncluded = p.ivaIncluded;
         if (p.status !== undefined) setClause.status = p.status;
