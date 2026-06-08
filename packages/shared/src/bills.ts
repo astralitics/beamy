@@ -33,6 +33,12 @@ export const billCreateInputSchema = z.object({
   status: billStatusSchema.default("open"),
   notes: z.string().trim().max(10000).optional(),
   externalRef: z.string().trim().max(200).optional(),
+  /**
+   * Links an uploaded factura PDF back to this bill (sets
+   * `documents.bill_id`) for the "ver original" affordance. Set by the
+   * document-extraction confirm flow.
+   */
+  sourceDocumentId: z.string().uuid().optional(),
 });
 export type BillCreateInput = z.infer<typeof billCreateInputSchema>;
 

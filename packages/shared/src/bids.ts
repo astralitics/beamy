@@ -63,6 +63,7 @@ export const bidCreateInputSchema = z
     subtotalAmount: moneyAmount.optional(),
     ivaAmount: moneyAmount.optional(),
     totalAmount: moneyAmount.optional(),
+    depositAmount: moneyAmount.optional(),
     currency: currencyCode.optional(),
     ivaIncluded: z.boolean().default(false),
     status: bidStatusSchema.default("received"),
@@ -74,7 +75,8 @@ export const bidCreateInputSchema = z
     const anyMoney =
       val.subtotalAmount !== undefined ||
       val.ivaAmount !== undefined ||
-      val.totalAmount !== undefined;
+      val.totalAmount !== undefined ||
+      val.depositAmount !== undefined;
     if (anyMoney && !val.currency) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -84,6 +86,75 @@ export const bidCreateInputSchema = z
     }
   });
 export type BidCreateInput = z.infer<typeof bidCreateInputSchema>;
+
+/** Quantity — numeric(14,4); up to 4 decimal places. */
+const qtyAmount = z
+  .string()
+  .regex(/^-?\d+(\.\d{1,4})?$/, "number with up to 4 decimal places");
+
+/**
+ * One quote line item. On confirm it becomes a `work_items` row
+ * (status "specified") linked to the new bid. Line money fields share
+ * the bid's `currency`, so they carry an amount only.
+ */
+export const bidLineInputSchema = z.object({
+  description: z.string().trim().min(1, "Description is required").max(2000),
+  ref: z.string().trim().max(120).optional(),
+  trade: z.string().trim().max(80).optional(),
+  qty: qtyAmount.optional(),
+  unit: z.string().trim().max(40).optional(),
+  unitPriceAmount: moneyAmount.optional(),
+  totalAmount: moneyAmount.optional(),
+  /** Room this line's work is for — links the work item to a room. */
+  roomId: z.string().uuid().optional(),
+});
+export type BidLineInput = z.infer<typeof bidLineInputSchema>;
+
+/**
+ * Create a quote header AND its line items in one atomic call — the
+ * destination for the document-extraction confirm flow. Header fields
+ * mirror `bidCreateInputSchema`; `lines` become `work_items`.
+ * `sourceDocumentId` links the uploaded PDF back to the new quote
+ * (sets `documents.bid_id`) for the "ver original" affordance.
+ */
+export const bidCreateWithLinesInputSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    vendorId: z.string().uuid().optional(),
+    packageId: z.string().uuid().optional(),
+    trade: z.string().trim().max(80).optional(),
+    bidNumber: z.string().trim().max(120).optional(),
+    bidDate: isoDate.optional(),
+    validUntil: isoDate.optional(),
+    subtotalAmount: moneyAmount.optional(),
+    ivaAmount: moneyAmount.optional(),
+    totalAmount: moneyAmount.optional(),
+    depositAmount: moneyAmount.optional(),
+    currency: currencyCode.optional(),
+    ivaIncluded: z.boolean().default(false),
+    status: bidStatusSchema.default("received"),
+    flags: z.array(flagSlug).max(20).default([]),
+    notes: z.string().trim().max(10000).optional(),
+    sourceDocumentId: z.string().uuid().optional(),
+    lines: z.array(bidLineInputSchema).max(300).default([]),
+  })
+  .superRefine((val, ctx) => {
+    const anyMoney =
+      val.subtotalAmount !== undefined ||
+      val.ivaAmount !== undefined ||
+      val.totalAmount !== undefined ||
+      val.depositAmount !== undefined;
+    if (anyMoney && !val.currency) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "currency required when any monetary amount is set",
+        path: ["currency"],
+      });
+    }
+  });
+export type BidCreateWithLinesInput = z.infer<
+  typeof bidCreateWithLinesInputSchema
+>;
 
 export const bidPatchSchema = z
   .object({
@@ -96,6 +167,7 @@ export const bidPatchSchema = z
     subtotalAmount: moneyAmount.nullable().optional(),
     ivaAmount: moneyAmount.nullable().optional(),
     totalAmount: moneyAmount.nullable().optional(),
+    depositAmount: moneyAmount.nullable().optional(),
     currency: currencyCode.nullable().optional(),
     ivaIncluded: z.boolean().optional(),
     status: bidStatusSchema.optional(),
@@ -107,7 +179,8 @@ export const bidPatchSchema = z
     const anyMoney =
       val.subtotalAmount !== undefined ||
       val.ivaAmount !== undefined ||
-      val.totalAmount !== undefined;
+      val.totalAmount !== undefined ||
+      val.depositAmount !== undefined;
     const currencyTouched = val.currency !== undefined;
     if (anyMoney && currencyTouched && val.currency === null) {
       ctx.addIssue({
