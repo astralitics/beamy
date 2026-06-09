@@ -13,6 +13,7 @@
     "typecheck": "pnpm -r typecheck",
     "db:generate": "pnpm --filter @beamy/db generate",
     "db:migrate": "pnpm --filter @beamy/db migrate",
+    "db:migrate:ci": "pnpm --filter @beamy/db migrate:ci",
     "db:seed": "pnpm --filter @beamy/db seed"
   },
   "dependencies": {
