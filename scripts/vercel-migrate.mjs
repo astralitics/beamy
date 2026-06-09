@@ -41,3 +41,13 @@ try {
   process.exit(1);
 }
 console.log("[vercel-migrate] migrations up to date.");
+
+// RLS guard — a public table with Row Level Security off is readable via the
+// Supabase PostgREST API by anyone holding the anon key, bypassing tenancy.
+// Fail the deploy rather than ship an exposed table (see packages/db/src/check-rls.ts).
+console.log("[vercel-migrate] verifying RLS on all public tables…");
+try {
+  execSync("pnpm --filter @beamy/db check-rls:ci", { stdio: "inherit" });
+} catch {
+  process.exit(1);
+}
