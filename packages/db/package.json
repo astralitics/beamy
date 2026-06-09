@@ -14,6 +14,8 @@
     "generate": "drizzle-kit generate",
     "migrate": "tsx --env-file=../../.env src/migrate.ts",
     "migrate:ci": "tsx src/migrate.ts",
+    "check-rls": "tsx --env-file=../../.env src/check-rls.ts",
+    "check-rls:ci": "tsx src/check-rls.ts",
     "seed": "tsx --env-file=../../.env src/seed.ts",
     "import-propuesta": "tsx --env-file=../../.env scripts/import-propuesta.ts",
     "seed-polanco": "tsx --env-file=../../.env scripts/seed-polanco.ts"
