@@ -29,6 +29,7 @@ export const orgsRouter = router({
             name: input.name,
             slug: input.slug,
             description: input.description ?? null,
+            vertical: input.vertical ?? "construction",
             defaultCurrency: input.defaultCurrency,
             locale: input.locale,
             ownerUserId: ctx.userId,
@@ -48,7 +49,7 @@ export const orgsRouter = router({
           action: "org.created",
           resourceType: "org",
           resourceId: org.id,
-          payload: { name: input.name, slug: input.slug },
+          payload: { name: input.name, slug: input.slug, vertical: org.vertical },
         });
         return org;
       });

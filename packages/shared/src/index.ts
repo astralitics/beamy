@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { verticalSchema } from "./verticals";
 
 export * from "./assets";
 export * from "./bids";
@@ -31,6 +32,10 @@ export const createOrgInputSchema = z.object({
     .max(60)
     .regex(/^[a-z0-9-]+$/, "lowercase letters, numbers, and hyphens only"),
   description: z.string().max(1000).optional(),
+  // Product vertical for the new workspace. Optional so the sign-up flow can
+  // omit it (defaults to construction); the "+ New workspace" switcher action
+  // sets it explicitly.
+  vertical: verticalSchema.optional(),
   defaultCurrency: z.string().length(3).default("USD"),
   locale: z.string().min(2).max(10).default("en"),
 });
