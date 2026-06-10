@@ -1,5 +1,5 @@
 {
-  "id": "94d30c9b-b10d-4a29-a6d6-6afc60b654e1",
+  "id": "a2dd1d4b-d919-4985-b862-42800ee235af",
   "prevId": "77ea5da0-d20d-424e-af34-3eae08ac658a",
   "version": "7",
   "dialect": "postgresql",
@@ -33,26 +33,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'member'"
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'member'"
-        },
-        "vertical": {
-          "name": "vertical",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'construction'"
-        },
-        "workspace_name": {
-          "name": "workspace_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "invited_by_user_id": {
           "name": "invited_by_user_id",
@@ -276,13 +256,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "vertical": {
-          "name": "vertical",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'construction'"
         },
         "default_currency": {
           "name": "default_currency",
