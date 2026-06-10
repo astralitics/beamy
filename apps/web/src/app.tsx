@@ -7,6 +7,7 @@ import { Sidebar } from "./components/sidebar";
 import { Icon } from "./components/ui";
 import { RequireAuth } from "./components/require-auth";
 import { OrgGate } from "./components/org-gate";
+import { VerticalProvider } from "./lib/vertical";
 import HomePage from "./pages/home";
 import ClientsPage from "./pages/clients";
 import LoginPage from "./pages/login";
@@ -40,6 +41,7 @@ import ProjectPlaceholder from "./pages/project/placeholder";
 import ServicesPage from "./pages/services";
 import SettingsPage from "./pages/settings";
 import VendorsPage from "./pages/vendors";
+import WorkflowsPage from "./pages/workflows";
 
 export default function App() {
   // Reset the query cache whenever the signed-in user changes. tRPC queries
@@ -68,7 +70,9 @@ export default function App() {
         element={
           <RequireAuth>
             <OrgGate>
-              <AppShell />
+              <VerticalProvider>
+                <AppShell />
+              </VerticalProvider>
             </OrgGate>
           </RequireAuth>
         }
@@ -97,6 +101,7 @@ function AppShell() {
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/vendors" element={<VendorsPage />} />
           <Route path="/services" element={<ServicesPage />} />
+          <Route path="/workflows" element={<WorkflowsPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
 
           {/* Project workspace mode — Vercel/Supabase pattern. Sidebar

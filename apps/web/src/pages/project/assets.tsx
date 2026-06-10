@@ -3,7 +3,7 @@ import { Link, useOutletContext } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  ASSET_CATEGORY_LABELS,
+  ASSET_CATEGORIES_BY_VERTICAL,
   ASSET_STATUS_LABELS,
   ROOM_TYPE_LABELS,
   type AssetCategory,
@@ -11,6 +11,7 @@ import {
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useFormatters, useLabels, useT } from "../../lib/i18n";
+import { useVertical } from "../../lib/vertical";
 import {
   Button,
   Field,
@@ -38,6 +39,7 @@ const STATUS_TONE: Record<
 };
 
 export default function ProjectAssets() {
+  const vertical = useVertical();
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const [modal, setModal] = useState<
     | { mode: "closed" }
@@ -102,7 +104,7 @@ export default function ProjectAssets() {
             }
           >
             <option value="">{t("filter.all_categories")}</option>
-            {(Object.keys(ASSET_CATEGORY_LABELS) as AssetCategory[]).map((c) => (
+            {ASSET_CATEGORIES_BY_VERTICAL[vertical].map((c) => (
               <option key={c} value={c}>
                 {L.assetCategory(c)}
               </option>
@@ -325,6 +327,7 @@ function AssetFormModal({
   onClose: () => void;
 }) {
   const isEdit = mode === "edit";
+  const vertical = useVertical();
   const L = useLabels();
   const t = useT();
 
@@ -452,7 +455,7 @@ function AssetFormModal({
             value={category}
             onChange={(e) => setCategory(e.target.value as AssetCategory)}
           >
-            {(Object.keys(ASSET_CATEGORY_LABELS) as AssetCategory[]).map((c) => (
+            {ASSET_CATEGORIES_BY_VERTICAL[vertical].map((c) => (
               <option key={c} value={c}>
                 {L.assetCategory(c)}
               </option>

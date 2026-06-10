@@ -3,7 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  MATERIAL_CATEGORY_LABELS,
+  MATERIAL_CATEGORIES_BY_VERTICAL,
   MATERIAL_UNIT_LABELS,
   ROOM_TYPE_LABELS,
   type MaterialCategory,
@@ -12,6 +12,7 @@ import {
 import { ConfirmDialog } from "../../components/ui";
 import { trpc } from "../../lib/trpc";
 import { useLabels, useT } from "../../lib/i18n";
+import { useVertical } from "../../lib/vertical";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 type MaterialRow = inferRouterOutputs<AppRouter>["materials"]["list"][number];
@@ -25,6 +26,7 @@ export default function ProjectMaterials() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const L = useLabels();
   const t = useT();
+  const vertical = useVertical();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<MaterialRow | null>(null);
   const [roomFilter, setRoomFilter] = useState<string>("");
@@ -83,13 +85,11 @@ export default function ProjectMaterials() {
             className={selectCls}
           >
             <option value="">{t("filter.all_categories")}</option>
-            {(Object.keys(MATERIAL_CATEGORY_LABELS) as MaterialCategory[]).map(
-              (c) => (
-                <option key={c} value={c}>
-                  {L.materialCategory(c)}
-                </option>
-              ),
-            )}
+            {MATERIAL_CATEGORIES_BY_VERTICAL[vertical].map((c) => (
+              <option key={c} value={c}>
+                {L.materialCategory(c)}
+              </option>
+            ))}
           </select>
           <input
             value={search}
@@ -287,6 +287,7 @@ function MaterialForm({
 }) {
   const L = useLabels();
   const t = useT();
+  const vertical = useVertical();
   const [name, setName] = useState(existing?.name ?? "");
   const [category, setCategory] = useState<MaterialCategory>(
     existing?.category ?? "paint",
@@ -389,13 +390,11 @@ function MaterialForm({
             onChange={(e) => setCategory(e.target.value as MaterialCategory)}
             className={selectCls}
           >
-            {(Object.keys(MATERIAL_CATEGORY_LABELS) as MaterialCategory[]).map(
-              (c) => (
-                <option key={c} value={c}>
-                  {L.materialCategory(c)}
-                </option>
-              ),
-            )}
+            {MATERIAL_CATEGORIES_BY_VERTICAL[vertical].map((c) => (
+              <option key={c} value={c}>
+                {L.materialCategory(c)}
+              </option>
+            ))}
           </select>
         </Field>
         <Field label={t("materials.field.primary_room")}>

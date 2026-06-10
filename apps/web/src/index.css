@@ -45,3 +45,41 @@
     letter-spacing: -0.02em;
   }
 }
+
+/*
+ * Landscaping sidebar theme — earthy green.
+ *
+ * The sidebar's dark surfaces are `ink` shades (near-black). For the
+ * landscaping vertical we remap just those surface/border utilities to muted
+ * forest greens, scoped under the sidebar's `data-vertical` attribute (set in
+ * sidebar.tsx from useVertical). Text utilities (text-ink-*) are left alone —
+ * the light text reads well on both palettes. Construction keeps the default
+ * ink look; the open dropdown panels stay white on both.
+ */
+aside[data-vertical="landscaping"] {
+  background-color: #18241a; /* deep forest (replaces bg-ink-900) */
+}
+aside[data-vertical="landscaping"] .bg-ink-900 {
+  background-color: #18241a;
+}
+aside[data-vertical="landscaping"] .bg-ink-800 {
+  background-color: #2a3a26;
+}
+aside[data-vertical="landscaping"] .bg-ink-800\/60 {
+  background-color: rgba(42, 58, 38, 0.6);
+}
+aside[data-vertical="landscaping"] .border-ink-800 {
+  border-color: #33442d;
+}
+aside[data-vertical="landscaping"] .border-ink-700 {
+  border-color: #3d5235;
+}
+aside[data-vertical="landscaping"] .hover\:bg-ink-800:hover {
+  background-color: #324230;
+}
+aside[data-vertical="landscaping"] .hover\:bg-ink-800\/60:hover {
+  background-color: rgba(50, 66, 48, 0.6);
+}
+aside[data-vertical="landscaping"] .hover\:border-ink-600:hover {
+  border-color: #4c6243;
+}

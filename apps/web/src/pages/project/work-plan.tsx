@@ -15,7 +15,7 @@ import {
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  ROOM_TYPE_LABELS,
+  ROOM_TYPES_BY_VERTICAL,
   WORK_ITEM_DEPENDENCY_KIND_LABELS,
   WORK_ITEM_DEPENDENCY_KIND_SHORT,
   WORK_ITEM_STATUS_FLOW,
@@ -31,6 +31,7 @@ import {
   useT,
   type MessageKey,
 } from "../../lib/i18n";
+import { useVertical } from "../../lib/vertical";
 import { ConfirmDialog } from "../../components/ui";
 
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
@@ -2598,6 +2599,7 @@ function RoomForm({
 }) {
   const t = useT();
   const L = useLabels();
+  const vertical = useVertical();
   const [name, setName] = useState(existing?.name ?? "");
   const [roomType, setRoomType] = useState<RoomType | "">(
     existing?.roomType ?? "",
@@ -2660,7 +2662,7 @@ function RoomForm({
             className={selectCls}
           >
             <option value="">{t("work_item.option.none")}</option>
-            {(Object.keys(ROOM_TYPE_LABELS) as RoomType[]).map((rt) => (
+            {ROOM_TYPES_BY_VERTICAL[vertical].map((rt) => (
               <option key={rt} value={rt}>
                 {L.roomType(rt)}
               </option>

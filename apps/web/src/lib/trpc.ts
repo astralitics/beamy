@@ -2,6 +2,7 @@ import { createTRPCReact } from "@trpc/react-query";
 import { httpBatchLink } from "@trpc/client";
 import type { AppRouter } from "@beamy/trpc";
 import { getAccessToken } from "./auth";
+import { getActiveOrg } from "./active-org";
 
 /**
  * Typed tRPC React client. Use via the namespace pattern:
@@ -23,7 +24,11 @@ export function makeTrpcClient() {
         url: "/api/trpc",
         async headers() {
           const token = await getAccessToken();
-          return token ? { authorization: `Bearer ${token}` } : {};
+          const activeOrg = getActiveOrg();
+          return {
+            ...(token ? { authorization: `Bearer ${token}` } : {}),
+            ...(activeOrg ? { "x-active-org": activeOrg } : {}),
+          };
         },
       }),
     ],

@@ -2,9 +2,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
-import { ROOM_TYPE_LABELS, type RoomType } from "@beamy/shared";
+import { ROOM_TYPES_BY_VERTICAL, type RoomType } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useLabels, useT } from "../../lib/i18n";
+import { useVertical } from "../../lib/vertical";
 import {
   Button,
   ConfirmDialog,
@@ -18,6 +19,7 @@ import {
 type ProjectDetail = inferRouterOutputs<AppRouter>["projects"]["get"];
 
 export default function ProjectRoomDetail() {
+  const vertical = useVertical();
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const L = useLabels();
   const t = useT();
@@ -212,9 +214,9 @@ export default function ProjectRoomDetail() {
                 onChange={(e) => setRoomType(e.target.value as RoomType | "")}
               >
                 <option value="">—</option>
-                {(Object.keys(ROOM_TYPE_LABELS) as RoomType[]).map((t) => (
-                  <option key={t} value={t}>
-                    {L.roomType(t)}
+                {ROOM_TYPES_BY_VERTICAL[vertical].map((rt) => (
+                  <option key={rt} value={rt}>
+                    {L.roomType(rt)}
                   </option>
                 ))}
               </Select>

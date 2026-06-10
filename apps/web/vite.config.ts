@@ -59,6 +59,11 @@ export default defineConfig(({ mode }) => {
         authEnabled,
       }),
     ],
+    // pnpm can hoist a second React copy for deps like @xyflow/react, which
+    // triggers "Invalid hook call / more than one copy of React". Force a
+    // single instance, and pre-bundle the graph libs.
+    resolve: { dedupe: ["react", "react-dom"] },
+    optimizeDeps: { include: ["@xyflow/react", "dagre"] },
     server: { port: 5173 },
   };
 });
@@ -118,11 +123,12 @@ function trpcDevServerPlugin(opts: {
             supabaseAdmin,
             opts.devUserId,
           );
+          const activeOrgId = fetchReq.headers.get("x-active-org") || null;
           const fetchRes = await fetchRequestHandler({
             endpoint: "/api/trpc",
             req: fetchReq,
             router: appRouter,
-            createContext: () => buildContext({ userId }),
+            createContext: () => buildContext({ userId, activeOrgId }),
           });
           await pipeFetchToNode(fetchRes, res);
         } catch (err) {

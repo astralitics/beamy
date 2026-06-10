@@ -1,7 +1,14 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
-import type { InviteRole, OrgRole } from "@beamy/shared";
+import {
+  VERTICALS,
+  VERTICAL_LABELS,
+  type InviteKind,
+  type InviteRole,
+  type OrgRole,
+  type Vertical,
+} from "@beamy/shared";
 import { trpc } from "../lib/trpc";
 import { useAuth } from "../lib/auth";
 import { useT } from "../lib/i18n";
@@ -222,8 +229,19 @@ function InvitationItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="font-medium text-slate-900">{invitation.email}</span>
-          <RolePill role={invitation.role} />
+          {invitation.kind === "workspace" ? (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
+              {VERTICAL_LABELS[invitation.vertical]}
+            </span>
+          ) : (
+            <RolePill role={invitation.role} />
+          )}
         </div>
+        {invitation.kind === "workspace" && invitation.workspaceName && (
+          <div className="mt-0.5 text-xs text-slate-500">
+            {invitation.workspaceName}
+          </div>
+        )}
         <div className="mt-0.5 text-xs text-slate-500">
           {t("settings.expires", {
             date: new Date(invitation.expiresAt).toLocaleDateString(),
@@ -271,12 +289,22 @@ function InvitationItem({
  * signing in with the invited email — the email-whitelist gate (`me.authorize`)
  * auto-provisions them, so the link just routes them to sign-in.
  */
-type CreatedInvite = { email: string; role: InviteRole; token: string };
+type CreatedInvite = {
+  email: string;
+  kind: InviteKind;
+  role: InviteRole;
+  vertical: Vertical;
+  workspaceName: string | null;
+  token: string;
+};
 
 function InviteModal({ onClose }: { onClose: () => void }) {
   const t = useT();
+  const [kind, setKind] = useState<InviteKind>("workspace");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<InviteRole>("member");
+  const [vertical, setVertical] = useState<Vertical>("construction");
+  const [workspaceName, setWorkspaceName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedInvite | null>(null);
 
@@ -284,15 +312,38 @@ function InviteModal({ onClose }: { onClose: () => void }) {
   const invite = trpc.members.invite.useMutation({
     onSuccess: (row) => {
       utils.members.listInvitations.invalidate();
-      setCreated({ email: row.email, role: row.role, token: row.token });
+      setCreated({
+        email: row.email,
+        kind: row.kind,
+        role: row.role,
+        vertical: row.vertical,
+        workspaceName: row.workspaceName,
+        token: row.token,
+      });
     },
     onError: (err) => setError(err.message),
   });
 
+  function resetForm() {
+    setCreated(null);
+    setEmail("");
+    setRole("member");
+    setWorkspaceName("");
+  }
+
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    invite.mutate({ email: email.trim(), role });
+    if (kind === "workspace") {
+      invite.mutate({
+        kind: "workspace",
+        email: email.trim(),
+        vertical,
+        workspaceName: workspaceName.trim(),
+      });
+    } else {
+      invite.mutate({ kind: "member", email: email.trim(), role });
+    }
   }
 
   return (
@@ -311,9 +362,13 @@ function InviteModal({ onClose }: { onClose: () => void }) {
             </h2>
             <p className="mt-1 text-sm text-slate-600">
               <span className="font-medium text-slate-900">{created.email}</span>{" "}
-              {t("settings.invite_ready_body", {
-                role: roleLabel(t, created.role),
-              })}
+              {created.kind === "workspace"
+                ? t("settings.invite.workspace_ready_body", {
+                    vertical: VERTICAL_LABELS[created.vertical],
+                  })
+                : t("settings.invite_ready_body", {
+                    role: roleLabel(t, created.role),
+                  })}
             </p>
             <div className="mt-4">
               <CopyField
@@ -328,11 +383,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
             <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setCreated(null);
-                  setEmail("");
-                  setRole("member");
-                }}
+                onClick={resetForm}
                 className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
               >
                 {t("settings.invite_another")}
@@ -349,12 +400,58 @@ function InviteModal({ onClose }: { onClose: () => void }) {
         ) : (
           <form onSubmit={onSubmit}>
             <h2 className="text-lg font-semibold tracking-tight">
-              {t("settings.invite_member")}
+              {kind === "workspace"
+                ? t("settings.invite.kind_workspace")
+                : t("settings.invite_member")}
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              {t("settings.invite_form_body")}
+              {kind === "workspace"
+                ? t("settings.invite.workspace_body", {
+                    vertical: VERTICAL_LABELS[vertical],
+                  })
+                : t("settings.invite_form_body")}
             </p>
             <div className="mt-4 space-y-3">
+              <Field label={t("settings.invite.kind_label")}>
+                <div className="inline-flex rounded-md border border-slate-200 p-0.5">
+                  <KindTab
+                    active={kind === "workspace"}
+                    onClick={() => setKind("workspace")}
+                    label={t("settings.invite.kind_workspace")}
+                  />
+                  <KindTab
+                    active={kind === "member"}
+                    onClick={() => setKind("member")}
+                    label={t("settings.invite.kind_member")}
+                  />
+                </div>
+              </Field>
+              {kind === "workspace" && (
+                <>
+                  <Field label={t("settings.invite.product")}>
+                    <select
+                      value={vertical}
+                      onChange={(e) => setVertical(e.target.value as Vertical)}
+                      className={selectCls}
+                    >
+                      {VERTICALS.map((v) => (
+                        <option key={v} value={v}>
+                          {VERTICAL_LABELS[v]}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label={t("settings.invite.workspace_name")}>
+                    <input
+                      required
+                      value={workspaceName}
+                      onChange={(e) => setWorkspaceName(e.target.value)}
+                      className={inputCls}
+                      placeholder={t("settings.invite.workspace_name_ph")}
+                    />
+                  </Field>
+                </>
+              )}
               <Field label={t("settings.field.email_req")}>
                 <input
                   type="email"
@@ -363,19 +460,21 @@ function InviteModal({ onClose }: { onClose: () => void }) {
                   onChange={(e) => setEmail(e.target.value)}
                   className={inputCls}
                   autoFocus
-                  placeholder="teammate@example.com"
+                  placeholder="customer@example.com"
                 />
               </Field>
-              <Field label={t("settings.field.role")}>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as InviteRole)}
-                  className={selectCls}
-                >
-                  <option value="member">{t("settings.role.member")}</option>
-                  <option value="admin">{t("settings.role.admin")}</option>
-                </select>
-              </Field>
+              {kind === "member" && (
+                <Field label={t("settings.field.role")}>
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as InviteRole)}
+                    className={selectCls}
+                  >
+                    <option value="member">{t("settings.role.member")}</option>
+                    <option value="admin">{t("settings.role.admin")}</option>
+                  </select>
+                </Field>
+              )}
             </div>
             {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
             <div className="mt-6 flex justify-end gap-2">
@@ -391,13 +490,42 @@ function InviteModal({ onClose }: { onClose: () => void }) {
                 disabled={invite.isPending}
                 className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
               >
-                {invite.isPending ? t("settings.creating") : t("settings.create_invite")}
+                {invite.isPending
+                  ? t("settings.creating")
+                  : kind === "workspace"
+                    ? t("settings.invite.create_workspace")
+                    : t("settings.create_invite")}
               </button>
             </div>
           </form>
         )}
       </div>
     </div>
+  );
+}
+
+function KindTab({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+        active
+          ? "bg-slate-900 text-white"
+          : "text-slate-600 hover:text-slate-900"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
