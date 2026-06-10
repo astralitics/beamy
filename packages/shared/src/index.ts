@@ -17,6 +17,7 @@ export * from "./proposals";
 export * from "./services";
 export * from "./specs";
 export * from "./vendors";
+export * from "./verticals";
 export * from "./work-items";
 
 export const orgRoleSchema = z.enum(["owner", "admin", "member"]);

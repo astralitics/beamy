@@ -13,7 +13,8 @@ import {
   publicProcedure,
   router,
 } from "../init";
-import { resolveOrgMembership } from "../context";
+import { listMembershipsWithOrg, resolveOrgMembership } from "../context";
+import { redeemInvitation } from "../lib/redeem-invitation";
 
 /**
  * `me` router — minimal end-to-end demo for M0:
@@ -47,6 +48,7 @@ export const meRouter = router({
         id: org.id,
         name: org.name,
         slug: org.slug,
+        vertical: org.vertical,
         defaultCurrency: org.defaultCurrency,
         locale: org.locale,
       },
@@ -60,7 +62,7 @@ export const meRouter = router({
    * sign-in with no invite) to /redeem instead of crashing on a 403.
    */
   membership: protectedProcedure.query(async ({ ctx }) => {
-    const m = await resolveOrgMembership(ctx.userId);
+    const m = await resolveOrgMembership(ctx.userId, ctx.activeOrgId);
     if (!m) {
       return { hasMembership: false as const, role: null, org: null };
     }
@@ -78,11 +80,21 @@ export const meRouter = router({
             id: org.id,
             name: org.name,
             slug: org.slug,
+            vertical: org.vertical,
             defaultCurrency: org.defaultCurrency,
             locale: org.locale,
           }
         : null,
     };
+  }),
+
+  /**
+   * Every workspace the signed-in user belongs to — powers the sidebar
+   * workspace switcher. Returns each org's display fields + the user's role.
+   * One entry for single-org users (the switcher then just shows the name).
+   */
+  listOrgs: protectedProcedure.query(async ({ ctx }) => {
+    return await listMembershipsWithOrg(ctx.userId);
   }),
 
   /**
@@ -103,7 +115,7 @@ export const meRouter = router({
     const db = getDb();
 
     // 1. Existing member → authorized, no provisioning needed.
-    const existing = await resolveOrgMembership(ctx.userId);
+    const existing = await resolveOrgMembership(ctx.userId, ctx.activeOrgId);
     if (existing) {
       const [org] = await db
         .select()
@@ -138,53 +150,49 @@ export const meRouter = router({
         .limit(1);
 
       if (inv) {
-        // Auto-provision: membership + consume invite + audit (the 3 records).
-        await db.transaction(async (tx) => {
+        // Auto-provision by redeeming the invite. For "workspace" invites this
+        // spins up a brand-new org (invitee = owner); for "member" invites it
+        // joins inv.orgId. Same branch as members.accept, shared helper.
+        const result = await db.transaction(async (tx) => {
           // Re-check inside the tx to guard the 1-user→1-org invariant.
           const already = await tx
             .select({ id: orgMemberships.id })
             .from(orgMemberships)
             .where(eq(orgMemberships.userId, ctx.userId))
             .limit(1);
-          if (already[0]) return;
-
-          const [membership] = await tx
-            .insert(orgMemberships)
-            .values({
-              userId: ctx.userId,
-              orgId: inv.orgId,
-              role: inv.role,
-              invitedByUserId: inv.invitedByUserId,
-            })
-            .returning();
-          if (!membership) return;
-
-          await tx
-            .update(invitations)
-            .set({ acceptedAt: new Date(), acceptedByUserId: ctx.userId })
-            .where(eq(invitations.id, inv.id));
-
-          await tx.insert(auditLog).values({
-            orgId: inv.orgId,
-            actor: ctx.actor,
-            action: "invitation.accepted",
-            resourceType: "org_membership",
-            resourceId: membership.id,
-            payload: {
-              invitationId: inv.id,
-              email: inv.email,
-              role: inv.role,
-              via: "email_whitelist",
-            },
-          });
+          if (already[0]) return null;
+          return await redeemInvitation(
+            tx,
+            inv,
+            ctx.userId,
+            ctx.actor,
+            "email_whitelist",
+          );
         });
 
-        const [org] = await db
-          .select()
-          .from(orgs)
-          .where(eq(orgs.id, inv.orgId))
-          .limit(1);
-        return { authorized: true as const, role: inv.role, org: orgView(org) };
+        if (result) {
+          const [org] = await db
+            .select()
+            .from(orgs)
+            .where(eq(orgs.id, result.orgId))
+            .limit(1);
+          return {
+            authorized: true as const,
+            role: result.role,
+            org: orgView(org),
+          };
+        }
+
+        // Raced with a concurrent provision — resolve the membership that won.
+        const m = await resolveOrgMembership(ctx.userId, ctx.activeOrgId);
+        if (m) {
+          const [org] = await db
+            .select()
+            .from(orgs)
+            .where(eq(orgs.id, m.orgId))
+            .limit(1);
+          return { authorized: true as const, role: m.role, org: orgView(org) };
+        }
       }
     }
 
@@ -199,6 +207,7 @@ function orgView(org: Org | undefined) {
         id: org.id,
         name: org.name,
         slug: org.slug,
+        vertical: org.vertical,
         defaultCurrency: org.defaultCurrency,
         locale: org.locale,
       }

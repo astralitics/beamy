@@ -10,6 +10,7 @@ import { z } from "zod";
  */
 
 export const assetCategorySchema = z.enum([
+  // construction
   "appliance",
   "fixture",
   "equipment",
@@ -20,6 +21,12 @@ export const assetCategorySchema = z.enum([
   "smart_home",
   "hardware",
   "structural",
+  // landscaping — site installations
+  "irrigation",
+  "drainage",
+  "hardscape",
+  "water_feature",
+  "pump",
   "other",
 ]);
 export type AssetCategory = z.infer<typeof assetCategorySchema>;
@@ -35,6 +42,11 @@ export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
   smart_home: "Smart home",
   hardware: "Hardware",
   structural: "Structural",
+  irrigation: "Irrigation",
+  drainage: "Drainage",
+  hardscape: "Hardscape",
+  water_feature: "Water feature",
+  pump: "Pump",
   other: "Other",
 };
 
