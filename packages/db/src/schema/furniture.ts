@@ -60,6 +60,12 @@ export const furniture = pgTable(
         "art",
         "mirrors",
         "decor",
+        // landscaping — site furnishings (see @beamy/shared)
+        "planters",
+        "outdoor_seating",
+        "fire_features",
+        "shade_structures",
+        "outdoor_lighting",
         "other",
       ],
     })

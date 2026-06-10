@@ -190,6 +190,20 @@
       "when": 1780931449398,
       "tag": "0026_robust_richard_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1781102459438,
+      "tag": "0027_lucky_lethal_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1781109042373,
+      "tag": "0028_organic_ares",
+      "breakpoints": true
     }
   ]
 }

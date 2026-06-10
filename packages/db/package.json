@@ -15,7 +15,8 @@
     "migrate": "tsx --env-file=../../.env src/migrate.ts",
     "seed": "tsx --env-file=../../.env src/seed.ts",
     "import-propuesta": "tsx --env-file=../../.env scripts/import-propuesta.ts",
-    "seed-polanco": "tsx --env-file=../../.env scripts/seed-polanco.ts"
+    "seed-polanco": "tsx --env-file=../../.env scripts/seed-polanco.ts",
+    "seed-demo": "tsx --env-file=../../.env scripts/seed-demo.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.36.4",

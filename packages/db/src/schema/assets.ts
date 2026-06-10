@@ -59,6 +59,12 @@ export const assets = pgTable(
         "smart_home",
         "hardware",
         "structural",
+        // landscaping — site installations (see @beamy/shared)
+        "irrigation",
+        "drainage",
+        "hardscape",
+        "water_feature",
+        "pump",
         "other",
       ],
     })
