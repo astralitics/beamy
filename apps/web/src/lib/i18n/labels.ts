@@ -104,6 +104,11 @@ const ES_ASSET_CATEGORY: Record<AssetCategory, string> = {
   smart_home: "Casa inteligente",
   hardware: "Herrajes",
   structural: "Estructural",
+  irrigation: "Riego",
+  drainage: "Drenaje",
+  hardscape: "Obra dura",
+  water_feature: "Fuente de agua",
+  pump: "Bomba",
   other: "Otro",
 };
 
@@ -137,6 +142,11 @@ const ES_FURNITURE_CATEGORY: Record<FurnitureCategory, string> = {
   art: "Arte",
   mirrors: "Espejos",
   decor: "Decoración",
+  planters: "Jardineras",
+  outdoor_seating: "Asientos exteriores",
+  fire_features: "Elementos de fuego",
+  shade_structures: "Estructuras de sombra",
+  outdoor_lighting: "Iluminación exterior",
   other: "Otro",
 };
 
@@ -178,6 +188,16 @@ const ES_MATERIAL_CATEGORY: Record<MaterialCategory, string> = {
   sealant: "Sellador",
   adhesive: "Adhesivo",
   fastener: "Fijación",
+  plant: "Planta",
+  tree: "Árbol",
+  shrub: "Arbusto",
+  sod: "Césped en rollo",
+  mulch: "Mantillo",
+  soil: "Tierra",
+  gravel: "Grava",
+  paver: "Adoquín",
+  edging: "Borde",
+  fertilizer: "Fertilizante",
   other: "Otro",
 };
 
@@ -193,6 +213,10 @@ const ES_MATERIAL_UNIT: Record<MaterialUnit, string> = {
   kg: "kg",
   box: "caja",
   pallet: "tarima",
+  cubic_yard: "yd³",
+  ton: "ton",
+  bag: "bolsa",
+  flat: "charola",
   other: "unidad",
 };
 
@@ -217,6 +241,18 @@ const ES_ROOM_TYPE: Record<RoomType, string> = {
   stairs: "Escaleras",
   exterior: "Exterior",
   yard: "Jardín",
+  front_yard: "Jardín frontal",
+  backyard: "Patio trasero",
+  side_yard: "Jardín lateral",
+  garden_bed: "Arriate",
+  planting_bed: "Cama de plantación",
+  lawn: "Césped",
+  patio: "Patio",
+  deck: "Terraza",
+  driveway: "Entrada de auto",
+  walkway: "Andador",
+  pool_area: "Área de alberca",
+  irrigation_zone: "Zona de riego",
   other: "Otro",
 };
 
@@ -227,6 +263,13 @@ const ES_PROJECT_TYPE: Record<ProjectType, string> = {
   commercial_new: "Obra nueva comercial",
   interior_design: "Diseño de interiores",
   tenant_improvement: "Mejora de local",
+  residential_landscape: "Paisajismo residencial",
+  commercial_landscape: "Paisajismo comercial",
+  hardscape_install: "Instalación de obra dura",
+  irrigation_install: "Instalación de riego",
+  garden_design: "Diseño de jardín",
+  lawn_renovation: "Renovación de césped",
+  landscape_maintenance: "Mantenimiento de jardín",
   other: "Otro",
 };
 

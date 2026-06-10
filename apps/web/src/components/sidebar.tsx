@@ -2,7 +2,10 @@ import { useState } from "react";
 import { Link, NavLink, useMatch } from "react-router-dom";
 import { useLocale, useT } from "../lib/i18n";
 import type { MessageKey } from "../lib/i18n";
+import { useVertical } from "../lib/vertical";
 import { ProjectPicker } from "./project-picker";
+import { WorkspaceSwitcher } from "./workspace-switcher";
+import { UserMenu } from "./user-menu";
 import { Icon } from "./ui";
 
 type NavItem = { to: string; labelKey: MessageKey; end?: boolean };
@@ -96,6 +99,7 @@ export function Sidebar({
   onClose?: () => void;
 }) {
   const t = useT();
+  const vertical = useVertical();
   const projectMatch = useMatch("/projects/:id/*");
   const inProject = Boolean(projectMatch);
   const projectId = projectMatch?.params.id;
@@ -111,6 +115,7 @@ export function Sidebar({
         }`}
       />
       <aside
+        data-vertical={vertical}
         className={`fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col border-r border-ink-800 bg-ink-900 text-ink-200 transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
@@ -135,7 +140,8 @@ export function Sidebar({
               </button>
             </div>
           </div>
-          <div className="mt-5">
+          <div className="mt-5 space-y-2">
+            <WorkspaceSwitcher />
             <ProjectPicker />
           </div>
         </div>
@@ -177,6 +183,10 @@ export function Sidebar({
               </ul>
             ))}
         </nav>
+
+        <div className="border-t border-ink-800 p-2">
+          <UserMenu />
+        </div>
       </aside>
     </>
   );

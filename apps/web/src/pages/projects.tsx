@@ -3,12 +3,13 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  PROJECT_TYPE_LABELS,
+  PROJECT_TYPES_BY_VERTICAL,
   type ProjectStatus,
   type ProjectType,
 } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
 import { useFormatters, useLabels, useT } from "../lib/i18n";
+import { useVertical } from "../lib/vertical";
 import {
   Button,
   Field,
@@ -41,6 +42,7 @@ const STATUS_TONE: Record<
 };
 
 export default function ProjectsPage() {
+  const vertical = useVertical();
   const fmt = useFormatters();
   const t = useT();
   const L = useLabels();
@@ -101,9 +103,9 @@ export default function ProjectsPage() {
             onChange={(e) => setTypeFilter(e.target.value as ProjectType | "")}
           >
             <option value="">{t("projects.filter.all_types")}</option>
-            {(Object.keys(PROJECT_TYPE_LABELS) as ProjectType[]).map((t) => (
-              <option key={t} value={t}>
-                {L.projectType(t)}
+            {PROJECT_TYPES_BY_VERTICAL[vertical].map((pt) => (
+              <option key={pt} value={pt}>
+                {L.projectType(pt)}
               </option>
             ))}
           </Select>
@@ -218,6 +220,7 @@ function ProjectFormModal({
   const initial = isEdit ? state.project : null;
   const t = useT();
   const L = useLabels();
+  const vertical = useVertical();
 
   const clients = trpc.clients.list.useQuery({ status: "active" });
 
@@ -336,7 +339,7 @@ function ProjectFormModal({
             value={projectType}
             onChange={(e) => setProjectType(e.target.value as ProjectType)}
           >
-            {(Object.keys(PROJECT_TYPE_LABELS) as ProjectType[]).map((pt) => (
+            {PROJECT_TYPES_BY_VERTICAL[vertical].map((pt) => (
               <option key={pt} value={pt}>
                 {L.projectType(pt)}
               </option>

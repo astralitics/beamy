@@ -10,6 +10,7 @@ import { z } from "zod";
  */
 
 export const materialCategorySchema = z.enum([
+  // construction
   "paint",
   "tile",
   "flooring",
@@ -23,6 +24,17 @@ export const materialCategorySchema = z.enum([
   "sealant",
   "adhesive",
   "fastener",
+  // landscaping — plants & site materials
+  "plant",
+  "tree",
+  "shrub",
+  "sod",
+  "mulch",
+  "soil",
+  "gravel",
+  "paver",
+  "edging",
+  "fertilizer",
   "other",
 ]);
 export type MaterialCategory = z.infer<typeof materialCategorySchema>;
@@ -41,6 +53,16 @@ export const MATERIAL_CATEGORY_LABELS: Record<MaterialCategory, string> = {
   sealant: "Sealant",
   adhesive: "Adhesive",
   fastener: "Fastener",
+  plant: "Plant",
+  tree: "Tree",
+  shrub: "Shrub",
+  sod: "Sod",
+  mulch: "Mulch",
+  soil: "Soil",
+  gravel: "Gravel",
+  paver: "Paver",
+  edging: "Edging",
+  fertilizer: "Fertilizer",
   other: "Other",
 };
 
@@ -56,6 +78,11 @@ export const materialUnitSchema = z.enum([
   "kg",
   "box",
   "pallet",
+  // landscaping — bulk/volume units
+  "cubic_yard",
+  "ton",
+  "bag",
+  "flat",
   "other",
 ]);
 export type MaterialUnit = z.infer<typeof materialUnitSchema>;
@@ -72,6 +99,10 @@ export const MATERIAL_UNIT_LABELS: Record<MaterialUnit, string> = {
   kg: "kg",
   box: "box",
   pallet: "pallet",
+  cubic_yard: "cu yd",
+  ton: "ton",
+  bag: "bag",
+  flat: "flat",
   other: "unit",
 };
 

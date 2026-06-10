@@ -4,6 +4,7 @@ import { useAuth } from "../lib/auth";
 import { supabaseConfigured } from "../lib/supabase";
 import { trpc } from "../lib/trpc";
 import { useT } from "../lib/i18n";
+import { VERTICAL_LABELS, type Vertical } from "@beamy/shared";
 import {
   clearPendingInvite,
   readPendingInvite,
@@ -117,8 +118,22 @@ export default function RedeemInvitePage() {
   }
 
   // Valid (or still previewing) → confirmation screen.
-  const orgName = peek.data?.valid ? peek.data.orgName : null;
-  const role = peek.data?.valid ? peek.data.role : null;
+  const valid = peek.data?.valid ? peek.data : null;
+  const isWorkspace = valid?.kind === "workspace";
+  const verticalLabel = valid
+    ? VERTICAL_LABELS[valid.vertical as Vertical] ?? valid.vertical
+    : "";
+
+  const heading = isWorkspace ? t("redeem.create_workspace") : t("redeem.accept");
+  const body = !valid
+    ? t("redeem.loading_invitation")
+    : isWorkspace
+      ? t("redeem.create_workspace_body", {
+          vertical: verticalLabel,
+          name: valid.orgName,
+        })
+      : t("redeem.invited_as", { org: valid.orgName, role: valid.role ?? "" });
+
   return (
     <Shell
       email={email}
@@ -126,13 +141,9 @@ export default function RedeemInvitePage() {
       signOutLabel={t("redeem.use_different_account")}
     >
       <h1 className="text-xl font-semibold tracking-tight text-slate-900">
-        {t("redeem.accept")}
+        {heading}
       </h1>
-      <p className="mt-2 text-sm text-slate-600">
-        {orgName
-          ? t("redeem.invited_as", { org: orgName, role: role ?? "" })
-          : t("redeem.loading_invitation")}
-      </p>
+      <p className="mt-2 text-sm text-slate-600">{body}</p>
       {error && (
         <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
           {error}
@@ -147,7 +158,11 @@ export default function RedeemInvitePage() {
         }}
         className="mt-5 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
       >
-        {accept.isPending ? t("redeem.joining") : t("redeem.accept")}
+        {accept.isPending
+          ? isWorkspace
+            ? t("redeem.creating_workspace")
+            : t("redeem.joining")
+          : heading}
       </button>
     </Shell>
   );

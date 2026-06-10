@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { auditLog, getDb, orgMemberships, orgs } from "@beamy/db";
 import { createOrgInputSchema } from "@beamy/shared";
@@ -21,21 +20,8 @@ export const orgsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
 
-      // v1 invariant (D-12): one user belongs to one org. Refuse if the
-      // caller already has a membership — they should accept an invite
-      // or create a second account.
-      const existing = await db
-        .select({ id: orgMemberships.id })
-        .from(orgMemberships)
-        .where(eq(orgMemberships.userId, ctx.userId))
-        .limit(1);
-      if (existing[0]) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "User already belongs to an org",
-        });
-      }
-
+      // Multi-org: a user may own/belong to several workspaces. The unique
+      // constraint is on (user_id, org_id), so a brand-new org never clashes.
       return await db.transaction(async (tx) => {
         const [org] = await tx
           .insert(orgs)

@@ -24,12 +24,21 @@ export const projectStatusSchema = z.enum([
 export type ProjectStatus = z.infer<typeof projectStatusSchema>;
 
 export const projectTypeSchema = z.enum([
+  // construction
   "residential_renovation",
   "residential_new",
   "commercial_fitout",
   "commercial_new",
   "interior_design",
   "tenant_improvement",
+  // landscaping
+  "residential_landscape",
+  "commercial_landscape",
+  "hardscape_install",
+  "irrigation_install",
+  "garden_design",
+  "lawn_renovation",
+  "landscape_maintenance",
   "other",
 ]);
 export type ProjectType = z.infer<typeof projectTypeSchema>;
@@ -41,6 +50,13 @@ export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   commercial_new: "Commercial new build",
   interior_design: "Interior design",
   tenant_improvement: "Tenant improvement",
+  residential_landscape: "Residential landscape",
+  commercial_landscape: "Commercial landscape",
+  hardscape_install: "Hardscape install",
+  irrigation_install: "Irrigation install",
+  garden_design: "Garden design",
+  lawn_renovation: "Lawn renovation",
+  landscape_maintenance: "Landscape maintenance",
   other: "Other",
 };
 
@@ -179,7 +195,14 @@ export type ProjectPhaseAndCompletenessInput = z.infer<
 
 // ─────────────────── rooms ───────────────────
 
+/**
+ * Room/area type. In construction these are interior rooms; in landscaping the
+ * same column holds outdoor "areas/zones" (front yard, garden bed, etc.). Both
+ * verticals share one widened union; which values are offered in the UI is
+ * picked per-vertical by ROOM_TYPES_BY_VERTICAL in `./verticals`.
+ */
 export const roomTypeSchema = z.enum([
+  // construction — interior rooms
   "kitchen",
   "primary_bath",
   "bath",
@@ -200,6 +223,19 @@ export const roomTypeSchema = z.enum([
   "stairs",
   "exterior",
   "yard",
+  // landscaping — outdoor areas/zones
+  "front_yard",
+  "backyard",
+  "side_yard",
+  "garden_bed",
+  "planting_bed",
+  "lawn",
+  "patio",
+  "deck",
+  "driveway",
+  "walkway",
+  "pool_area",
+  "irrigation_zone",
   "other",
 ]);
 export type RoomType = z.infer<typeof roomTypeSchema>;
@@ -225,6 +261,18 @@ export const ROOM_TYPE_LABELS: Record<RoomType, string> = {
   stairs: "Stairs",
   exterior: "Exterior",
   yard: "Yard",
+  front_yard: "Front yard",
+  backyard: "Backyard",
+  side_yard: "Side yard",
+  garden_bed: "Garden bed",
+  planting_bed: "Planting bed",
+  lawn: "Lawn",
+  patio: "Patio",
+  deck: "Deck",
+  driveway: "Driveway",
+  walkway: "Walkway",
+  pool_area: "Pool area",
+  irrigation_zone: "Irrigation zone",
   other: "Other",
 };
 

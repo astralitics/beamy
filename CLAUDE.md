@@ -75,7 +75,7 @@ These carry over from Riffy unchanged — they're the chassis, not the domain.
 
 - **Multi-tenancy.** Every business table has `org_id NOT NULL`. Every tRPC procedure that touches business data uses `orgScopedProcedure` (in [`packages/trpc/src/init.ts`](packages/trpc/src/init.ts)) — which auto-resolves `(user_id, org_id)` from the auth context. Do NOT write raw queries that ignore `ctx.orgId`. Do NOT add a procedure on `protectedProcedure` for tenant-data access — that path is for org-creation/invite-redemption only. (D-10)
 
-- **Single user → single org in v1.** The schema enforces this with a unique index on `org_memberships.user_id`. Don't loosen it. (D-12)
+- **Multi-org membership + active-org switching.** A user may belong to multiple orgs; the unique constraint is on `(user_id, org_id)` (not `user_id` alone). The **active org** for a request is chosen by the `x-active-org` header, validated against the user's real memberships in `resolveOrgMembership(userId, preferredOrgId)` ([`context.ts`](packages/trpc/src/context.ts)) — a forged/unknown value falls back to the default (earliest-joined) membership, never grants access. The sidebar `WorkspaceSwitcher` sets it (localStorage `beamy.activeOrg`) and hard-reloads. (Supersedes the original v1 1-user→1-org rule, D-12; the old unique index `org_memberships_user_unique` was dropped in migration 0028.)
 
 - **Money is always `(amount, currency_code)`.** Construction is money-heavy (budgets, contracts, draws, change orders) so this matters more here than it did in Riffy. Whenever you add a money column, it comes paired with a currency column. (D-17)
 

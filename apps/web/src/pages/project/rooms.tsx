@@ -2,9 +2,10 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
-import { ROOM_TYPE_LABELS, type RoomType } from "@beamy/shared";
+import { ROOM_TYPES_BY_VERTICAL, type RoomType } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useLabels, useT } from "../../lib/i18n";
+import { useVertical } from "../../lib/vertical";
 import {
   Button,
   Field,
@@ -23,6 +24,7 @@ export default function ProjectRooms() {
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const L = useLabels();
   const t = useT();
+  const vertical = useVertical();
   const [adding, setAdding] = useState(false);
   const [typeFilter, setTypeFilter] = useState<RoomType | "">("");
   const [search, setSearch] = useState("");
@@ -65,9 +67,9 @@ export default function ProjectRooms() {
             onChange={(e) => setTypeFilter(e.target.value as RoomType | "")}
           >
             <option value="">{t("rooms.filter.all_types")}</option>
-            {(Object.keys(ROOM_TYPE_LABELS) as RoomType[]).map((t) => (
-              <option key={t} value={t}>
-                {L.roomType(t)}
+            {ROOM_TYPES_BY_VERTICAL[vertical].map((rt) => (
+              <option key={rt} value={rt}>
+                {L.roomType(rt)}
               </option>
             ))}
           </Select>
@@ -221,6 +223,7 @@ function RoomCreateModal({
 }) {
   const L = useLabels();
   const t = useT();
+  const vertical = useVertical();
   const [name, setName] = useState("");
   const [roomType, setRoomType] = useState<RoomType | "">("");
   const [floor, setFloor] = useState("");
@@ -301,9 +304,9 @@ function RoomCreateModal({
             onChange={(e) => setRoomType(e.target.value as RoomType | "")}
           >
             <option value="">—</option>
-            {(Object.keys(ROOM_TYPE_LABELS) as RoomType[]).map((t) => (
-              <option key={t} value={t}>
-                {L.roomType(t)}
+            {ROOM_TYPES_BY_VERTICAL[vertical].map((rt) => (
+              <option key={rt} value={rt}>
+                {L.roomType(rt)}
               </option>
             ))}
           </Select>

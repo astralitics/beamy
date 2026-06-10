@@ -3,7 +3,7 @@ import { Link, useOutletContext } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  FURNITURE_CATEGORY_LABELS,
+  FURNITURE_CATEGORIES_BY_VERTICAL,
   FURNITURE_STATUS_LABELS,
   type FurnitureCategory,
   type FurnitureStatus,
@@ -11,6 +11,7 @@ import {
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useFormatters, useLabels, useT } from "../../lib/i18n";
+import { useVertical } from "../../lib/vertical";
 import {
   Button,
   Field,
@@ -40,6 +41,7 @@ const STATUS_TONE: Record<
 };
 
 export default function ProjectFurniture() {
+  const vertical = useVertical();
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const [modal, setModal] = useState<
     | { mode: "closed" }
@@ -106,9 +108,7 @@ export default function ProjectFurniture() {
             }
           >
             <option value="">{t("filter.all_categories")}</option>
-            {(
-              Object.keys(FURNITURE_CATEGORY_LABELS) as FurnitureCategory[]
-            ).map((c) => (
+            {FURNITURE_CATEGORIES_BY_VERTICAL[vertical].map((c) => (
               <option key={c} value={c}>
                 {L.furnitureCategory(c)}
               </option>
@@ -311,6 +311,7 @@ function FurnitureFormModal({
   onClose: () => void;
 }) {
   const isEdit = mode === "edit";
+  const vertical = useVertical();
   const L = useLabels();
   const t = useT();
 
@@ -457,9 +458,7 @@ function FurnitureFormModal({
               setCategory(e.target.value as FurnitureCategory)
             }
           >
-            {(
-              Object.keys(FURNITURE_CATEGORY_LABELS) as FurnitureCategory[]
-            ).map((c) => (
+            {FURNITURE_CATEGORIES_BY_VERTICAL[vertical].map((c) => (
               <option key={c} value={c}>
                 {L.furnitureCategory(c)}
               </option>

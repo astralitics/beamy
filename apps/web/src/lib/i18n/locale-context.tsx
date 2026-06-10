@@ -7,12 +7,14 @@ import {
   type ReactNode,
 } from "react";
 import { trpc } from "../trpc";
+import { useVertical } from "../vertical";
 import {
   messagesEn,
   messagesEsMx,
   type Locale,
   type MessageKey,
 } from "./messages";
+import { verticalMessages } from "./vertical-messages";
 import {
   formatCurrency,
   formatDate,
@@ -107,10 +109,19 @@ export function useLocale(): LocaleValue {
 
 export function useT() {
   const { locale } = useLocale();
+  const vertical = useVertical();
   return useCallback(
     (key: MessageKey, vars?: Record<string, string | number>): string => {
+      // Vertical overrides win over the base catalog: locale-specific first,
+      // then the vertical's English override, then the base copy.
+      const vLocale = verticalMessages[vertical]?.[locale];
+      const vEn = verticalMessages[vertical]?.en;
       const catalog = pickCatalog(locale);
-      let msg = (catalog[key] ?? messagesEn[key] ?? key) as string;
+      let msg = (vLocale?.[key] ??
+        vEn?.[key] ??
+        catalog[key] ??
+        messagesEn[key] ??
+        key) as string;
       if (vars) {
         for (const [k, v] of Object.entries(vars)) {
           msg = msg.replaceAll(`{${k}}`, String(v));
@@ -118,7 +129,7 @@ export function useT() {
       }
       return msg;
     },
-    [locale],
+    [locale, vertical],
   );
 }
 

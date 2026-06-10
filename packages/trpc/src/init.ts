@@ -33,7 +33,9 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
  */
 export const orgScopedProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
-    const membership = await resolveOrgMembership(ctx.userId);
+    // Honor the client's requested active org (x-active-org), validated against
+    // the user's real memberships; falls back to their default org otherwise.
+    const membership = await resolveOrgMembership(ctx.userId, ctx.activeOrgId);
     if (!membership) {
       throw new TRPCError({
         code: "FORBIDDEN",

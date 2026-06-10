@@ -2,12 +2,13 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
-  SUGGESTED_TRADES,
+  TRADES_BY_VERTICAL,
   type ComplianceDocType,
   type VendorStatus,
 } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
 import { useT } from "../lib/i18n";
+import { useVertical } from "../lib/vertical";
 import { ContactsSection } from "../components/contacts-section";
 import { ConfirmDialog } from "../components/ui";
 
@@ -32,6 +33,7 @@ const DOC_TYPE_LABELS: Record<ComplianceDocType, string> = {
 
 export default function VendorsPage() {
   const t = useT();
+  const vertical = useVertical();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [tradeFilter, setTradeFilter] = useState<string>("");
   const [search, setSearch] = useState("");
@@ -76,9 +78,9 @@ export default function VendorsPage() {
           className={selectCls}
         >
           <option value="">{t("vendors.all_trades")}</option>
-          {SUGGESTED_TRADES.map((t) => (
-            <option key={t} value={t}>
-              {t.replace(/_/g, " ")}
+          {TRADES_BY_VERTICAL[vertical].map((tr) => (
+            <option key={tr} value={tr}>
+              {tr.replace(/_/g, " ")}
             </option>
           ))}
         </select>
@@ -243,6 +245,7 @@ function VendorFormModal({
   onClose: () => void;
 }) {
   const t = useT();
+  const vertical = useVertical();
   const isEdit = state.mode === "edit";
   const initial = isEdit ? state.vendor : null;
 
@@ -355,8 +358,8 @@ function VendorFormModal({
                 placeholder={t("vendors.field.trade_ph")}
               />
               <datalist id="trade-suggestions">
-                {SUGGESTED_TRADES.map((t) => (
-                  <option key={t} value={t} />
+                {TRADES_BY_VERTICAL[vertical].map((tr) => (
+                  <option key={tr} value={tr} />
                 ))}
               </datalist>
             </Field>

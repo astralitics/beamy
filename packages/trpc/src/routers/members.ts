@@ -14,6 +14,7 @@ import {
   publicProcedure,
   router,
 } from "../init";
+import { redeemInvitation } from "../lib/redeem-invitation";
 
 /**
  * `members` router — manage who's in the org.
@@ -60,12 +61,18 @@ export const membersRouter = router({
         const token = randomBytes(32).toString("base64url");
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
+        const isWorkspace = input.kind === "workspace";
         const [row] = await tx
           .insert(invitations)
           .values({
             orgId: ctx.orgId,
             email: input.email,
+            kind: input.kind,
+            // "workspace" invitees always become owner of the new org, so the
+            // stored role only matters for "member" invites.
             role: input.role,
+            vertical: isWorkspace ? input.vertical! : "construction",
+            workspaceName: isWorkspace ? input.workspaceName! : null,
             invitedByUserId: ctx.userId,
             token,
             expiresAt,
@@ -79,7 +86,14 @@ export const membersRouter = router({
           action: "invitation.created",
           resourceType: "invitation",
           resourceId: row.id,
-          payload: { email: input.email, role: input.role },
+          payload: isWorkspace
+            ? {
+                email: input.email,
+                kind: "workspace",
+                vertical: input.vertical,
+                workspaceName: input.workspaceName,
+              }
+            : { email: input.email, kind: "member", role: input.role },
         });
         return row;
       });
@@ -143,8 +157,12 @@ export const membersRouter = router({
         .limit(1);
       return {
         valid: true as const,
-        orgName: org?.name ?? "the workspace",
-        role: inv.role,
+        kind: inv.kind,
+        // For "workspace" invites this is the NEW org's name; for "member"
+        // invites it's the org the invitee is joining.
+        orgName: inv.kind === "workspace" ? inv.workspaceName ?? "your workspace" : org?.name ?? "the workspace",
+        vertical: inv.vertical,
+        role: inv.kind === "workspace" ? "owner" : inv.role,
         email: inv.email,
       };
     }),
@@ -181,45 +199,30 @@ export const membersRouter = router({
             message: "That invite has expired. Ask your admin for a new one.",
           });
 
-        // v1 invariant (D-12): one user → one org. Refuse a second membership.
-        const existing = await tx
-          .select({ id: orgMemberships.id })
-          .from(orgMemberships)
-          .where(eq(orgMemberships.userId, ctx.userId))
-          .limit(1);
-        if (existing[0])
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "You already belong to a workspace.",
-          });
+        // Multi-org: a user may belong to several workspaces. A "workspace"
+        // invite always provisions a new org (no clash). A "member" invite
+        // joins inv.orgId — refuse only if they're already in THAT org.
+        if (inv.kind === "member") {
+          const dup = await tx
+            .select({ id: orgMemberships.id })
+            .from(orgMemberships)
+            .where(
+              and(
+                eq(orgMemberships.userId, ctx.userId),
+                eq(orgMemberships.orgId, inv.orgId),
+              ),
+            )
+            .limit(1);
+          if (dup[0])
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "You're already a member of this workspace.",
+            });
+        }
 
-        const [membership] = await tx
-          .insert(orgMemberships)
-          .values({
-            userId: ctx.userId,
-            orgId: inv.orgId,
-            role: inv.role,
-            invitedByUserId: inv.invitedByUserId,
-          })
-          .returning();
-        if (!membership)
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-        await tx
-          .update(invitations)
-          .set({ acceptedAt: new Date(), acceptedByUserId: ctx.userId })
-          .where(eq(invitations.id, inv.id));
-
-        await tx.insert(auditLog).values({
-          orgId: inv.orgId,
-          actor: ctx.actor,
-          action: "invitation.accepted",
-          resourceType: "org_membership",
-          resourceId: membership.id,
-          payload: { invitationId: inv.id, email: inv.email, role: inv.role },
-        });
-
-        return { orgId: inv.orgId, role: inv.role };
+        // Branches on inv.kind: "workspace" provisions a new org (invitee =
+        // owner), "member" joins inv.orgId. Shared with me.authorize.
+        return await redeemInvitation(tx, inv, ctx.userId, ctx.actor, "token");
       });
     }),
 });

@@ -41,10 +41,11 @@ async function resolveUserId(req: Request): Promise<string | null> {
 
 export async function handleTrpcRequest(req: Request): Promise<Response> {
   const userId = await resolveUserId(req);
+  const activeOrgId = req.headers.get("x-active-org") || null;
   return fetchRequestHandler({
     endpoint: "/api/trpc",
     req,
     router: appRouter,
-    createContext: () => buildContext({ userId }),
+    createContext: () => buildContext({ userId, activeOrgId }),
   });
 }

@@ -9,6 +9,7 @@ import { z } from "zod";
  */
 
 export const furnitureCategorySchema = z.enum([
+  // construction / interior design
   "seating",
   "tables",
   "storage",
@@ -18,6 +19,12 @@ export const furnitureCategorySchema = z.enum([
   "art",
   "mirrors",
   "decor",
+  // landscaping — site furnishings
+  "planters",
+  "outdoor_seating",
+  "fire_features",
+  "shade_structures",
+  "outdoor_lighting",
   "other",
 ]);
 export type FurnitureCategory = z.infer<typeof furnitureCategorySchema>;
@@ -32,6 +39,11 @@ export const FURNITURE_CATEGORY_LABELS: Record<FurnitureCategory, string> = {
   art: "Art",
   mirrors: "Mirrors",
   decor: "Decor",
+  planters: "Planters",
+  outdoor_seating: "Outdoor seating",
+  fire_features: "Fire features",
+  shade_structures: "Shade structures",
+  outdoor_lighting: "Outdoor lighting",
   other: "Other",
 };
 
