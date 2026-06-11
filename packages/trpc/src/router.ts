@@ -21,6 +21,7 @@ import { servicesRouter } from "./routers/services";
 import { specsRouter } from "./routers/specs";
 import { vendorsRouter } from "./routers/vendors";
 import { workItemsRouter } from "./routers/work-items";
+import { workflowsRouter } from "./routers/workflows";
 
 export const appRouter = router({
   me: meRouter,
@@ -45,6 +46,7 @@ export const appRouter = router({
   proposals: proposalsRouter,
   specs: specsRouter,
   workItems: workItemsRouter,
+  workflows: workflowsRouter,
 });
 
 export type AppRouter = typeof appRouter;

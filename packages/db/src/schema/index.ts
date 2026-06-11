@@ -17,3 +17,4 @@ export * from "./services";
 export * from "./specs";
 export * from "./vendors";
 export * from "./work-items";
+export * from "./workflows";
