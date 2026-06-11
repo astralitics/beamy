@@ -1,0 +1,1 @@
+ALTER TABLE "step_tests" ADD COLUMN "criteria" jsonb;

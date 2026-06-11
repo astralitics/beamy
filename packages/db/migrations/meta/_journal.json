@@ -204,6 +204,27 @@
       "when": 1781115101838,
       "tag": "0028_large_timeslip",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1781130961230,
+      "tag": "0029_parched_chat",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1781191469935,
+      "tag": "0030_lowly_ink",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1781198194434,
+      "tag": "0031_steady_vision",
+      "breakpoints": true
     }
   ]
 }
