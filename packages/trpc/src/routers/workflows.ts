@@ -1,24 +1,44 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import crypto from "node:crypto";
 import {
+  documents,
   getDb,
+  projects,
   stepTemplates,
   stepTestRuns,
   stepTests,
+  workflowJobs,
   workflowRuns,
   workflowRunSteps,
   workflowVersions,
   workflows,
+  type Db,
 } from "@beamy/db";
 import { orgScopedProcedure, router } from "../init";
+import { BUCKET, getStorageClient } from "../lib/storage";
 import {
-  mockHandlers,
   runWorkflow,
   type RunResult,
   type StepType,
   type WorkflowDef,
 } from "../workflow/engine";
+import { makeRealHandlers } from "../workflow/handlers";
+import { resolveConnectionSecret } from "./connections";
+import {
+  claimJobs,
+  enqueueJob,
+  finishJob,
+  reclaimStaleJobs,
+  requeueWaitingJob,
+  retryJob,
+  type JobRow,
+} from "../workflow/queue";
+
+/** Real handlers wired with this org's connection resolver (decrypts stored credentials). */
+const orgHandlers = (orgId: string) =>
+  makeRealHandlers({ resolveConnection: (id) => resolveConnectionSecret(orgId, id) });
 import {
   evaluateVerifications,
   hasBlockingFailure,
@@ -52,6 +72,9 @@ function runView(runId: string, result: RunResult) {
       status: s.status,
       output: s.output,
       error: s.error ?? null,
+      startedAt: s.startedAt != null ? new Date(s.startedAt).toISOString() : null,
+      finishedAt: s.finishedAt != null ? new Date(s.finishedAt).toISOString() : null,
+      durationMs: s.startedAt != null && s.finishedAt != null ? s.finishedAt - s.startedAt : null,
     })),
   };
 }
@@ -74,6 +97,8 @@ async function persistRun(
         output: (s.output ?? null) as unknown,
         error: s.error ?? null,
         order: i,
+        startedAt: s.startedAt != null ? new Date(s.startedAt) : null,
+        finishedAt: s.finishedAt != null ? new Date(s.finishedAt) : null,
       })),
     );
   }
@@ -86,6 +111,82 @@ async function persistRun(
       finishedAt: result.status === "paused" ? null : new Date(),
     })
     .where(eq(workflowRuns.id, runId));
+}
+
+export interface DrainResult {
+  jobId: string;
+  runId: string;
+  outcome: "done" | "failed" | "waiting" | "requeued";
+  pausedStepId?: string | null;
+  error?: string;
+}
+
+/**
+ * Advance a single claimed job through the engine and settle its queue state. Loads the run + its
+ * (current) workflow definition, runs it with this org's real handlers, persists the result, then:
+ *   completed → done · paused (human gate) → waiting · failed/threw → retry w/ backoff (or failed).
+ */
+async function advanceJob(db: Db, job: JobRow, now: Date): Promise<DrainResult> {
+  const base = { jobId: job.id, runId: job.runId };
+  try {
+    const [run] = await db
+      .select()
+      .from(workflowRuns)
+      .where(and(eq(workflowRuns.id, job.runId), eq(workflowRuns.orgId, job.orgId)))
+      .limit(1);
+    if (!run) {
+      await finishJob(db, job.id, "failed", { now, lastError: "run not found" });
+      return { ...base, outcome: "failed", error: "run not found" };
+    }
+    const [wf] = await db
+      .select()
+      .from(workflows)
+      .where(and(eq(workflows.orgId, job.orgId), eq(workflows.name, run.workflowName)))
+      .limit(1);
+    const definition = (wf?.definition ?? { name: run.workflowName, steps: [] }) as WorkflowDef;
+    const approvals = new Set<string>((job.approvals as string[] | null) ?? []);
+    const result = await runWorkflow(definition, {
+      inputs: (run.inputs as Record<string, unknown>) ?? {},
+      handlers: orgHandlers(job.orgId),
+      approvals,
+    });
+    await persistRun(db, job.orgId, job.runId, result);
+    if (result.status === "paused") {
+      // Mark the RUN "waiting" (vs a synchronous "paused") so the UI resumes it via the queue
+      // (approveQueued) rather than the in-request resume path. persistRun kept pausedStepId.
+      await db.update(workflowRuns).set({ status: "waiting" }).where(eq(workflowRuns.id, job.runId));
+      await finishJob(db, job.id, "waiting", { now });
+      return { ...base, outcome: "waiting", pausedStepId: result.pausedStepId ?? null };
+    }
+    if (result.status === "failed") {
+      const outcome = await retryJob(db, job, { now, lastError: "run failed" });
+      return { ...base, outcome, error: "run failed" };
+    }
+    await finishJob(db, job.id, "done", { now });
+    return { ...base, outcome: "done" };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    const outcome = await retryJob(db, job, { now, lastError: error });
+    return { ...base, outcome, error };
+  }
+}
+
+/**
+ * Drain the queue: reclaim dead leases, claim up to `limit` eligible jobs, advance each. Scope to
+ * one org with `orgId` (the per-org tick) or omit it for the global cron drain. This is the same
+ * logic the Vercel-Cron trigger calls in prod (no always-on worker on serverless).
+ */
+export async function drainJobs(opts: { orgId?: string; limit?: number }): Promise<{ claimed: number; reclaimed: number; results: DrainResult[] }> {
+  const db = getDb();
+  const now = new Date();
+  const workerId = crypto.randomUUID();
+  const reclaimed = await reclaimStaleJobs(db, { now });
+  const jobs = await claimJobs(db, { limit: opts.limit ?? 10, workerId, now, orgId: opts.orgId });
+  const results: DrainResult[] = [];
+  for (const job of jobs) {
+    results.push(await advanceJob(db, job, now));
+  }
+  return { claimed: jobs.length, reclaimed, results };
 }
 
 /** Map a step's raw output to the captured-values shape the evaluator expects. */
@@ -290,7 +391,7 @@ export const workflowsRouter = router({
         if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         const result = await runWorkflow(wf.definition as WorkflowDef, {
           inputs: input.inputs,
-          handlers: mockHandlers,
+          handlers: orgHandlers(ctx.orgId),
         });
         await persistRun(db, ctx.orgId, run.id, result);
         return runView(run.id, result);
@@ -314,11 +415,144 @@ export const workflowsRouter = router({
         const definition = (wf?.definition ?? { name: run.workflowName, steps: [] }) as WorkflowDef;
         const result = await runWorkflow(definition, {
           inputs: (run.inputs as Record<string, unknown>) ?? {},
-          handlers: mockHandlers,
+          handlers: orgHandlers(ctx.orgId),
           approvals: new Set(input.approvals),
         });
         await persistRun(db, ctx.orgId, input.runId, result);
         return runView(input.runId, result);
+      }),
+
+    // ── durable path: enqueue a run + drain the queue (the async runner) ──
+    // Unlike `start` (synchronous, for "Run now"), this returns immediately with a queued run; a
+    // scheduled drain (`tick` / the Vercel cron) advances it. Survives restarts, retries on failure.
+    enqueue: orgScopedProcedure
+      .input(z.object({ workflowId: z.string().uuid(), inputs: z.record(z.unknown()).optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = getDb();
+        const [wf] = await db
+          .select()
+          .from(workflows)
+          .where(and(eq(workflows.id, input.workflowId), eq(workflows.orgId, ctx.orgId)))
+          .limit(1);
+        if (!wf) throw new TRPCError({ code: "NOT_FOUND" });
+        const [run] = await db
+          .insert(workflowRuns)
+          .values({
+            orgId: ctx.orgId,
+            workflowName: wf.name,
+            workflowVersion: wf.version,
+            status: "queued",
+            inputs: input.inputs ?? {},
+            actor: ctx.actor,
+          })
+          .returning({ id: workflowRuns.id });
+        if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const job = await enqueueJob(db, { orgId: ctx.orgId, runId: run.id });
+        return { runId: run.id, jobId: job.id, status: "queued" as const };
+      }),
+
+    // Drain this org's queue now (one tick). The Vercel cron calls the same `drainJobs` globally.
+    tick: orgScopedProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(50).optional() }).optional())
+      .mutation(async ({ ctx, input }) => {
+        return drainJobs({ orgId: ctx.orgId, limit: input?.limit });
+      }),
+
+    // Approve a parked (waiting) human gate on a queued run → re-arm its job for the next tick.
+    approveQueued: orgScopedProcedure
+      .input(z.object({ runId: z.string().uuid(), approvals: z.array(z.string()).min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = getDb();
+        const [run] = await db
+          .select({ id: workflowRuns.id })
+          .from(workflowRuns)
+          .where(and(eq(workflowRuns.id, input.runId), eq(workflowRuns.orgId, ctx.orgId)))
+          .limit(1);
+        if (!run) throw new TRPCError({ code: "NOT_FOUND" });
+        // Merge with any approvals already recorded on the job (multiple gates over a run's life).
+        const [existing] = await db
+          .select({ approvals: workflowJobs.approvals })
+          .from(workflowJobs)
+          .where(and(eq(workflowJobs.runId, input.runId), eq(workflowJobs.orgId, ctx.orgId)))
+          .limit(1);
+        const merged = Array.from(
+          new Set([...(((existing?.approvals as string[] | null) ?? [])), ...input.approvals]),
+        );
+        const job = await requeueWaitingJob(db, {
+          runId: input.runId,
+          orgId: ctx.orgId,
+          now: new Date(),
+          approvals: merged,
+        });
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "no queued job for this run" });
+        await db.update(workflowRuns).set({ status: "running" }).where(eq(workflowRuns.id, input.runId));
+        return { runId: input.runId, jobId: job.id, status: "queued" as const, approvals: merged };
+      }),
+
+    // run history for a workflow (the executions list)
+    list: orgScopedProcedure
+      .input(z.object({ workflowId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const db = getDb();
+        const [wf] = await db
+          .select({ name: workflows.name })
+          .from(workflows)
+          .where(and(eq(workflows.id, input.workflowId), eq(workflows.orgId, ctx.orgId)))
+          .limit(1);
+        if (!wf) throw new TRPCError({ code: "NOT_FOUND" });
+        const rows = await db
+          .select()
+          .from(workflowRuns)
+          .where(and(eq(workflowRuns.orgId, ctx.orgId), eq(workflowRuns.workflowName, wf.name)))
+          .orderBy(desc(workflowRuns.startedAt))
+          .limit(50);
+        return rows.map((r) => ({
+          id: r.id,
+          status: r.status,
+          version: r.workflowVersion,
+          actor: r.actor,
+          pausedStepId: r.pausedStepId ?? null,
+          startedAt: r.startedAt?.toISOString() ?? null,
+          finishedAt: r.finishedAt?.toISOString() ?? null,
+        }));
+      }),
+
+    // a single run with its persisted per-step results (the replay)
+    get: orgScopedProcedure
+      .input(z.object({ runId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const db = getDb();
+        const [r] = await db
+          .select()
+          .from(workflowRuns)
+          .where(and(eq(workflowRuns.id, input.runId), eq(workflowRuns.orgId, ctx.orgId)))
+          .limit(1);
+        if (!r) throw new TRPCError({ code: "NOT_FOUND" });
+        const stepRows = await db
+          .select()
+          .from(workflowRunSteps)
+          .where(and(eq(workflowRunSteps.runId, r.id), eq(workflowRunSteps.orgId, ctx.orgId)))
+          .orderBy(workflowRunSteps.order);
+        return {
+          id: r.id,
+          status: r.status,
+          pausedStepId: r.pausedStepId ?? null,
+          inputs: r.inputs,
+          outputs: r.outputs,
+          startedAt: r.startedAt?.toISOString() ?? null,
+          finishedAt: r.finishedAt?.toISOString() ?? null,
+          steps: stepRows.map((s) => ({
+            stepId: s.stepId,
+            stepType: s.stepType,
+            status: s.status,
+            output: s.output,
+            error: s.error ?? null,
+            startedAt: s.startedAt?.toISOString() ?? null,
+            finishedAt: s.finishedAt?.toISOString() ?? null,
+            durationMs:
+              s.startedAt && s.finishedAt ? s.finishedAt.getTime() - s.startedAt.getTime() : null,
+          })),
+        };
       }),
   }),
 
@@ -420,6 +654,7 @@ export const workflowsRouter = router({
         z.object({
           stepTemplateId: z.string().uuid(),
           name: z.string().min(1),
+          outputId: z.string().optional(),
           criteria: z.array(z.any()).optional(),
           inputFixture: z.record(z.unknown()).default({}),
           expectedOutput: z.unknown().optional(),
@@ -433,6 +668,7 @@ export const workflowsRouter = router({
             orgId: ctx.orgId,
             stepTemplateId: input.stepTemplateId,
             name: input.name,
+            outputId: input.outputId ?? null,
             criteria: input.criteria ?? null,
             inputFixture: input.inputFixture,
             expectedOutput: (input.expectedOutput ?? null) as unknown,
@@ -462,12 +698,15 @@ export const workflowsRouter = router({
 
         const fixture = (test.inputFixture as Record<string, unknown>) ?? {};
         const declared = (tmpl.outputs as StepOutputDef[]) ?? [];
-        // criteria designed in THIS evaluation override the template output's checks
+        // the test targets one declared output (null = the first); its criteria override that output's checks
+        const target = declared.find((o) => o.id === test.outputId) ?? declared[0];
         const criteria = (test.criteria as StepOutputDef["verifications"] | null) ?? null;
         const outputs: StepOutputDef[] =
-          criteria && criteria.length && declared[0]
-            ? [{ ...declared[0], verifications: criteria }]
-            : declared;
+          criteria && criteria.length && target
+            ? [{ ...target, verifications: criteria }]
+            : target
+              ? [target]
+              : declared;
 
         let actualOutput: unknown;
         let error: string | null = null;
@@ -494,7 +733,7 @@ export const workflowsRouter = router({
                 },
               ],
             },
-            { inputs: stepInputs, handlers: mockHandlers },
+            { inputs: stepInputs, handlers: orgHandlers(ctx.orgId) },
           );
           if (result.status === "failed") error = result.steps[0]?.error ?? "step failed";
           actualOutput = result.outputs[tmpl.slug || "step"];
@@ -537,6 +776,120 @@ export const workflowsRouter = router({
           .returning();
         if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         return row;
+      }),
+    // Live trial: grade the files the operator actually uploaded into a real
+    // project. Reads the `documents` rows back (source of truth), confirms the
+    // blobs landed in Storage, then scores them against the evaluation's
+    // criteria. Output = the storage paths. This is the real Brief→Act→Verify→
+    // Resolve loop — not browser-collected metadata like `run`.
+    runUpload: orgScopedProcedure
+      .input(
+        z.object({
+          stepTestId: z.string().uuid(),
+          projectId: z.string().uuid(),
+          documentIds: z.array(z.string().uuid()).default([]),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const db = getDb();
+        const [test] = await db
+          .select()
+          .from(stepTests)
+          .where(and(eq(stepTests.id, input.stepTestId), eq(stepTests.orgId, ctx.orgId)))
+          .limit(1);
+        if (!test) throw new TRPCError({ code: "NOT_FOUND" });
+        const [tmpl] = await db
+          .select()
+          .from(stepTemplates)
+          .where(and(eq(stepTemplates.id, test.stepTemplateId), eq(stepTemplates.orgId, ctx.orgId)))
+          .limit(1);
+        if (!tmpl) throw new TRPCError({ code: "NOT_FOUND" });
+        const [proj] = await db
+          .select({ id: projects.id })
+          .from(projects)
+          .where(and(eq(projects.id, input.projectId), eq(projects.orgId, ctx.orgId)))
+          .limit(1);
+        if (!proj) throw new TRPCError({ code: "BAD_REQUEST", message: "Project not in this org" });
+
+        // Read the DB records that were just uploaded — the source of truth.
+        const rows = input.documentIds.length
+          ? await db
+              .select()
+              .from(documents)
+              .where(
+                and(
+                  eq(documents.orgId, ctx.orgId),
+                  eq(documents.projectId, input.projectId),
+                  inArray(documents.id, input.documentIds),
+                ),
+              )
+          : [];
+
+        // Confirm the blobs actually landed in Storage (best-effort: if storage
+        // isn't configured, fall back to trusting the rows).
+        const missing: string[] = [];
+        try {
+          const storage = getStorageClient();
+          const { data: objs } = await storage.storage
+            .from(BUCKET)
+            .list(`${ctx.orgId}/${input.projectId}`, { limit: 1000 });
+          const present = new Set((objs ?? []).map((o) => o.name));
+          for (const r of rows) {
+            const base = r.storagePath.split("/").pop() ?? "";
+            if (!present.has(base)) missing.push(r.name);
+          }
+        } catch {
+          // storage unavailable — skip the existence check
+        }
+        const landed = rows.filter((r) => !missing.includes(r.name));
+
+        // the test targets one declared output (null = the first); its criteria override that output's checks
+        const declared = (tmpl.outputs as StepOutputDef[]) ?? [];
+        const target = declared.find((o) => o.id === test.outputId) ?? declared[0];
+        const criteria = (test.criteria as StepOutputDef["verifications"] | null) ?? null;
+        const outputs: StepOutputDef[] =
+          criteria && criteria.length && target
+            ? [{ ...target, verifications: criteria }]
+            : target
+              ? [target]
+              : declared;
+        const outId = target?.id ?? "output";
+
+        // Build the captured photo-set from the DB rows (mime + size as recorded).
+        const captured: Record<string, unknown> = {
+          [outId]: landed.map((r) => ({ name: r.name, type: r.mimeType, size: r.sizeBytes, path: r.storagePath })),
+        };
+        const verificationResults = evaluateVerifications(outputs, captured);
+        if (missing.length) {
+          verificationResults.push({
+            outputId: outId,
+            kind: "blobs_present",
+            status: "fail",
+            message: `${missing.length} file(s) never landed in storage`,
+          });
+        }
+        const blocking = hasBlockingFailure(outputs, verificationResults) || missing.length > 0;
+        const paths = landed.map((r) => r.storagePath);
+        const total = verificationResults.length;
+        const passedCount = verificationResults.filter((r) => r.status === "pass").length;
+        const score = total === 0 ? 100 : Math.round((100 * passedCount) / total);
+
+        const [row] = await db
+          .insert(stepTestRuns)
+          .values({
+            orgId: ctx.orgId,
+            stepTestId: test.id,
+            passed: !blocking,
+            score,
+            actualOutput: { paths, documentIds: landed.map((r) => r.id) } as unknown,
+            verificationResults,
+            diff: null,
+            error: null,
+            actor: ctx.actor,
+          })
+          .returning();
+        if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        return { ...row, paths };
       }),
     listRuns: orgScopedProcedure
       .input(z.object({ stepTestId: z.string().uuid() }))

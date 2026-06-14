@@ -57,6 +57,9 @@ export interface StepResult {
   output?: unknown;
   error?: string;
   childRun?: RunResult;
+  /** Wall-clock timing of this step's execution, epoch ms. Omitted for skipped/paused steps. */
+  startedAt?: number;
+  finishedAt?: number;
 }
 export interface RunResult {
   status: "completed" | "paused" | "failed";
@@ -96,21 +99,36 @@ export async function runWorkflow(def: WorkflowDef, opts: RunOptions = {}): Prom
   const steps: StepResult[] = [];
   const statusById = new Map<string, StepStatus>();
 
-  for (const step of order) {
-    const deps = step.dependsOn ?? [];
+  for (const rawStep of order) {
+    const deps = rawStep.dependsOn ?? [];
     const skipFromDep = deps.some((d) => statusById.get(d) === "skipped");
-    const skipFromBranch = step.skipUnless != null && !outputs[step.skipUnless];
+    const skipFromBranch = rawStep.skipUnless != null && !outputs[rawStep.skipUnless];
     if (skipFromDep || skipFromBranch) {
-      statusById.set(step.id, "skipped");
-      steps.push({ id: step.id, type: step.type, status: "skipped" });
+      statusById.set(rawStep.id, "skipped");
+      steps.push({ id: rawStep.id, type: rawStep.type, status: "skipped" });
       continue;
     }
 
+    // Centralized variable resolution: resolve ${inputs.x} / ${steps.id.output.y} in the step's
+    // config, inputs, and (optional) instructions ONCE here against the current run scope, so
+    // handlers receive already-resolved values and don't each re-implement resolution.
+    const scope: VarScope = { inputs, outputs };
+    const rawInstructions = (rawStep as { instructions?: unknown }).instructions;
+    const step: WorkflowStep = {
+      ...rawStep,
+      ...(rawStep.config ? { config: resolveVars(rawStep.config, scope) } : {}),
+      ...(rawStep.inputs ? { inputs: resolveVars(rawStep.inputs, scope) } : {}),
+    };
+    if (typeof rawInstructions === "string") {
+      (step as { instructions?: string }).instructions = resolveVars(rawInstructions, scope);
+    }
+
     const ctx: RunContext = { inputs, outputs, step };
+    const startedAt = Date.now();
     try {
       if (step.type === "fail") {
         const msg = String((step.config?.reason as string) ?? "workflow failed");
-        steps.push({ id: step.id, type: step.type, status: "failed", error: msg });
+        steps.push({ id: step.id, type: step.type, status: "failed", error: msg, startedAt, finishedAt: Date.now() });
         return { status: "failed", steps, outputs };
       }
       if (step.type === "human_approval" || step.type === "human_input") {
@@ -120,13 +138,13 @@ export async function runWorkflow(def: WorkflowDef, opts: RunOptions = {}): Prom
         }
         outputs[step.id] = { approved: true };
         statusById.set(step.id, "completed");
-        steps.push({ id: step.id, type: step.type, status: "completed", output: outputs[step.id] });
+        steps.push({ id: step.id, type: step.type, status: "completed", output: outputs[step.id], startedAt, finishedAt: Date.now() });
         continue;
       }
       if (step.type === "delay" || step.type === "succeed") {
         outputs[step.id] = { ok: true };
         statusById.set(step.id, "completed");
-        steps.push({ id: step.id, type: step.type, status: "completed" });
+        steps.push({ id: step.id, type: step.type, status: "completed", startedAt, finishedAt: Date.now() });
         if (step.type === "succeed") break;
         continue;
       }
@@ -141,12 +159,12 @@ export async function runWorkflow(def: WorkflowDef, opts: RunOptions = {}): Prom
           return { status: "paused", steps, outputs, pausedStepId: step.id };
         }
         if (child.status === "failed") {
-          steps.push({ id: step.id, type: step.type, status: "failed", childRun: child, error: `child workflow "${childName}" failed` });
+          steps.push({ id: step.id, type: step.type, status: "failed", childRun: child, error: `child workflow "${childName}" failed`, startedAt, finishedAt: Date.now() });
           return { status: "failed", steps, outputs };
         }
         outputs[step.id] = child.outputs;
         statusById.set(step.id, "completed");
-        steps.push({ id: step.id, type: step.type, status: "completed", output: child.outputs, childRun: child });
+        steps.push({ id: step.id, type: step.type, status: "completed", output: child.outputs, childRun: child, startedAt, finishedAt: Date.now() });
         continue;
       }
 
@@ -155,11 +173,11 @@ export async function runWorkflow(def: WorkflowDef, opts: RunOptions = {}): Prom
       const output = await fn(ctx);
       outputs[step.id] = output;
       statusById.set(step.id, "completed");
-      steps.push({ id: step.id, type: step.type, status: "completed", output });
+      steps.push({ id: step.id, type: step.type, status: "completed", output, startedAt, finishedAt: Date.now() });
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
       statusById.set(step.id, "failed");
-      steps.push({ id: step.id, type: step.type, status: "failed", error });
+      steps.push({ id: step.id, type: step.type, status: "failed", error, startedAt, finishedAt: Date.now() });
       return { status: "failed", steps, outputs };
     }
   }
