@@ -110,6 +110,13 @@ function WorkflowIndex({ onOpen }: { onOpen: (id: string) => void }) {
       onOpen(w.id);
     },
   });
+  const generate = trpc.workflows.generate.useMutation({
+    onSuccess: (w) => {
+      void utils.workflows.list.invalidate();
+      setCreating(false);
+      onOpen(w.id); // land on the Build canvas reviewing the AI draft
+    },
+  });
   const focused = trpc.workflows.get.useQuery(
     { id: focusedId! },
     { enabled: !!focusedId },
@@ -149,12 +156,20 @@ function WorkflowIndex({ onOpen }: { onOpen: (id: string) => void }) {
       </div>
       {creating && (
         <WorkflowCreatorWizard
-          busy={create.isPending}
-          onCancel={() => setCreating(false)}
+          busy={create.isPending || generate.isPending}
+          error={(generate.error ?? create.error)?.message ?? null}
+          onModeChange={() => { generate.reset(); create.reset(); }}
+          onCancel={() => { setCreating(false); generate.reset(); create.reset(); }}
           onCreate={(input) =>
             create.mutate({
               name: input.name,
               summary: input.summary,
+              triggerType: input.triggerType as "manual" | "scheduled" | "signal",
+            })
+          }
+          onBuildWithAI={(input) =>
+            generate.mutate({
+              prompt: input.prompt,
               triggerType: input.triggerType as "manual" | "scheduled" | "signal",
             })
           }

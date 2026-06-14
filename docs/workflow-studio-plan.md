@@ -200,10 +200,22 @@ browser-verified** (see Findings → login wall).
   labels, note text) with inline editors · smooth auto-layout · micro-interactions.
 
 **Phase 5 — AI builder & collaboration.**
-- **Describe a process in English → Claude generates a wired draft on the canvas.** Reuse the chat
-  router's Claude+tools setup (`routers/chat.ts`, `chat-tools.ts`). Per-node AI assist
-  (suggest config, fix errors). AI output is always a **draft a human publishes** (invariant D-8).
-- Collaboration: node comments, version diff, who-changed-what.
+- ✅ **Describe a process in English → Claude drafts a wired workflow** (done 2026-06-14). A
+  `workflows.generate` mutation: a **forced Claude tool call** (`ai-builder.ts` `EMIT_WORKFLOW_TOOL`,
+  `tool_choice` forced, type-enum from the vocab) → a **pure `normalizeWorkflowDef`** (in
+  `@beamy/shared` — the safety net: valid types, unique ids + ref-remap, no dangling/self/cyclic
+  edges, config clamp, size clamp; returns `{def, warnings, dropped}`) → insert a **draft** workflow
+  (D-8: never published/run until a human does — `enqueueRun({requirePublished})` blocks drafts). A
+  shared `STEP_VOCAB` is the single source for the prompt + the normalizer's allowlist. UI: a
+  "✨ Build with AI" mode in `WorkflowCreatorWizard` → lands on the Build canvas reviewing the draft.
+  - Verified: `workflow-builder.check.ts` fixture (repair semantics + **engine-runnability parity** +
+    dense-cycle/slug-collision/loop-drop regressions); a live generate produced correct branch+gate
+    drafts (lead→proposal; weekly RFI summary), `status=draft`, 0 version rows, runnable to the gate.
+  - Adversarially reviewed; 7 findings fixed (incl. **breakCycles could exit still-cyclic** on dense
+    graphs → loop-until-acyclic + hard fallback; **when-rewrite slug-collision corruption** →
+    single-pass token rewrite; non-executable types dropped; truncation warning; UI error surfacing).
+- ◻️ **Still ahead:** per-node AI assist (suggest config / fix errors), iterative refine over an
+  existing draft, AI-suggested triggers/connections. Collaboration: node comments, version diff.
 
 ### Backend architecture target (the durable engine)
 - Durable async runner: pg-backed job queue + worker; state machine
