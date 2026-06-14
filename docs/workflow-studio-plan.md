@@ -163,8 +163,31 @@ browser-verified** (see Findings → login wall).
     right). Adversarially reviewed; 5 findings fixed (1 high ordering, 2 stale-dep, 2 low).
 - ◻️ **Still ahead:** Switch/case (N-way), real **loops** (for-each), parallel+join (OR-join),
   suspending `wait`/`delay`; canvas true/false edge labels + green/red coloring (cosmetic).
-- ◻️ **Triggers** that fire workflows: webhooks (inbound URL), cron schedules, form submissions,
-  internal domain events ("project created"). `triggerType` is metadata today.
+- ✅ **Triggers — inbound webhook + cron schedule** (done 2026-06-14): workflows fire themselves,
+  riding the durable runner. New `workflow_triggers` table (migration `0036`; one row per
+  workflow+type). A shared server-only `enqueueRun(orgId, target, inputs, actor, {requirePublished})`
+  seam (used by the manual mutation + both triggers) creates a queued run with org resolved ONLY
+  from a server-trusted row.
+  - **Webhook:** an unguessable per-workflow token (`crypto.randomBytes(24)`, UNIQUE partial index)
+    → `POST /api/hooks/<token>` (`webhook-handler.ts`, bundled serverless fn + dev-routed in
+    `vite.config.ts`) maps the payload to `{body,query,headers,receivedAt}` inputs and enqueues a
+    run. POST-only; generic 404 (no enumeration); 256KB cap; optional HMAC-SHA256 (encrypted secret,
+    byte-safe `timingSafeEqual`, fail-closed). Published-only (drafts → 422).
+  - **Schedule:** structured `every`/`daily`/`weekly` config (`@beamy/shared/schedule.ts`,
+    DST-correct `nextDueAfter`, no deps) with a `nextDueAt` cursor. `scanScheduledTriggers` claims
+    due rows atomically (`FOR UPDATE SKIP LOCKED` + in-statement cursor bump → no double-fire on
+    overlapping/late ticks), runs INSIDE the existing every-minute Vercel cron tick (before the
+    drain, isolated so a scan error can't starve it). Invalid config backs off (no flood);
+    unpublished retries next tick.
+  - tRPC `triggers` sub-router (get/upsertSchedule/upsertWebhook/rotateWebhookToken/setEnabled/
+    delete), org-scoped, secret never returned (only `hasSecret`); dev `runs.scanScheduled`.
+  - Verified: typecheck; `schedule.check.ts` (every/daily/weekly/DST/bad-time); live curl
+    (webhook 202/404/422, HMAC 401/202/401, GET→404, crafted-sig→401) + `scanScheduled` (fires once,
+    no double-fire, invalid-config skip+backoff). Adversarially reviewed; 7 findings fixed.
+- ◻️ **Triggers still ahead:** form submissions, internal domain events ("project created" — needs
+  an event bus; `signal` stays metadata), raw-cron schedules, delivery logs / idempotency dedupe,
+  and the visual **TriggerConfigPanel** UI (clickable trigger node + schedule picker + webhook URL
+  copy) — backend is API-complete today, the config panel is the next piece.
 
 **Phase 4 — Delight & speed.**
 - ⌘K command palette · searchable node library (icons/categories/recent) · **templates gallery** ·
