@@ -17,7 +17,8 @@ import {
   workflows,
   type Db,
 } from "@beamy/db";
-import { nextDueAfter, scheduleConfigSchema } from "@beamy/shared";
+import { nextDueAfter, normalizeWorkflowDef, scheduleConfigSchema } from "@beamy/shared";
+import { generateWorkflowDraft } from "../workflow/ai-builder";
 import { orgScopedProcedure, router } from "../init";
 import { BUCKET, getStorageClient } from "../lib/storage";
 import {
@@ -297,6 +298,49 @@ export const workflowsRouter = router({
         .returning();
       if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       return row;
+    }),
+
+  // ── AI builder: describe a process in English → a wired DRAFT workflow (D-8: a human publishes) ──
+  generate: orgScopedProcedure
+    .input(
+      z.object({
+        prompt: z.string().min(8).max(4000),
+        name: z.string().min(1).max(160).optional(),
+        summary: z.string().max(500).optional(),
+        triggerType: triggerEnum.default("manual"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!process.env.ANTHROPIC_API_KEY) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "ANTHROPIC_API_KEY is not set on the server." });
+      }
+      let raw: unknown;
+      let truncated = false;
+      try {
+        const gen = await generateWorkflowDraft(input.prompt);
+        raw = gen.input;
+        truncated = gen.truncated;
+      } catch (e) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e instanceof Error ? e.message : "the AI could not draft a workflow — try rephrasing" });
+      }
+      // The pure normalizer guarantees a valid, runnable, acyclic def regardless of model output.
+      const { def, warnings, dropped } = normalizeWorkflowDef(raw, { name: input.name });
+      if (truncated) warnings.unshift("The AI's draft may be incomplete (it hit the length limit) — review it carefully.");
+      const db = getDb();
+      const [row] = await db
+        .insert(workflows)
+        .values({
+          orgId: ctx.orgId,
+          name: input.name ?? def.name,
+          definition: def, // status defaults to "draft" — never published/run until a human does it
+          summary: input.summary ?? def.summary ?? null,
+          triggerType: input.triggerType,
+          createdBy: ctx.actor,
+          updatedBy: ctx.actor,
+        })
+        .returning();
+      if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      return { ...row, warnings, dropped };
     }),
 
   updateDraft: orgScopedProcedure
