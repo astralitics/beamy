@@ -144,10 +144,26 @@ browser-verified** (see Findings → login wall).
   upstream AI output with no handler-side resolution, and connection auth still injected.
 
 **Phase 3 — Control flow & triggers.**
-- Real **IF/Switch** (true/false/case outputs) — needs engine work; `branch` is a mock today and
-  edge labels are only UI annotations. Real **loops** (for-each), parallel+join, suspending
-  `wait`/`delay`.
-- **Triggers** that fire workflows: webhooks (inbound URL), cron schedules, form submissions,
+- ✅ **Real IF / conditional branching** (done 2026-06-14): a general per-step **`when`** expression
+  gate (on `WorkflowStep`/`WfStep`). The engine hoists its centralized var-resolution ABOVE the skip
+  decision so `when` resolves, then skips when the gate is falsy (cascading to dependents via the
+  existing skip machinery). `branch` is now a **real** handler (engine default set, pure) emitting
+  `{ value, onTrue, onFalse }` from `truthy(config.condition)`. Authoring: branch config relabeled;
+  StepEditor **"Run on"** Select writes `when=${steps.<id>.output.onTrue|onFalse}` (re-points a
+  single branch `dependsOn` for the canvas edge + cascade). `truthy()` is shared (`@beamy/shared`)
+  by the gate + handler. Back-compat: legacy `skipUnless` kept verbatim. No DB migration (`when`
+  rides in the JSON definition).
+  - **Engine guarantees ordering**: `topoOrder` derives implicit edges from `when` references
+    (`steps.<id>` heads), so a gated step is always ordered AFTER the branch it reads — correct even
+    for hand-authored / restored / AI-generated defs, not just the UI path. (Adversarial-review fix:
+    the original relied on the StepEditor adding the dep; the engine now self-guarantees it.)
+  - Verified: typecheck; `branch.check.ts` (routing/cascade/nesting/joins/**ordering w/o dependsOn**/
+    gate-on-unreached/no-condition/skipUnless); `expressions.check.ts` truthy cases; live API runs
+    (true-path runs + false-path skips, and a gate-only step listed before its branch still routes
+    right). Adversarially reviewed; 5 findings fixed (1 high ordering, 2 stale-dep, 2 low).
+- ◻️ **Still ahead:** Switch/case (N-way), real **loops** (for-each), parallel+join (OR-join),
+  suspending `wait`/`delay`; canvas true/false edge labels + green/red coloring (cosmetic).
+- ◻️ **Triggers** that fire workflows: webhooks (inbound URL), cron schedules, form submissions,
   internal domain events ("project created"). `triggerType` is metadata today.
 
 **Phase 4 — Delight & speed.**
@@ -186,7 +202,8 @@ browser-verified** (see Findings → login wall).
 - **`workflow_runs` is keyed by `workflowName`, not `workflowId`** — `runs.list` resolves
   name→runs. Consider keying by `workflowId` eventually (rename-safety).
 - **Per-step timing isn't persisted** (only run-level `started/finished`).
-- **`branch` is a mock** — no real conditional routing; edge labels are decorative. Real IF = engine.
+- ~~**`branch` is a mock**~~ — FIXED 2026-06-14: `branch` is real (emits onTrue/onFalse) + a per-step
+  `when` gate routes execution (see Phase 3). Edge labels are still decorative (canvas coloring TODO).
 - **Canvas remount pattern** — uncontrolled `defaultNodes/defaultEdges` + a remount `key` (the
   `sig`); node/note **positions are deliberately excluded from the sig** so a drag doesn't re-fit
   the viewport; **Tidy bumps a `layoutNonce`** to force a fresh dagre layout.
