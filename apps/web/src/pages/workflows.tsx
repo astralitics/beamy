@@ -117,6 +117,14 @@ function WorkflowIndex({ onOpen }: { onOpen: (id: string) => void }) {
       onOpen(w.id); // land on the Build canvas reviewing the AI draft
     },
   });
+  const templatesQ = trpc.workflows.templates.list.useQuery();
+  const instantiate = trpc.workflows.templates.instantiate.useMutation({
+    onSuccess: (w) => {
+      void utils.workflows.list.invalidate();
+      setCreating(false);
+      onOpen(w.id); // land on the Build canvas reviewing the template draft
+    },
+  });
   const focused = trpc.workflows.get.useQuery(
     { id: focusedId! },
     { enabled: !!focusedId },
@@ -156,10 +164,13 @@ function WorkflowIndex({ onOpen }: { onOpen: (id: string) => void }) {
       </div>
       {creating && (
         <WorkflowCreatorWizard
-          busy={create.isPending || generate.isPending}
-          error={(generate.error ?? create.error)?.message ?? null}
-          onModeChange={() => { generate.reset(); create.reset(); }}
-          onCancel={() => { setCreating(false); generate.reset(); create.reset(); }}
+          busy={create.isPending || generate.isPending || instantiate.isPending}
+          error={(generate.error ?? create.error ?? instantiate.error)?.message ?? null}
+          templates={templatesQ.data ?? []}
+          templatesLoading={templatesQ.isLoading}
+          onUseTemplate={(templateId) => instantiate.mutate({ templateId })}
+          onModeChange={() => { generate.reset(); create.reset(); instantiate.reset(); }}
+          onCancel={() => { setCreating(false); generate.reset(); create.reset(); instantiate.reset(); }}
           onCreate={(input) =>
             create.mutate({
               name: input.name,

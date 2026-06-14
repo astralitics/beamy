@@ -195,7 +195,17 @@ browser-verified** (see Findings → login wall).
   an event bus; `signal` stays metadata), raw-cron schedules, delivery logs / idempotency dedupe.
 
 **Phase 4 — Delight & speed.**
-- ⌘K command palette · searchable node library (icons/categories/recent) · **templates gallery** ·
+- ✅ **Templates gallery** (done 2026-06-14): curated `WORKFLOW_TEMPLATES` (a shared constant — the
+  single source for the gallery + the verification fixture + AI-builder few-shot material): Lead→
+  proposal, Site visit→assessment, Change-order budget triage (branch+gate), Weekly site weather
+  briefing (scheduled; http→AI→email), RFI intake (signal). `workflows.templates.list` (cards only) +
+  `templates.instantiate` (runs the template through the SAME `normalizeWorkflowDef` then inserts a
+  DRAFT — D-8). UI: a "From a template" mode in `WorkflowCreatorWizard` (a vertical list per
+  [[feedback_prefer_tables]], grouped by category, one-click "Use" → lands on the Build canvas).
+  Verified: a fixture asserts all 5 normalize clean + run to expected terminals (gate pauses, branch
+  arms route); live list/instantiate/NOT_FOUND. Adversarially reviewed (content + UI); 1 LOW fixed
+  (loading state in the gallery).
+- ◻️ **Still ahead:** ⌘K command palette · searchable node library (icons/categories/recent) ·
   minimap · dark mode · onboarding/empty states · **replace the `window.prompt`** editors (edge
   labels, note text) with inline editors · smooth auto-layout · micro-interactions.
 

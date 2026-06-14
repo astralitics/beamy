@@ -17,7 +17,7 @@ import {
   workflows,
   type Db,
 } from "@beamy/db";
-import { nextDueAfter, normalizeWorkflowDef, scheduleConfigSchema } from "@beamy/shared";
+import { nextDueAfter, normalizeWorkflowDef, scheduleConfigSchema, WORKFLOW_TEMPLATES } from "@beamy/shared";
 import { generateWorkflowDraft } from "../workflow/ai-builder";
 import { orgScopedProcedure, router } from "../init";
 import { BUCKET, getStorageClient } from "../lib/storage";
@@ -626,6 +626,45 @@ export const workflowsRouter = router({
               s.startedAt && s.finishedAt ? s.finishedAt.getTime() - s.startedAt.getTime() : null,
           })),
         };
+      }),
+  }),
+
+  // ─────────────────── templates (the gallery → one-click draft) ───────────────────
+  templates: router({
+    // Lightweight cards for the gallery — never ships the full def/prompts to the list view.
+    list: orgScopedProcedure.query(() =>
+      WORKFLOW_TEMPLATES.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        category: t.category,
+        triggerType: t.triggerType,
+        stepCount: t.def.steps.length,
+      })),
+    ),
+    // Instantiate a template into a DRAFT (D-8: a human reviews + publishes). Runs the template
+    // through the SAME normalizer as the AI builder, so a hand-edit can never persist a broken draft.
+    instantiate: orgScopedProcedure
+      .input(z.object({ templateId: z.string(), name: z.string().min(1).max(160).optional(), summary: z.string().max(500).optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const tpl = WORKFLOW_TEMPLATES.find((t) => t.id === input.templateId);
+        if (!tpl) throw new TRPCError({ code: "NOT_FOUND" });
+        const { def, warnings, dropped } = normalizeWorkflowDef(tpl.def, { name: input.name ?? tpl.title });
+        const db = getDb();
+        const [row] = await db
+          .insert(workflows)
+          .values({
+            orgId: ctx.orgId,
+            name: input.name ?? def.name,
+            definition: def,
+            summary: input.summary ?? def.summary ?? tpl.description ?? null,
+            triggerType: tpl.triggerType as "manual" | "scheduled" | "signal",
+            createdBy: ctx.actor,
+            updatedBy: ctx.actor,
+          })
+          .returning();
+        if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        return { ...row, warnings, dropped };
       }),
   }),
 
