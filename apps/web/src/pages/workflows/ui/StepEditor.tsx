@@ -30,6 +30,15 @@ export function StepEditor({ step, siblings, connectionOptions, onSave, onDelete
   const set = (patch: Partial<WfStep>) => setDraft((d) => ({ ...d, ...patch }));
   const meta = stepTypeMeta(draft.type);
   const others = siblings.filter((s) => s.id !== draft.id);
+  // "Run on" gating: any branch sibling offers a true/false path to gate this step on.
+  const branchSiblings = others.filter((s) => s.type === 'branch');
+  const runOnOptions = [
+    { value: '', label: 'Always' },
+    ...branchSiblings.flatMap((b) => [
+      { value: `\${steps.${b.id}.output.onTrue}`, label: `When "${b.name ?? b.id}" is true` },
+      { value: `\${steps.${b.id}.output.onFalse}`, label: `When "${b.name ?? b.id}" is false` },
+    ]),
+  ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -79,6 +88,25 @@ export function StepEditor({ step, siblings, connectionOptions, onSave, onDelete
                 );
               })}
             </div>
+          </Field>
+        )}
+
+        {branchSiblings.length > 0 && (
+          <Field label="Run on" hint="Gate this step on a branch's path. To merge both paths back together, run after the Branch itself — not after both the true and false steps (that would skip it).">
+            <Select
+              value={draft.when ?? ''}
+              onChange={(v) => {
+                // Re-point the single branch dependency: drop any branch-sibling dep this gate added
+                // before, then add the newly-selected one. Adding it gives the canvas edge + cascade;
+                // the engine also orders by `when` so correctness doesn't depend on this.
+                const branchIds = new Set(branchSiblings.map((b) => b.id));
+                const kept = (draft.dependsOn ?? []).filter((d) => !branchIds.has(d));
+                if (!v) { set({ when: undefined, dependsOn: kept }); return; }
+                const branchId = /^\$\{steps\.([^.}]+)\.output\./.exec(v)?.[1];
+                set({ when: v, dependsOn: branchId ? [...kept, branchId] : kept });
+              }}
+              options={runOnOptions}
+            />
           </Field>
         )}
 

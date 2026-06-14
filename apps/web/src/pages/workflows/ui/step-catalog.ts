@@ -107,8 +107,8 @@ export const STEP_CREATE_GROUPS: { group: string; items: StepTypeSpec[] }[] = [
       {
         type: 'branch',
         title: 'Branch',
-        blurb: 'Continue only when a condition holds.',
-        config: [{ key: 'condition', label: 'Continue when…', kind: 'text', placeholder: '${steps.review.output.approved}' }],
+        blurb: 'Split the flow: steps on the TRUE path run when the condition holds; FALSE-path steps run otherwise.',
+        config: [{ key: 'condition', label: 'True when…', kind: 'text', placeholder: '${steps.review.output.approved}', hint: 'Reference a yes/no value from an earlier step. Empty / 0 / false / no → the false path. (An empty list reads as false, an empty object as true.)' }],
       },
       {
         type: 'delay',

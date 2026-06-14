@@ -16,6 +16,9 @@ export interface WfStep {
   config?: Record<string, unknown>;
   instructions?: string;
   outputs?: WfStepOutput[];
+  /** Conditional gate: a `${...}` expression; falsy → this step (and its dependents) skip.
+   *  Authored via the "Run on" picker to gate on a branch's onTrue/onFalse output. */
+  when?: string;
   /** Free-form canvas position (UI-only; the engine ignores it). Absent → auto-layout. */
   position?: { x: number; y: number };
 }
