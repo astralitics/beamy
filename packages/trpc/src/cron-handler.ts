@@ -1,4 +1,5 @@
 import { drainJobs } from "./routers/workflows";
+import { scanScheduledTriggers } from "./workflow/scheduler";
 
 /**
  * Cron drain handler — the prod trigger for the durable runner. Vercel has no always-on worker
@@ -27,8 +28,17 @@ export async function handleCronTick(req: Request): Promise<Response> {
   }
 
   try {
-    const result = await drainJobs({ limit: 25 });
-    return new Response(JSON.stringify({ ok: true, ...result }), {
+    // Fire due schedule triggers first, then drain so same-minute schedules execute this tick.
+    // The scan is isolated so a scan failure can never starve the durable-runner drain.
+    let scan: unknown;
+    try {
+      scan = await scanScheduledTriggers(new Date());
+    } catch (e) {
+      scan = { error: e instanceof Error ? e.message : String(e) };
+      console.error("[cron] schedule scan failed:", scan);
+    }
+    const drain = await drainJobs({ limit: 25 });
+    return new Response(JSON.stringify({ ok: true, scan, ...drain }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });

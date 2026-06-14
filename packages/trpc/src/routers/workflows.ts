@@ -12,10 +12,12 @@ import {
   workflowJobs,
   workflowRuns,
   workflowRunSteps,
+  workflowTriggers,
   workflowVersions,
   workflows,
   type Db,
 } from "@beamy/db";
+import { nextDueAfter, scheduleConfigSchema } from "@beamy/shared";
 import { orgScopedProcedure, router } from "../init";
 import { BUCKET, getStorageClient } from "../lib/storage";
 import {
@@ -35,6 +37,9 @@ import {
   retryJob,
   type JobRow,
 } from "../workflow/queue";
+import { enqueueRun, EnqueueRunError } from "../workflow/enqueue";
+import { scanScheduledTriggers } from "../workflow/scheduler";
+import { encryptSecret } from "../lib/secrets";
 
 /** Real handlers wired with this org's connection resolver (decrypts stored credentials). */
 const orgHandlers = (orgId: string) =>
@@ -197,6 +202,32 @@ function coerceCaptured(outputs: StepOutputDef[], actual: unknown): Record<strin
   }
   const first = outputs[0];
   return first ? { [first.id]: actual } : {};
+}
+
+/** Client-safe trigger view — exposes the webhook token (the owner needs it) but never the secret. */
+function triggerView(row: typeof workflowTriggers.$inferSelect) {
+  return {
+    id: row.id,
+    type: row.type,
+    enabled: row.enabled,
+    config: row.config,
+    webhookToken: row.webhookToken,
+    webhookPath: row.webhookToken ? `/api/hooks/${row.webhookToken}` : null,
+    hasSecret: row.webhookSecretEnc != null,
+    signatureHeader: row.signatureHeader,
+    nextDueAt: row.nextDueAt?.toISOString() ?? null,
+    lastFiredAt: row.lastFiredAt?.toISOString() ?? null,
+  };
+}
+
+/** Throw NOT_FOUND unless the workflow exists in the org (guards trigger writes). */
+async function assertWorkflowInOrg(db: Db, orgId: string, workflowId: string) {
+  const [wf] = await db
+    .select({ id: workflows.id })
+    .from(workflows)
+    .where(and(eq(workflows.id, workflowId), eq(workflows.orgId, orgId)))
+    .limit(1);
+  if (!wf) throw new TRPCError({ code: "NOT_FOUND" });
 }
 
 export const workflowsRouter = router({
@@ -428,27 +459,20 @@ export const workflowsRouter = router({
     enqueue: orgScopedProcedure
       .input(z.object({ workflowId: z.string().uuid(), inputs: z.record(z.unknown()).optional() }))
       .mutation(async ({ ctx, input }) => {
-        const db = getDb();
-        const [wf] = await db
-          .select()
-          .from(workflows)
-          .where(and(eq(workflows.id, input.workflowId), eq(workflows.orgId, ctx.orgId)))
-          .limit(1);
-        if (!wf) throw new TRPCError({ code: "NOT_FOUND" });
-        const [run] = await db
-          .insert(workflowRuns)
-          .values({
-            orgId: ctx.orgId,
-            workflowName: wf.name,
-            workflowVersion: wf.version,
-            status: "queued",
-            inputs: input.inputs ?? {},
-            actor: ctx.actor,
-          })
-          .returning({ id: workflowRuns.id });
-        if (!run) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-        const job = await enqueueJob(db, { orgId: ctx.orgId, runId: run.id });
-        return { runId: run.id, jobId: job.id, status: "queued" as const };
+        // Shares the enqueueRun seam with the webhook + schedule triggers. requirePublished is off
+        // here so a draft can still be manually queued (matching the synchronous "Run now").
+        try {
+          const { runId, jobId } = await enqueueRun(
+            ctx.orgId,
+            { workflowId: input.workflowId },
+            input.inputs ?? {},
+            ctx.actor,
+          );
+          return { runId, jobId, status: "queued" as const };
+        } catch (e) {
+          if (e instanceof EnqueueRunError) throw new TRPCError({ code: "NOT_FOUND" });
+          throw e;
+        }
       }),
 
     // Drain this org's queue now (one tick). The Vercel cron calls the same `drainJobs` globally.
@@ -457,6 +481,11 @@ export const workflowsRouter = router({
       .mutation(async ({ ctx, input }) => {
         return drainJobs({ orgId: ctx.orgId, limit: input?.limit });
       }),
+
+    // Dev/manual: run the schedule scan now (the Vercel cron does this every minute in prod).
+    scanScheduled: orgScopedProcedure.mutation(async () => {
+      return scanScheduledTriggers(new Date());
+    }),
 
     // Approve a parked (waiting) human gate on a queued run → re-arm its job for the next tick.
     approveQueued: orgScopedProcedure
@@ -553,6 +582,124 @@ export const workflowsRouter = router({
               s.startedAt && s.finishedAt ? s.finishedAt.getTime() - s.startedAt.getTime() : null,
           })),
         };
+      }),
+  }),
+
+  // ─────────────────── triggers (webhook + schedule) ───────────────────
+  triggers: router({
+    // The workflow's trigger rows. Returns the webhook token (the authed owner needs it to copy the
+    // URL) but NEVER the HMAC secret (only a hasSecret flag).
+    get: orgScopedProcedure
+      .input(z.object({ workflowId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const db = getDb();
+        const rows = await db
+          .select()
+          .from(workflowTriggers)
+          .where(and(eq(workflowTriggers.workflowId, input.workflowId), eq(workflowTriggers.orgId, ctx.orgId)));
+        return rows.map(triggerView);
+      }),
+
+    upsertSchedule: orgScopedProcedure
+      .input(z.object({ workflowId: z.string().uuid(), config: scheduleConfigSchema, enabled: z.boolean().default(true) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = getDb();
+        await assertWorkflowInOrg(db, ctx.orgId, input.workflowId);
+        const now = new Date();
+        const nextDueAt = input.enabled ? nextDueAfter(input.config, now) : null;
+        const [row] = await db
+          .insert(workflowTriggers)
+          .values({
+            orgId: ctx.orgId, workflowId: input.workflowId, type: "schedule",
+            enabled: input.enabled, config: input.config, nextDueAt,
+            createdBy: ctx.actor, updatedBy: ctx.actor,
+          })
+          .onConflictDoUpdate({
+            target: [workflowTriggers.workflowId, workflowTriggers.type],
+            set: { enabled: input.enabled, config: input.config, nextDueAt, updatedBy: ctx.actor, updatedAt: now },
+          })
+          .returning();
+        return triggerView(row!);
+      }),
+
+    upsertWebhook: orgScopedProcedure
+      .input(z.object({
+        workflowId: z.string().uuid(),
+        enabled: z.boolean().default(true),
+        hmacSecret: z.string().min(1).optional(),
+        signatureHeader: z.string().min(1).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = getDb();
+        await assertWorkflowInOrg(db, ctx.orgId, input.workflowId);
+        const now = new Date();
+        const [existing] = await db
+          .select()
+          .from(workflowTriggers)
+          .where(and(eq(workflowTriggers.workflowId, input.workflowId), eq(workflowTriggers.type, "webhook")))
+          .limit(1);
+        const webhookToken = existing?.webhookToken ?? crypto.randomBytes(24).toString("base64url");
+        const webhookSecretEnc = input.hmacSecret ? encryptSecret({ hmacSecret: input.hmacSecret }) : existing?.webhookSecretEnc ?? null;
+        const signatureHeader = input.signatureHeader ?? existing?.signatureHeader ?? null;
+        const [row] = await db
+          .insert(workflowTriggers)
+          .values({
+            orgId: ctx.orgId, workflowId: input.workflowId, type: "webhook",
+            enabled: input.enabled, webhookToken, webhookSecretEnc, signatureHeader,
+            createdBy: ctx.actor, updatedBy: ctx.actor,
+          })
+          .onConflictDoUpdate({
+            target: [workflowTriggers.workflowId, workflowTriggers.type],
+            set: { enabled: input.enabled, webhookToken, webhookSecretEnc, signatureHeader, updatedBy: ctx.actor, updatedAt: now },
+          })
+          .returning();
+        return triggerView(row!);
+      }),
+
+    rotateWebhookToken: orgScopedProcedure
+      .input(z.object({ workflowId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = getDb();
+        const [row] = await db
+          .update(workflowTriggers)
+          .set({ webhookToken: crypto.randomBytes(24).toString("base64url"), updatedBy: ctx.actor, updatedAt: new Date() })
+          .where(and(eq(workflowTriggers.workflowId, input.workflowId), eq(workflowTriggers.orgId, ctx.orgId), eq(workflowTriggers.type, "webhook")))
+          .returning();
+        if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+        return triggerView(row);
+      }),
+
+    setEnabled: orgScopedProcedure
+      .input(z.object({ workflowId: z.string().uuid(), type: z.enum(["webhook", "schedule"]), enabled: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = getDb();
+        const patch: Partial<typeof workflowTriggers.$inferInsert> = { enabled: input.enabled, updatedBy: ctx.actor, updatedAt: new Date() };
+        if (input.type === "schedule" && input.enabled) {
+          const [t] = await db
+            .select()
+            .from(workflowTriggers)
+            .where(and(eq(workflowTriggers.workflowId, input.workflowId), eq(workflowTriggers.orgId, ctx.orgId), eq(workflowTriggers.type, "schedule")))
+            .limit(1);
+          const cfg = t?.config ? scheduleConfigSchema.safeParse(t.config) : null;
+          if (cfg?.success) patch.nextDueAt = nextDueAfter(cfg.data, new Date());
+        }
+        const [row] = await db
+          .update(workflowTriggers)
+          .set(patch)
+          .where(and(eq(workflowTriggers.workflowId, input.workflowId), eq(workflowTriggers.orgId, ctx.orgId), eq(workflowTriggers.type, input.type)))
+          .returning();
+        if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+        return triggerView(row);
+      }),
+
+    delete: orgScopedProcedure
+      .input(z.object({ workflowId: z.string().uuid(), type: z.enum(["webhook", "schedule"]) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = getDb();
+        await db
+          .delete(workflowTriggers)
+          .where(and(eq(workflowTriggers.workflowId, input.workflowId), eq(workflowTriggers.orgId, ctx.orgId), eq(workflowTriggers.type, input.type)));
+        return { ok: true };
       }),
   }),
 
