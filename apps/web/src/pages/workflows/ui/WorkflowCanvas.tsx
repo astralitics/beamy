@@ -160,6 +160,8 @@ export interface WorkflowCanvasProps {
   statusByStep?: Record<string, string>;
   selectedStepId?: string | null;
   onSelectStep?: (stepId: string) => void;
+  /** Clicking the trigger node (e.g. to open the trigger config). */
+  onSelectTrigger?: () => void;
   height?: number;
   editable?: boolean;
   triggerType?: string;
@@ -178,7 +180,7 @@ export interface WorkflowCanvasProps {
   onDeleteNote?: (noteId: string) => void;
 }
 
-function CanvasInner({ definition, statusByStep, selectedStepId, onSelectStep, height = 460, editable, triggerType, onConnect, onDisconnect, onAddAfter, onMoveNode, edgeLabels, onAddOnEdge, onLabelEdge, notes, onMoveNote, onEditNote, onDeleteNote }: WorkflowCanvasProps) {
+function CanvasInner({ definition, statusByStep, selectedStepId, onSelectStep, onSelectTrigger, height = 460, editable, triggerType, onConnect, onDisconnect, onAddAfter, onMoveNode, edgeLabels, onAddOnEdge, onLabelEdge, notes, onMoveNote, onEditNote, onDeleteNote }: WorkflowCanvasProps) {
   const built = useMemo(
     () => layout(definition, { statusByStep, selectedStepId, editable, triggerType, edgeLabels, onAddAfter, onAddOnEdge, onLabelEdge, notes, onEditNote, onDeleteNote }),
     [definition, statusByStep, selectedStepId, editable, triggerType, edgeLabels, onAddAfter, onAddOnEdge, onLabelEdge, notes, onEditNote, onDeleteNote],
@@ -205,7 +207,7 @@ function CanvasInner({ definition, statusByStep, selectedStepId, onSelectStep, h
           isValidConnection={(c) => c.source !== c.target}
           minZoom={0.2}
           proOptions={{ hideAttribution: true }}
-          onNodeClick={(_e, n) => { if (n.id !== TRIGGER_ID) onSelectStep?.(n.id); }}
+          onNodeClick={(_e, n) => { if (n.id === TRIGGER_ID) onSelectTrigger?.(); else onSelectStep?.(n.id); }}
           onNodeDragStop={(_e, n) => {
             if (!editable) return;
             const x = Math.round(n.position.x), y = Math.round(n.position.y);

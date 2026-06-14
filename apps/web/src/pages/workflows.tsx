@@ -4,6 +4,7 @@ import { trpc } from "../lib/trpc";
 import { PageHeader } from "../components/ui";
 import { StepCatalog, StepDetail } from "./steps";
 import { ConnectionsPage } from "./connections";
+import { TriggerConfigPanel } from "./workflows/TriggerConfigPanel";
 import {
   Badge,
   Button,
@@ -173,6 +174,7 @@ function WorkflowDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("build");
   const [stepView, setStepView] = useState<"list" | "dag">("dag");
   const [editing, setEditing] = useState<WfStep | null>(null);
+  const [editingTrigger, setEditingTrigger] = useState(false);
   const [creatingStep, setCreatingStep] = useState(false);
   const [pendingSource, setPendingSource] = useState<string | null>(null);
   const [pendingTarget, setPendingTarget] = useState<string | null>(null);
@@ -310,7 +312,7 @@ function WorkflowDetail({ id, onBack }: { id: string; onBack: () => void }) {
       </div>
 
       {tab === "build" && (
-        <div style={{ display: "grid", gridTemplateColumns: editing ? "1fr 380px" : "1fr", gap: 18, alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: editing || (editingTrigger && !run) ? "1fr 380px" : "1fr", gap: 18, alignItems: "start" }}>
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -338,17 +340,21 @@ function WorkflowDetail({ id, onBack }: { id: string; onBack: () => void }) {
               <StepListView steps={steps} selectedStepId={editing?.id} onSelectStep={(sid) => setEditing(steps.find((s) => s.id === sid) ?? null)} onAddStep={addStep} />
             ) : (
               <>
-                <WorkflowCanvas definition={def} selectedStepId={editing?.id} height={520} editable={!run} statusByStep={runStatusByStep} triggerType={wf.data.triggerType} onConnect={onConnectDep} onDisconnect={onDisconnectDep} onAddAfter={addAfter} onMoveNode={onMoveNode} onAddOnEdge={addOnEdge} onLabelEdge={onLabelEdge} edgeLabels={def.edgeLabels} layoutNonce={layoutNonce} notes={def.notes} onMoveNote={onMoveNote} onEditNote={onEditNote} onDeleteNote={onDeleteNote} onSelectStep={(sid) => setEditing(steps.find((s) => s.id === sid) ?? null)} />
-                <p style={{ fontSize: 12, color: tok.inkFaint, marginTop: 8 }}>{run ? "Running — click a step to inspect its output. Clear the run to edit the flow again." : "Drag dot→dot to connect · drag nodes to arrange · + on a node or edge inserts a step · double-click an edge to label it · select an edge + Delete to remove."}</p>
+                <WorkflowCanvas definition={def} selectedStepId={editing?.id} height={520} editable={!run} statusByStep={runStatusByStep} triggerType={wf.data.triggerType} onConnect={onConnectDep} onDisconnect={onDisconnectDep} onAddAfter={addAfter} onMoveNode={onMoveNode} onAddOnEdge={addOnEdge} onLabelEdge={onLabelEdge} edgeLabels={def.edgeLabels} layoutNonce={layoutNonce} notes={def.notes} onMoveNote={onMoveNote} onEditNote={onEditNote} onDeleteNote={onDeleteNote} onSelectStep={(sid) => { setEditingTrigger(false); setEditing(steps.find((s) => s.id === sid) ?? null); }} onSelectTrigger={() => { if (run) return; setEditing(null); setEditingTrigger(true); }} />
+                <p style={{ fontSize: 12, color: tok.inkFaint, marginTop: 8 }}>{run ? "Running — click a step to inspect its output. Clear the run to edit the flow again." : "Click the trigger to schedule it or get a webhook URL · drag dot→dot to connect · drag nodes to arrange · + on a node or edge inserts a step · double-click an edge to label it · select an edge + Delete to remove."}</p>
               </>
             )}
           </div>
-          {editing && (
+          {(editing || (editingTrigger && !run)) && (
             <div style={{ border: `1px solid ${tok.border}`, borderRadius: tok.radius, background: tok.surface, height: 560, position: "sticky", top: 16, overflow: "hidden" }}>
-              {run ? (
-                <RunStepInspector step={editing} result={run.steps.find((s) => s.stepId === editing.id)} upstream={upstreamFor(editing.id, def, run.steps)} onClose={() => setEditing(null)} />
+              {editing ? (
+                run ? (
+                  <RunStepInspector step={editing} result={run.steps.find((s) => s.stepId === editing.id)} upstream={upstreamFor(editing.id, def, run.steps)} onClose={() => setEditing(null)} />
+                ) : (
+                  <StepEditor key={editing.id} step={editing} siblings={steps} connectionOptions={connectionOptions} onSave={saveStep} onDelete={() => deleteStep(editing.id)} onCancel={() => setEditing(null)} />
+                )
               ) : (
-                <StepEditor key={editing.id} step={editing} siblings={steps} connectionOptions={connectionOptions} onSave={saveStep} onDelete={() => deleteStep(editing.id)} onCancel={() => setEditing(null)} />
+                <TriggerConfigPanel workflowId={id} onClose={() => setEditingTrigger(false)} />
               )}
             </div>
           )}

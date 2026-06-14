@@ -184,10 +184,15 @@ browser-verified** (see Findings → login wall).
   - Verified: typecheck; `schedule.check.ts` (every/daily/weekly/DST/bad-time); live curl
     (webhook 202/404/422, HMAC 401/202/401, GET→404, crafted-sig→401) + `scanScheduled` (fires once,
     no double-fire, invalid-config skip+backoff). Adversarially reviewed; 7 findings fixed.
+- ✅ **TriggerConfigPanel UI** (done 2026-06-14): the trigger node on the Build canvas is now
+  clickable (`onSelectTrigger`) → a right-panel `TriggerConfigPanel` (page-level, over the triggers
+  sub-router). Webhook: create/copy URL, enable/disable, rotate, optional HMAC secret, curl hint.
+  Schedule: frequency picker (every/daily/weekly) with a live "next run" (shared `nextDueAfter`),
+  enable/disable. Adversarially reviewed; 5 findings fixed (weekly-days can't empty out + Save is
+  validity-gated; all mutations surface errors; grid reserves the right column; minutes Select shows
+  the saved value). Verified: typecheck + module transforms (not click-tested — login wall).
 - ◻️ **Triggers still ahead:** form submissions, internal domain events ("project created" — needs
-  an event bus; `signal` stays metadata), raw-cron schedules, delivery logs / idempotency dedupe,
-  and the visual **TriggerConfigPanel** UI (clickable trigger node + schedule picker + webhook URL
-  copy) — backend is API-complete today, the config panel is the next piece.
+  an event bus; `signal` stays metadata), raw-cron schedules, delivery logs / idempotency dedupe.
 
 **Phase 4 — Delight & speed.**
 - ⌘K command palette · searchable node library (icons/categories/recent) · **templates gallery** ·
