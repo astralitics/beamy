@@ -9,7 +9,7 @@ import {
   type WorkflowOutputType as OutputType,
 } from '@beamy/shared';
 import { STEP_TYPE_META } from './theme';
-import { ConfigFields } from './StepCreatorModal';
+import { ConfigFields, type ConnectionOption } from './StepCreatorModal';
 import { stepTypeSpec } from './step-catalog';
 import type { WfStep, WfStepOutput, WfVerification } from './types';
 
@@ -18,12 +18,14 @@ const STEP_TYPE_OPTIONS = Object.entries(STEP_TYPE_META).map(([value, m]) => ({ 
 export interface StepEditorProps {
   step: WfStep;
   siblings: WfStep[]; // other steps in the workflow (for dependsOn)
+  /** The org's stored Connections — populates a step's `connection`-kind config fields. */
+  connectionOptions?: ConnectionOption[];
   onSave: (step: WfStep) => void;
   onDelete?: () => void;
   onCancel?: () => void;
 }
 
-export function StepEditor({ step, siblings, onSave, onDelete, onCancel }: StepEditorProps) {
+export function StepEditor({ step, siblings, connectionOptions, onSave, onDelete, onCancel }: StepEditorProps) {
   const [draft, setDraft] = useState<WfStep>(() => ({ ...step, outputs: step.outputs ?? [], dependsOn: step.dependsOn ?? [] }));
   const set = (patch: Partial<WfStep>) => setDraft((d) => ({ ...d, ...patch }));
   const meta = stepTypeMeta(draft.type);
@@ -49,7 +51,7 @@ export function StepEditor({ step, siblings, onSave, onDelete, onCancel }: StepE
         {(() => {
           const sp = stepTypeSpec(draft.type);
           return sp && sp.config.length ? (
-            <ConfigFields spec={sp} config={draft.config ?? {}} onConfig={(c) => set({ config: c })} />
+            <ConfigFields spec={sp} config={draft.config ?? {}} onConfig={(c) => set({ config: c })} connectionOptions={connectionOptions} />
           ) : null;
         })()}
         <Field label="Instructions" hint="Guidance shown to the operator (for human steps) or notes for the runtime.">

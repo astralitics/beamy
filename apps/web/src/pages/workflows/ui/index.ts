@@ -7,14 +7,15 @@ export { WorkflowListView, type WorkflowListViewProps } from './WorkflowListView
 export { WorkflowCanvas, type WorkflowCanvasProps } from './WorkflowCanvas';
 export { StepListView, type StepListViewProps } from './StepListView';
 export { StepEditor, type StepEditorProps } from './StepEditor';
-export { StepCreatorModal, ConfigFields, type StepCreatorModalProps } from './StepCreatorModal';
+export { StepCreatorModal, ConfigFields, type StepCreatorModalProps, type ConnectionOption } from './StepCreatorModal';
 export { InputsDeclEditor, OutputsEditor, VerificationPicker } from './StepIO';
 export { STEP_CREATE_GROUPS, stepTypeSpec, type StepTypeSpec } from './step-catalog';
 export { RunWizard, type RunWizardProps } from './RunWizard';
+export { RunStepInspector, type RunStepInspectorProps, type UpstreamOutput } from './RunStepInspector';
 export { VersionHistory, type VersionHistoryProps } from './VersionHistory';
 export { WorkflowCreatorWizard, type WorkflowCreatorWizardProps } from './WorkflowCreatorWizard';
 export type {
-  WfStep, WfStepInput, WfStepOutput, WfVerification, WfDefinition,
+  WfStep, WfStepInput, WfStepOutput, WfVerification, WfDefinition, WfNote,
   WorkflowSummary, WorkflowDetail, VersionView, RunView, RunStepView,
   StepTemplateView, StepTestView, StepTestRunView,
 } from './types';

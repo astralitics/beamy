@@ -16,8 +16,12 @@ export interface WfStep {
   config?: Record<string, unknown>;
   instructions?: string;
   outputs?: WfStepOutput[];
+  /** Free-form canvas position (UI-only; the engine ignores it). Absent → auto-layout. */
+  position?: { x: number; y: number };
 }
-export interface WfDefinition { name: string; steps: WfStep[] }
+/** A free-floating annotation on the canvas (n8n sticky note). UI-only. */
+export interface WfNote { id: string; text: string; position: { x: number; y: number } }
+export interface WfDefinition { name: string; steps: WfStep[]; notes?: WfNote[]; edgeLabels?: Record<string, string> }
 
 export interface WorkflowSummary {
   id: string;
@@ -50,6 +54,9 @@ export interface RunStepView {
   status: string; // completed | skipped | paused | failed
   output?: unknown;
   error?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  durationMs?: number | null;
 }
 export interface RunView {
   id: string;
