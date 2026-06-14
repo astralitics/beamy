@@ -29,8 +29,9 @@ coverage/
 # build artifacts
 *.tsbuildinfo
 
-# generated Vercel function bundle (scripts/build-api.mjs)
+# generated Vercel function bundles (scripts/build-api.mjs)
 api/trpc/_bundle.mjs
+api/cron/_bundle.mjs
 
 # vercel
 .vercel/
