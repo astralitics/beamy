@@ -253,6 +253,13 @@
       "when": 1781453972633,
       "tag": "0035_brainy_slyde",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1781463967308,
+      "tag": "0036_lean_gamora",
+      "breakpoints": true
     }
   ]
 }

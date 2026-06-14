@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { orgs } from "./orgs";
@@ -263,5 +264,45 @@ export const workflowJobs = pgTable(
     byClaim: index("workflow_jobs_claim_idx").on(t.status, t.runAfter),
     byOrg: index("workflow_jobs_org_idx").on(t.orgId),
     byRun: index("workflow_jobs_run_idx").on(t.runId),
+  }),
+);
+
+/**
+ * workflow_triggers — how a workflow fires itself (the "trigger" subsystem). One row per
+ * (workflow, type). A `webhook` row carries an unguessable token (a public inbound URL) + an
+ * optional encrypted HMAC secret; a `schedule` row carries a structured cadence in `config` plus a
+ * `nextDueAt` cursor advanced atomically by the cron scan (so overlapping/late ticks can't
+ * double-fire). Both, when due, enqueue a durable run via the shared `enqueueRun` helper — reusing
+ * the queue/retry/drain machinery. Org is resolved ONLY from this row, never from the request.
+ */
+export const workflowTriggers = pgTable(
+  "workflow_triggers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    workflowId: uuid("workflow_id").notNull(), // soft ref -> workflows.id
+    type: text("type", { enum: ["webhook", "schedule"] }).notNull(),
+    enabled: boolean("enabled").notNull().default(false),
+    /** Schedule cadence (ScheduleConfig discriminated union) for `schedule`; null for `webhook`. */
+    config: jsonb("config"),
+    /** Unguessable inbound-URL token (plaintext bearer locator), `webhook` only. */
+    webhookToken: text("webhook_token"),
+    /** AES-GCM-encrypted { hmacSecret } for optional signature verification; never returned. */
+    webhookSecretEnc: text("webhook_secret_enc"),
+    /** Header carrying the HMAC signature (default x-beamy-signature). */
+    signatureHeader: text("signature_header"),
+    /** Schedule cursor + dedupe (restart-safe; the DB is the schedule clock). */
+    nextDueAt: timestamp("next_due_at", { withTimezone: true }),
+    lastFiredAt: timestamp("last_fired_at", { withTimezone: true }),
+    lastFiredDedupeKey: text("last_fired_dedupe_key"),
+    ...audit,
+  },
+  (t) => ({
+    byToken: uniqueIndex("workflow_triggers_token_idx").on(t.webhookToken).where(sql`${t.webhookToken} IS NOT NULL`),
+    byWorkflowType: uniqueIndex("workflow_triggers_workflow_type_idx").on(t.workflowId, t.type),
+    byScan: index("workflow_triggers_scan_idx").on(t.type, t.enabled, t.nextDueAt),
+    byOrg: index("workflow_triggers_org_idx").on(t.orgId),
   }),
 );
