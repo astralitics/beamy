@@ -5,8 +5,11 @@
 //   • inputs — each a literal value or wired from an earlier step's output (${steps.id.output.x})
 // Builds a WfStep draft (sans id) and hands it to onCreate.
 import { useState, type ReactNode } from 'react';
+import { exprPaths, resolveVars, type VarScope } from '@beamy/shared';
 import { Button, Field, Select, TextInput, stepTypeMeta, tok } from './theme';
 import { STEP_CREATE_GROUPS, stepTypeSpec, type StepConfigField, type StepTypeSpec } from './step-catalog';
+import { buildPreviewScope } from './expr-scope';
+import { ExpressionInput, type ExprSuggestion } from './ExpressionInput';
 import type { WfStep, WfStepOutput } from './types';
 
 export interface CatalogStep {
@@ -235,6 +238,8 @@ function InputsSection({ rows, onRows, siblings }: { rows: InputRow[]; onRows: (
   const add = () => onRows([...rows, { key: rows.length + (rows[rows.length - 1]?.key ?? 0) + 1, name: '', value: '' }]);
   const update = (key: number, patch: Partial<InputRow>) => onRows(rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   const remove = (key: number) => onRows(rows.filter((r) => r.key !== key));
+  // Design-time scope for the live "→ resolves to" preview (synthetic, type-shaped placeholders).
+  const scope = buildPreviewScope(siblings);
 
   return (
     <div>
@@ -246,7 +251,7 @@ function InputsSection({ rows, onRows, siblings }: { rows: InputRow[]; onRows: (
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <div style={{ width: 150, flexShrink: 0 }}><TextInput value={r.name} onChange={(v) => update(r.key, { name: v })} placeholder="input name" /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <ExpressionField value={r.value} onChange={(v) => update(r.key, { value: v })} siblings={siblings} />
+              <ExpressionField value={r.value} onChange={(v) => update(r.key, { value: v })} siblings={siblings} scope={scope} />
             </div>
             <Button variant="ghost" size="sm" onClick={() => remove(r.key)}>✕</Button>
           </div>
@@ -257,22 +262,35 @@ function InputsSection({ rows, onRows, siblings }: { rows: InputRow[]; onRows: (
   );
 }
 
-/** Expression editor for an input value: type a literal, or wire it from a specific upstream
- * step output (`${steps.id.output.outputId}`). Shows an fx-resolved preview of the reference. */
-export function ExpressionField({ value, onChange, siblings }: { value: string; onChange: (v: string) => void; siblings: WfStep[] }) {
+/** Expression editor for an input value: type a literal, use `${` autocomplete, or click a "wire
+ * from" chip. Shows the reference's human label (fx) and a live "→ resolves to" sample preview. */
+export function ExpressionField({ value, onChange, siblings, scope }: { value: string; onChange: (v: string) => void; siblings: WfStep[]; scope: VarScope }) {
   const refs = siblings.flatMap((s) => {
     const outs = s.outputs ?? [];
     if (outs.length === 0) return [{ label: s.name ?? s.id, expr: `\${steps.${s.id}.output}` }];
     return outs.map((o) => ({ label: `${s.name ?? s.id} · ${o.name}`, expr: `\${steps.${s.id}.output.${o.id}}` }));
   });
-  const resolved = resolveExpr(value, siblings);
+  const suggestions: ExprSuggestion[] = refs.map((r) => ({ path: r.expr.slice(2, -1), label: r.label }));
+  const label = labelForRef(value, siblings);
+  const tokens = exprPaths(value);
+  let previewText = '';
+  if (tokens.length) {
+    const resolved = resolveVars(value, scope);
+    previewText = resolved == null ? '' : typeof resolved === 'object' ? JSON.stringify(resolved) : String(resolved);
+  }
   return (
     <div>
-      <TextInput value={value} onChange={onChange} placeholder="value or ${steps.…}" />
-      {resolved && (
+      <ExpressionInput value={value} onChange={onChange} suggestions={suggestions} placeholder="value or ${steps.…}" />
+      {label && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: `${tok.accent}1A`, color: tok.accent }}>fx</span>
-          <span style={{ fontSize: 11, color: tok.inkMuted }}>{resolved}</span>
+          <span style={{ fontSize: 11, color: tok.inkMuted }}>{label}</span>
+        </div>
+      )}
+      {tokens.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: tok.surfaceAlt, color: tok.inkFaint }}>fx sample</span>
+          <span style={{ fontSize: 11, color: tok.inkMuted, fontFamily: 'ui-monospace, monospace' }}>→ {previewText ? (previewText.length > 120 ? `${previewText.slice(0, 120)}…` : previewText) : 'no upstream data'}</span>
         </div>
       )}
       {refs.length > 0 && (
@@ -297,9 +315,10 @@ export function ExpressionField({ value, onChange, siblings }: { value: string; 
   );
 }
 
-/** Human-readable resolution of a `${steps.id.output.x}` reference (or null if not an expression). */
-function resolveExpr(value: string, siblings: WfStep[]): string | null {
-  const m = /^\$\{steps\.([^.}]+)\.output(?:\.([^}]+))?\}$/.exec((value ?? '').trim());
+/** Human-readable label for a `${steps.id.output.x}` reference (or null if not such an expression).
+ *  The `.output` segment is optional — the engine resolver treats `${steps.id.x}` the same way. */
+function labelForRef(value: string, siblings: WfStep[]): string | null {
+  const m = /^\$\{steps\.([^.}]+)(?:\.output)?(?:\.([^}]+))?\}$/.exec((value ?? '').trim());
   if (!m) return null;
   const step = siblings.find((s) => s.id === m[1]);
   const stepName = step?.name ?? m[1];
