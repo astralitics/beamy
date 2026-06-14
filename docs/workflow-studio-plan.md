@@ -111,7 +111,28 @@ browser-verified** (see Findings → login wall).
   `RunStepRow` output-dumps. Input pane = the outputs of the step's `dependsOn` deps (`upstreamFor`)
   + declared inputs; Params = config + instructions; header = status + duration. Verified the three
   panes carry real data on a 2-step run.
-- ◻️ **Still ahead:** pin any node's output (reuse as test data); "execute up to here."
+- ✅ **Expression editor v2 — foundation + live preview + autocomplete** (done 2026-06-14):
+  - The `${...}` resolver (resolveVars/resolveExpr/VarScope + new `isExpr`/`exprPaths`) moved to
+    **`@beamy/shared/expressions`** so the client editor and the server engine resolve identically;
+    `engine.ts` imports + re-exports it (runtime resolution re-verified end-to-end).
+  - **Live "→ resolves to" sample preview** in `ExpressionField`: a design-time `VarScope`
+    (`expr-scope.ts buildPreviewScope`) of type-shaped ‹angle-bracket› placeholders, resolved with
+    the shared `resolveVars`; labelled "fx sample" so it reads as schema, not confirmed data.
+  - **`${` autocomplete** (`ExpressionInput.tsx`): caret-aware token detection, keyboard nav,
+    caret restoration; suggests `steps.<id>.output.<field>` (and the "wire from" chips share it).
+  - Renamed the local label fn `resolveExpr`→`labelForRef` (it returns a human label, not a value).
+  - Verified: `pnpm -r typecheck`, a tsx fixture (`packages/shared/scripts/expressions.check.ts` —
+    asserts resolution semantics AND engine-re-export parity), module transforms 200, and a live
+    2-step `${steps.a.output.text}` run still resolves post-move.
+  - **Adversarially reviewed** (multi-agent): the bug-prone caret logic was extracted to a pure,
+    React-free `expr-autocomplete.ts` (`activeToken`/`insertRef`) and covered by a fixture
+    (`apps/web/scripts/expr-autocomplete.check.ts`). Fixed 4 confirmed findings — caret-symmetric
+    token detection (no dropdown inside a closed token), accept consumes the token remainder (no
+    stray `}`), consistent ‹schema› sample placeholders, and `labelForRef` accepts the `.output`-less
+    reference form.
+- ◻️ **Still ahead:** sandboxed filters/functions runtime (`| upper` etc.); drag-a-field from the
+  input pane; the preview against REAL run data (today synthetic placeholders + localStorage pins);
+  pin any node's output (reuse as test data); "execute up to here."
 - **Expression editor v2** — inline `{{ }}` autocomplete, drag a field from the input pane into a
   param, live resolved preview against pinned data; a **sandboxed expression runtime**
   (filters/functions, beyond `${...}`).
