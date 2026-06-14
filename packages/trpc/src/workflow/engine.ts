@@ -5,7 +5,7 @@
 // persistence wrapper lives in the workflows router. Variable resolution (${...}) lives in
 // @beamy/shared (a pure, import-free module) so the client editor and this engine resolve
 // identically; it's imported below and re-exported for existing engine importers.
-import { resolveVars, type VarScope } from "@beamy/shared";
+import { exprPaths, resolveVars, truthy, type VarScope } from "@beamy/shared";
 
 // ── fixed step-type vocabulary ──────────────────────────────────
 export const STEP_TYPES = [
@@ -32,6 +32,9 @@ export interface WorkflowStep {
   config?: Record<string, unknown>;
   run?: (ctx: RunContext) => unknown | Promise<unknown>;
   skipUnless?: string;
+  /** Conditional gate: a `${...}` expression; if it resolves falsy the step (and its dependents)
+   *  skip. Powers IF — downstream steps gate on a branch's `${steps.<id>.output.onTrue|onFalse}`. */
+  when?: string;
 }
 export interface WorkflowDef {
   name: string;
@@ -71,16 +74,38 @@ export interface RunResult {
   pausedStepId?: string;
 }
 
+/** The step ids referenced by a `when` gate (the `steps.<id>...` heads), restricted to real steps.
+ *  These become implicit ordering edges so a gated step is always ordered AFTER the branch(es) it
+ *  reads — the engine guarantees this regardless of how the definition was authored. */
+function whenRefs(when: string | undefined, ids: Set<string>): string[] {
+  if (when == null || when === "") return [];
+  const out = new Set<string>();
+  for (const body of exprPaths(when)) {
+    const parts = body.split(".");
+    if (parts[0] === "steps" && parts[1] && ids.has(parts[1])) out.add(parts[1]);
+  }
+  return [...out];
+}
+
 function topoOrder(steps: WorkflowStep[]): WorkflowStep[] {
+  const ids = new Set(steps.map((s) => s.id));
   const byId = new Map(steps.map((s) => [s.id, s]));
-  const indeg = new Map(steps.map((s) => [s.id, (s.dependsOn ?? []).length]));
-  const queue = steps.filter((s) => (s.dependsOn ?? []).length === 0).map((s) => s.id);
+  // Effective dependencies = explicit dependsOn ∪ steps referenced by the `when` gate (self-refs
+  // excluded). This makes a `when` reference a real ordering edge — and feeds cycle detection.
+  const depsOf = (s: WorkflowStep) => {
+    const d = new Set(s.dependsOn ?? []);
+    for (const w of whenRefs(s.when, ids)) if (w !== s.id) d.add(w);
+    return [...d];
+  };
+  const edeps = new Map(steps.map((s) => [s.id, depsOf(s)]));
+  const indeg = new Map(steps.map((s) => [s.id, edeps.get(s.id)!.length]));
+  const queue = steps.filter((s) => edeps.get(s.id)!.length === 0).map((s) => s.id);
   const order: WorkflowStep[] = [];
   while (queue.length) {
     const id = queue.shift()!;
     order.push(byId.get(id)!);
     for (const s of steps) {
-      if ((s.dependsOn ?? []).includes(id)) {
+      if (edeps.get(s.id)!.includes(id)) {
         indeg.set(s.id, indeg.get(s.id)! - 1);
         if (indeg.get(s.id) === 0) queue.push(s.id);
       }
@@ -103,27 +128,38 @@ export async function runWorkflow(def: WorkflowDef, opts: RunOptions = {}): Prom
   const statusById = new Map<string, StepStatus>();
 
   for (const rawStep of order) {
-    const deps = rawStep.dependsOn ?? [];
-    const skipFromDep = deps.some((d) => statusById.get(d) === "skipped");
-    const skipFromBranch = rawStep.skipUnless != null && !outputs[rawStep.skipUnless];
-    if (skipFromDep || skipFromBranch) {
-      statusById.set(rawStep.id, "skipped");
-      steps.push({ id: rawStep.id, type: rawStep.type, status: "skipped" });
-      continue;
-    }
-
     // Centralized variable resolution: resolve ${inputs.x} / ${steps.id.output.y} in the step's
-    // config, inputs, and (optional) instructions ONCE here against the current run scope, so
-    // handlers receive already-resolved values and don't each re-implement resolution.
+    // config, inputs, instructions, and `when` gate ONCE here against the current run scope, so
+    // handlers receive already-resolved values and don't each re-implement resolution. This runs
+    // BEFORE the skip decision because the `when` gate needs the resolved value to evaluate.
+    // resolveVars is pure, so resolving a step that ends up skipped is harmless.
     const scope: VarScope = { inputs, outputs };
     const rawInstructions = (rawStep as { instructions?: unknown }).instructions;
     const step: WorkflowStep = {
       ...rawStep,
       ...(rawStep.config ? { config: resolveVars(rawStep.config, scope) } : {}),
       ...(rawStep.inputs ? { inputs: resolveVars(rawStep.inputs, scope) } : {}),
+      ...(rawStep.when != null ? { when: resolveVars(rawStep.when, scope) as string } : {}),
     };
     if (typeof rawInstructions === "string") {
       (step as { instructions?: string }).instructions = resolveVars(rawInstructions, scope);
+    }
+
+    // Skip decision: a skipped dependency cascades; a falsy `when` gate skips (the IF off-path);
+    // the legacy `skipUnless` step-id key is kept verbatim for back-compat.
+    const deps = rawStep.dependsOn ?? [];
+    const skipFromDep = deps.some((d) => statusById.get(d) === "skipped");
+    // A gate exists iff `when` was authored (rawStep.when); it's evaluated on the RESOLVED value
+    // (step.when), which may be undefined if it referenced an unreached step → truthy(undefined) =
+    // false → skip. (Keying on step.when alone would wrongly treat "resolved to undefined" as "no
+    // gate" and run the step.)
+    const gated = rawStep.when != null && rawStep.when !== "";
+    const skipFromGate = gated && !truthy(step.when);
+    const skipFromLegacy = rawStep.skipUnless != null && !outputs[rawStep.skipUnless];
+    if (skipFromDep || skipFromGate || skipFromLegacy) {
+      statusById.set(rawStep.id, "skipped");
+      steps.push({ id: rawStep.id, type: rawStep.type, status: "skipped" });
+      continue;
     }
 
     const ctx: RunContext = { inputs, outputs, step };
@@ -196,7 +232,13 @@ export const mockHandlers: Partial<Record<StepType, StepHandler>> = {
   provision_resource: (ctx) => ({ mock: true, resourceId: `mock_${ctx.step.id}` }),
   notify: () => ({ mock: true, sent: true }),
   function_call: () => ({ mock: true, note: "no function bound" }),
-  branch: (ctx) => (ctx.step.config?.value ?? true) as unknown,
+  // Real conditional branch (a core control-flow type, pure): evaluate the resolved condition's
+  // truthiness and emit named booleans so downstream steps can gate via
+  // `when: ${steps.<id>.output.onTrue}` / `…onFalse`. config is already var-resolved by the loop.
+  branch: (ctx) => {
+    const value = truthy((ctx.step.config as Record<string, unknown> | undefined)?.condition);
+    return { value, onTrue: value, onFalse: !value };
+  },
 };
 
 // ── variable resolution: ${inputs.x} / ${steps.<id>.output.y} ──

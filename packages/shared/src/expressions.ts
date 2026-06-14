@@ -74,3 +74,22 @@ export function exprPaths(s: string): string[] {
   if (!matches) return [];
   return matches.map((m) => m.slice(2, -1).trim());
 }
+
+/**
+ * Coerce a (already-resolved) value to a boolean for control flow — used identically by the engine's
+ * per-step `when` gate, the `branch` handler's condition, and the client's "Run on" preview, so
+ * authoring and runtime agree. JS-aligned, with string ergonomics for non-technical / interpolated
+ * inputs: "", "false", "0", "no", "off" (any case) → false; any other non-empty string → true.
+ * Note: an empty array is false but an empty object is true.
+ */
+export function truthy(v: unknown): boolean {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0 && !Number.isNaN(v);
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    return !(s === "" || s === "false" || s === "0" || s === "no" || s === "off");
+  }
+  if (v == null) return false;
+  if (Array.isArray(v)) return v.length > 0;
+  return true; // non-null object
+}

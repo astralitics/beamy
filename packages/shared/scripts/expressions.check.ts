@@ -2,7 +2,7 @@
 // friendly): `npx tsx packages/shared/scripts/expressions.check.ts`. Asserts resolution semantics
 // AND that the @beamy/trpc engine's re-export resolves identically to the shared implementation.
 import assert from "node:assert/strict";
-import { exprPaths, isExpr, resolveExpr, resolveVars } from "../src/expressions";
+import { exprPaths, isExpr, resolveExpr, resolveVars, truthy } from "../src/expressions";
 import { resolveExpr as engineResolveExpr, resolveVars as engineResolveVars } from "../../trpc/src/workflow/engine";
 
 const scope = {
@@ -40,4 +40,12 @@ for (const c of ["${inputs.name}", "Hi ${inputs.name} / ${steps.draft.output.tot
 }
 assert.equal(engineResolveExpr("steps.draft.output.total", scope), resolveExpr("steps.draft.output.total", scope));
 
-console.log("✓ expressions.check: shared resolver + engine re-export parity — all assertions passed");
+// truthy() — control-flow coercion shared by the engine `when` gate + the branch handler
+for (const t of [true, 1, -1, "yes", "true", "anything", [1], {}, { a: 1 }]) {
+  assert.equal(truthy(t), true, `truthy(${JSON.stringify(t)}) should be true`);
+}
+for (const f of [false, 0, NaN, "", "false", "FALSE", " no ", "off", "0", [], null, undefined]) {
+  assert.equal(truthy(f), false, `truthy(${JSON.stringify(f)}) should be false`);
+}
+
+console.log("✓ expressions.check: shared resolver + engine re-export parity + truthy — all assertions passed");
