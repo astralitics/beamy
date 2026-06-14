@@ -1,8 +1,11 @@
 // The workflow DAG engine — vendored from the Astralitics catalog `workflows` module
 // (astralitics-catalog/packages/modules/workflows/src/engine + capabilities/handlers).
-// Pure + dependency-injected: topologically orders steps, dispatches each by type, passes
-// outputs forward, cascades skips, fails fast, and PAUSES at human gates. No db dependency —
-// the persistence wrapper lives in the workflows router.
+// Dependency-injected: topologically orders steps, dispatches each by type, passes outputs
+// forward, cascades skips, fails fast, and PAUSES at human gates. No db dependency — the
+// persistence wrapper lives in the workflows router. Variable resolution (${...}) lives in
+// @beamy/shared (a pure, import-free module) so the client editor and this engine resolve
+// identically; it's imported below and re-exported for existing engine importers.
+import { resolveVars, type VarScope } from "@beamy/shared";
 
 // ── fixed step-type vocabulary ──────────────────────────────────
 export const STEP_TYPES = [
@@ -197,49 +200,6 @@ export const mockHandlers: Partial<Record<StepType, StepHandler>> = {
 };
 
 // ── variable resolution: ${inputs.x} / ${steps.<id>.output.y} ──
-export interface VarScope {
-  inputs?: Record<string, unknown>;
-  outputs?: Record<string, unknown>;
-}
-const TOKEN = /\$\{([^}]+)\}/g;
-const EXACT = /^\$\{([^}]+)\}$/;
-function getPath(root: unknown, path: string[]): unknown {
-  let cur: unknown = root;
-  for (const key of path) {
-    if (cur == null) return undefined;
-    cur = (cur as Record<string, unknown>)[key];
-  }
-  return cur;
-}
-export function resolveExpr(expr: string, scope: VarScope): unknown {
-  const parts = expr.trim().split(".").filter(Boolean);
-  if (parts.length === 0) return undefined;
-  const [head, ...rest] = parts;
-  if (head === "inputs") return getPath(scope.inputs ?? {}, rest);
-  if (head === "steps") {
-    const stepId = rest[0];
-    if (stepId == null) return undefined;
-    const stepOutput = (scope.outputs ?? {})[stepId];
-    const tail = rest[1] === "output" ? rest.slice(2) : rest.slice(1);
-    return getPath(stepOutput, tail);
-  }
-  return undefined;
-}
-export function resolveVars<T>(value: T, scope: VarScope): T {
-  if (typeof value === "string") {
-    const exact = value.match(EXACT);
-    if (exact) return resolveExpr(exact[1] ?? "", scope) as T;
-    return value.replace(TOKEN, (_m, expr) => {
-      const v = resolveExpr(expr, scope);
-      if (v == null) return "";
-      return typeof v === "object" ? JSON.stringify(v) : String(v);
-    }) as unknown as T;
-  }
-  if (Array.isArray(value)) return value.map((v) => resolveVars(v, scope)) as unknown as T;
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) out[k] = resolveVars(v, scope);
-    return out as T;
-  }
-  return value;
-}
+// The implementation moved to @beamy/shared (shared with the client editor). Re-exported here so
+// existing importers of `engine` keep working unchanged.
+export { resolveExpr, resolveVars, type VarScope } from "@beamy/shared";
