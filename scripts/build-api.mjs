@@ -32,3 +32,11 @@ await build({
   outfile: "api/cron/_bundle.mjs",
 });
 console.log("[build-api] wrote api/cron/_bundle.mjs");
+
+// The inbound-webhook trigger (api/hooks/<token>).
+await build({
+  ...shared,
+  entryPoints: ["scripts/api-hooks-entry.ts"],
+  outfile: "api/hooks/_bundle.mjs",
+});
+console.log("[build-api] wrote api/hooks/_bundle.mjs");

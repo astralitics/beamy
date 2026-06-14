@@ -32,6 +32,7 @@ coverage/
 # generated Vercel function bundles (scripts/build-api.mjs)
 api/trpc/_bundle.mjs
 api/cron/_bundle.mjs
+api/hooks/_bundle.mjs
 
 # vercel
 .vercel/

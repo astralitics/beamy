@@ -98,6 +98,7 @@ function trpcDevServerPlugin(opts: {
       );
       const appRouter = trpcModule.appRouter;
       const buildContext = trpcModule.buildContext;
+      const handleWebhook = trpcModule.handleWebhook;
       const fetchRequestHandler = adapterModule.fetchRequestHandler;
 
       // Supabase admin client for verifying user JWTs. Created lazily so
@@ -115,6 +116,18 @@ function trpcDevServerPlugin(opts: {
       }
 
       server.middlewares.use(async (req, res, next) => {
+        // Inbound webhook triggers — public (no user session); mirrors the prod api/hooks function.
+        if (req.url && req.url.startsWith("/api/hooks/")) {
+          try {
+            const fetchReq = await nodeReqToFetch(req);
+            await pipeFetchToNode(await handleWebhook(fetchReq), res);
+          } catch (err) {
+            console.error("[hooks] handler error:", err);
+            res.statusCode = 500;
+            res.end("internal error");
+          }
+          return;
+        }
         if (!req.url || !req.url.startsWith("/api/trpc")) return next();
         try {
           const fetchReq = await nodeReqToFetch(req);
