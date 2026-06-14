@@ -90,7 +90,7 @@ export const workflowRuns = pgTable(
     workflowName: text("workflow_name").notNull(),
     workflowVersion: text("workflow_version").notNull(), // pinned at run start
     status: text("status", {
-      enum: ["running", "paused", "completed", "failed", "cancelled"],
+      enum: ["queued", "running", "paused", "waiting", "completed", "failed", "cancelled"],
     })
       .notNull()
       .default("running"),
@@ -125,6 +125,8 @@ export const workflowRunSteps = pgTable(
     error: text("error"),
     order: integer("step_order").notNull(),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
   },
   (t) => ({
     byRun: index("workflow_run_steps_run_idx").on(t.runId, t.order),
@@ -165,6 +167,7 @@ export const stepTests = pgTable(
       .references(() => orgs.id, { onDelete: "cascade" }),
     stepTemplateId: uuid("step_template_id").notNull(), // soft ref -> step_templates.id
     name: text("name").notNull(),
+    outputId: text("output_id"), // which declared output this test targets (null = first output)
     criteria: jsonb("criteria"), // success criteria designed in this evaluation (OutputVerification[])
     inputFixture: jsonb("input_fixture"),
     expectedOutput: jsonb("expected_output"),
@@ -196,5 +199,69 @@ export const stepTestRuns = pgTable(
   },
   (t) => ({
     byTest: index("step_test_runs_test_idx").on(t.stepTestId, t.ranAt),
+  }),
+);
+
+/**
+ * connections — stored credentials a step can use to reach an external app (the "Credentials"
+ * concept from n8n/Zapier). Secret values are AES-GCM-encrypted into `secret_enc` and NEVER
+ * returned to the client; only metadata (name/provider/config) is. The runtime decrypts them
+ * server-side. Real provider integrations (OAuth, app-specific APIs) are still placeholders.
+ */
+export const connections = pgTable(
+  "connections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** Auth kind: api_key | bearer | basic | header (or a named provider later). */
+    provider: text("provider").notNull(),
+    /** base64(iv|tag|ciphertext) of the secret JSON. Server-only — never sent to the client. */
+    secretEnc: text("secret_enc"),
+    /** Non-secret config (e.g. header name, base URL). */
+    config: jsonb("config"),
+    ...audit,
+  },
+  (t) => ({
+    byOrg: index("connections_org_idx").on(t.orgId),
+  }),
+);
+
+/**
+ * workflow_jobs — the durable run queue. The synchronous runner (`runs.start`) stays for "Run now"
+ * on the canvas (instant feedback); jobs power background / triggered / retried / delayed runs.
+ * Because prod is serverless (Vercel — no always-on worker), the queue is drained on a schedule
+ * (Vercel Cron → a tick endpoint). Jobs are claimed atomically with `FOR UPDATE SKIP LOCKED` + a
+ * lease (`locked_at`/`locked_by`) so concurrent drains never double-run one. `run_after` gates
+ * eligibility (delays + retry backoff); a stale lease is reclaimed back to `queued`.
+ */
+export const workflowJobs = pgTable(
+  "workflow_jobs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    runId: uuid("run_id").notNull(), // soft ref -> workflow_runs.id
+    status: text("status", { enum: ["queued", "running", "waiting", "done", "failed"] })
+      .notNull()
+      .default("queued"),
+    attempts: integer("attempts").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(3),
+    runAfter: timestamp("run_after", { withTimezone: true }).notNull().defaultNow(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    lockedBy: text("locked_by"),
+    lastError: text("last_error"),
+    /** String[] of approved human-gate step ids, carried across resumes. */
+    approvals: jsonb("approvals"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    byClaim: index("workflow_jobs_claim_idx").on(t.status, t.runAfter),
+    byOrg: index("workflow_jobs_org_idx").on(t.orgId),
+    byRun: index("workflow_jobs_run_idx").on(t.runId),
   }),
 );

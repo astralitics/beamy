@@ -87,12 +87,12 @@ values
 ),
 (
   '00000000-0000-0000-0000-000000000020',
-  'Site assessment', 'site-assessment', 'human_input',
-  'Crew lead captures site photos plus soil and sun-exposure notes.',
+  'Site photos capture', 'site-photos-capture', 'human_input',
+  'Crew lead captures site photos for the landscape assessment.',
   null,
-  '[]'::jsonb,
-  '[{"id":"photos","name":"Photos","type":"photo-set","required":true,"verifications":[{"kind":"min_count","params":{"n":4}}]},{"id":"notes","name":"Soil & sun notes","type":"text","required":true,"verifications":[{"kind":"min_words","params":{"n":10}}]}]'::jsonb,
-  'Capture at least 4 site photos and notes on soil and sun exposure.',
+  '[{"name":"project","type":"entity-ref"}]'::jsonb,
+  '[{"id":"photos","name":"Photos","type":"photo-set","required":true,"verifications":[]}]'::jsonb,
+  'Capture clear site photos of the property — front, back, beds, and any problem areas. JPG or PNG.',
   'published', 'agent:seed', 'agent:seed'
 ),
 (
@@ -113,15 +113,5 @@ values
   '[{"name":"visitDate","type":"scalar"},{"name":"propertyId","type":"scalar"}]'::jsonb,
   '[{"id":"sent","name":"Notification","type":"event","required":true,"verifications":[{"kind":"was_emitted"}]}]'::jsonb,
   'Notify the crew of the scheduled seasonal maintenance visit.',
-  'published', 'agent:seed', 'agent:seed'
-),
-(
-  '00000000-0000-0000-0000-000000000020',
-  'Upload site pictures', 'upload-site-pictures', 'human_input',
-  'Upload at least 4 site pictures (JPG or PNG). Criteria are designed per evaluation.',
-  null,
-  '[]'::jsonb,
-  '[{"id":"pictures","name":"Pictures","type":"photo-set","required":true,"verifications":[]}]'::jsonb,
-  'Upload at least 4 site pictures, JPG or PNG.',
   'published', 'agent:seed', 'agent:seed'
 );
