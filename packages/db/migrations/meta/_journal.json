@@ -260,6 +260,13 @@
       "when": 1781463967308,
       "tag": "0036_lean_gamora",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1781464027308,
+      "tag": "0037_enable_rls_workflow_tables",
+      "breakpoints": true
     }
   ]
 }
