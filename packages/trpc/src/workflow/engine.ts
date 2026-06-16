@@ -5,7 +5,7 @@
 // persistence wrapper lives in the workflows router. Variable resolution (${...}) lives in
 // @beamy/shared (a pure, import-free module) so the client editor and this engine resolve
 // identically; it's imported below and re-exported for existing engine importers.
-import { exprPaths, resolveVars, truthy, type VarScope } from "@beamy/shared";
+import { exprPaths, LOOP_BODY_TYPES, resolveVars, truthy, type VarScope } from "@beamy/shared";
 
 // ── fixed step-type vocabulary ──────────────────────────────────
 export const STEP_TYPES = [
@@ -204,6 +204,59 @@ export async function runWorkflow(def: WorkflowDef, opts: RunOptions = {}): Prom
         outputs[step.id] = child.outputs;
         statusById.set(step.id, "completed");
         steps.push({ id: step.id, type: step.type, status: "completed", output: child.outputs, childRun: child, startedAt, finishedAt: Date.now() });
+        continue;
+      }
+      if (step.type === "loop") {
+        // For-each: map ONE inner action over a list (Phase 3). `config.items` is already resolved by
+        // the run loop (it references the run scope), but `config.bodyConfig` must stay RAW so its
+        // `${item}`/`${itemIndex}` refs resolve PER ITEM here — not blanked by the top-level
+        // pre-resolution. The body dispatches through the SAME handler set (so real http/ai/notify
+        // run), giving the loop NO new pause semantics: it completes atomically into one aggregate
+        // output, so durable resume is unaffected. Human gates + nested loops aren't in the handler
+        // map, so a `bodyType` of those errors clearly (v1: no gates / no nesting inside a loop body).
+        const items = step.config?.items;
+        if (!Array.isArray(items)) throw new Error(`loop "${step.id}": config.items resolved to a non-array`);
+        const bodyType = String(step.config?.bodyType ?? "");
+        if (!bodyType) throw new Error(`loop "${step.id}": config.bodyType is required`);
+        // A loop body must be a single LEAF action — enforced here in the engine, independent of which
+        // handlers happen to be registered (branch/switch ARE in the handler set but aren't valid
+        // bodies; human gates / nested loops / terminals aren't either). Keeps the v1 contract true
+        // for hand- and AI-authored defs, not just the UI path.
+        if (!LOOP_BODY_TYPES.includes(bodyType)) {
+          throw new Error(`loop "${step.id}": "${bodyType}" is not a valid loop action — use one of ${LOOP_BODY_TYPES.join(", ")}`);
+        }
+        const rawBodyConfig = (rawStep.config as Record<string, unknown> | undefined)?.bodyConfig;
+        if (rawBodyConfig == null || typeof rawBodyConfig !== "object") {
+          throw new Error(`loop "${step.id}": config.bodyConfig is required`);
+        }
+        const bodyFn = (handlers as Record<string, StepHandler | undefined>)[bodyType];
+        if (!bodyFn) throw new Error(`loop "${step.id}": no handler for body type "${bodyType}"`);
+        // Safety cap: floor + fall back to the default for a non-positive / non-finite value (a typo'd
+        // "maxIterations" shouldn't fail the run, but it must never disable the cap), then clamp to 10k.
+        const wantCap = Math.floor(Number(step.config?.maxIterations ?? 1000));
+        const cap = Math.min(Number.isFinite(wantCap) && wantCap > 0 ? wantCap : 1000, 10000);
+        if (items.length > cap) throw new Error(`loop "${step.id}": ${items.length} items exceeds the ${cap}-iteration cap`);
+        const continueOnFail = truthy(step.config?.continueOnFail);
+        const results: unknown[] = [];
+        let succeeded = 0;
+        let failed = 0;
+        for (let i = 0; i < items.length; i++) {
+          const itemScope: VarScope = { inputs, outputs, item: items[i], itemIndex: i };
+          const bodyConfig = resolveVars(rawBodyConfig, itemScope) as Record<string, unknown>;
+          const bodyStep: WorkflowStep = { id: `${step.id}__item_${i}`, type: bodyType as StepType, config: bodyConfig };
+          try {
+            results.push(await bodyFn({ inputs, outputs, step: bodyStep }));
+            succeeded++;
+          } catch (e) {
+            const error = e instanceof Error ? e.message : String(e);
+            if (!continueOnFail) throw new Error(`loop "${step.id}": item ${i} failed: ${error}`);
+            results.push({ _error: error });
+            failed++;
+          }
+        }
+        outputs[step.id] = { results, count: items.length, succeeded, failed };
+        statusById.set(step.id, "completed");
+        steps.push({ id: step.id, type: step.type, status: "completed", output: outputs[step.id], startedAt, finishedAt: Date.now() });
         continue;
       }
 
