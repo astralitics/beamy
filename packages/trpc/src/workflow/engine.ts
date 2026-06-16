@@ -11,13 +11,13 @@ import { exprPaths, resolveVars, truthy, type VarScope } from "@beamy/shared";
 export const STEP_TYPES = [
   "mcp_tool_call", "function_call", "http_call", "ai_agent_task", "db_operation",
   "provision_resource", "call_workflow", "notify",
-  "branch", "loop", "parallel", "wait_for_condition", "delay",
+  "branch", "switch", "loop", "parallel", "wait_for_condition", "delay",
   "human_approval", "human_input",
   "succeed", "fail",
 ] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 export const CORE_TYPES = new Set<StepType>([
-  "branch", "succeed", "fail", "human_approval", "human_input", "delay",
+  "branch", "switch", "succeed", "fail", "human_approval", "human_input", "delay",
 ]);
 export function isStepType(t: string): t is StepType {
   return (STEP_TYPES as readonly string[]).includes(t);
@@ -238,6 +238,35 @@ export const mockHandlers: Partial<Record<StepType, StepHandler>> = {
   branch: (ctx) => {
     const value = truthy((ctx.step.config as Record<string, unknown> | undefined)?.condition);
     return { value, onTrue: value, onFalse: !value };
+  },
+  // N-way switch (a core control-flow type, pure). Matches the resolved `config.value` against each
+  // case's `value` (case-insensitive, whitespace-trimmed string equality; numbers coerce to string),
+  // FIRST match wins. Emits a per-case-id boolean map under `cases` (collision-safe: a case id can be
+  // any name, even "value"/"default"), `matched` = the winning case id (or null), and `default` =
+  // `!matched` (the catch-all). Downstream arms gate via `when: ${steps.<id>.output.cases.<caseId>}`
+  // or `${steps.<id>.output.default}`. config is already var-resolved by the run loop.
+  switch: (ctx) => {
+    const cfg = (ctx.step.config as Record<string, unknown> | undefined) ?? {};
+    const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
+    const target = norm(cfg.value);
+    const rawCases = Array.isArray(cfg.cases) ? (cfg.cases as unknown[]) : [];
+    const cases: Record<string, boolean> = {};
+    let matched: string | null = null;
+    for (const c of rawCases) {
+      if (!c || typeof c !== "object") continue;
+      const id = String((c as Record<string, unknown>).id ?? "").trim();
+      // hasOwnProperty (NOT `id in cases`): a case id that collides with an Object.prototype member
+      // (e.g. "constructor", "toString") is inherited, so `in` would always be true and silently drop
+      // the case. Assigning `cases[id]` then shadows the inherited member with an own key; downstream
+      // gates read it via getPath, which is own-property-only (so an inherited member can't leak as a
+      // truthy gate). ("__proto__" can't be set as a data key on a plain object — such a case simply
+      // won't route; the UI's slugifier never produces it anyway.)
+      if (!id || Object.prototype.hasOwnProperty.call(cases, id)) continue; // skip empty / duplicate ids
+      const hit = matched == null && norm((c as Record<string, unknown>).value) === target;
+      cases[id] = hit;
+      if (hit) matched = id;
+    }
+    return { value: cfg.value ?? null, matched, default: matched == null, cases };
   },
 };
 
