@@ -2,7 +2,7 @@
 
 > Living document. Goal: the most **intuitive, beautiful, and fun** n8n-class workflow tool —
 > built for non-technical agency users (PMs, crew leads, owners), with Claude woven in.
-> Last updated: 2026-06-15 (N-way switch/case shipped).
+> Last updated: 2026-06-15 (N-way switch/case + for-each loops shipped).
 
 ## 1. Vision & principles
 
@@ -187,9 +187,36 @@ browser-verified** (see Findings → login wall).
     cases; `workflow-templates.check.ts` (the new template routes all variants); live API runs through
     the real router→engine→DB (tier routing + `constructor` reserved-name case + no `cases.toString`
     leak). Layered commits `feat(shared)`→`feat(trpc)`→`feat(web)`.
-- ◻️ **Still ahead:** real **loops** (for-each), parallel+join (OR-join), suspending `wait`/`delay`;
-  canvas true/false/case edge labels + coloring (cosmetic); switch reorder warning (case order is
-  first-match-significant).
+- ✅ **Real for-each loops** (done 2026-06-15) — chose **"map a single inner action over a list"**
+  (Approach A) over a sub-workflow loop (Approach B) after a judge-panel design Workflow: A is atomic
+  in one engine pass (so **durable resume is unaffected** — no per-iteration replay / duplicate side
+  effects, which is exactly where B's footgun lives), serves the ~95% single-action case (email each
+  vendor, draft a reply per RFI), and needs no "make a child workflow first" friction. A `loop` step is
+  handled **inline** in `runWorkflow` (beside `call_workflow`): `config.items` (pre-resolved → an
+  array) + `config.bodyType` + raw `config.bodyConfig` re-resolved **per item** against `{item,
+  itemIndex}` (+ run scope) and dispatched through the SAME handler set, aggregating
+  `{ results, count, succeeded, failed }`. New resolver heads `item`/`itemIndex`
+  (`@beamy/shared/expressions`, backward-compatible). Guards: non-array items, missing
+  bodyType/bodyConfig, a **leaf-action allowlist** (`LOOP_BODY_TYPES`, shared by the engine guard +
+  the UI picker — branch/switch/human gates/nested loops are rejected, NOT silently run),
+  `maxIterations` floored+clamped (a non-positive/non-finite value falls back to the default, never a
+  negative cap), `continueOnFail` collecting `{_error}` index-aligned. Authoring: a "For each" step +
+  a `loopBody` config kind → `LoopBodyEditor` (action picker + the chosen action's nested config via
+  ConfigFields). AI-builder rule+example; a "Batch vendor outreach" template.
+  - **Adversarially reviewed** (4-dimension Workflow → verify each): **6 findings fixed** — the notable
+    one (HIGH): branch/switch ARE in the handler map, so they'd have run as loop bodies instead of
+    erroring → added the engine-level leaf allowlist. Plus `maxIterations` negative/float hardening,
+    a stale "loop is non-executable" comment, and test-coverage gaps (when-gate skip, items-from-a-
+    prior-step, branch/switch rejection).
+  - Verified: typecheck; `loop.check.ts` (per-item scope/aggregate/empty/non-array/continueOnFail/
+    maxIterations/allowlist/dispatch/gating/items-from-prior); all other fixtures; live API runs
+    through the real router→engine→DB (per-item `${item}`/`${itemIndex}`, aggregate drives a
+    downstream gate, branch-as-body rejected, negative cap falls back). Layered commits.
+- ◻️ **Still ahead:** **loop v2** (multi-step body — a sub-workflow per item — built *properly* with
+  per-iteration completion tracking so resume can't duplicate side effects); parallel+join (OR-join),
+  suspending `wait`/`delay`; canvas true/false/case edge labels + coloring (cosmetic); switch reorder
+  warning (case order is first-match-significant); a parallel/batched loop (today iterations are
+  sequential).
 - ✅ **Triggers — inbound webhook + cron schedule** (done 2026-06-14): workflows fire themselves,
   riding the durable runner. New `workflow_triggers` table (migration `0036`; one row per
   workflow+type). A shared server-only `enqueueRun(orgId, target, inputs, actor, {requirePublished})`
