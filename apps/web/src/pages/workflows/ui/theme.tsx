@@ -34,7 +34,7 @@ export const STEP_TYPE_META: Record<string, StepTypeMeta> = {
   notify: { label: 'Notify', category: 'execution', color: '#3B82F6' },
   branch: { label: 'Branch', category: 'control', color: '#D97706' },
   switch: { label: 'Switch', category: 'control', color: '#B45309' },
-  loop: { label: 'Loop', category: 'control', color: '#D97706' },
+  loop: { label: 'For each', category: 'control', color: '#0D9488' },
   parallel: { label: 'Parallel', category: 'control', color: '#D97706' },
   wait_for_condition: { label: 'Wait', category: 'control', color: '#D97706' },
   delay: { label: 'Delay', category: 'control', color: '#D97706' },

@@ -7,7 +7,7 @@
 import { useState, type ReactNode } from 'react';
 import { exprPaths, resolveVars, type VarScope } from '@beamy/shared';
 import { Button, Field, Select, TextInput, stepTypeMeta, tok } from './theme';
-import { STEP_CREATE_GROUPS, stepTypeSpec, type StepConfigField, type StepTypeSpec } from './step-catalog';
+import { LOOP_BODY_TYPES, STEP_CREATE_GROUPS, stepTypeSpec, type StepConfigField, type StepTypeSpec } from './step-catalog';
 import { buildPreviewScope } from './expr-scope';
 import { ExpressionInput, type ExprSuggestion } from './ExpressionInput';
 import type { WfStep, WfStepOutput } from './types';
@@ -223,6 +223,8 @@ export function ConfigFields({
             />
           ) : f.kind === 'cases' ? (
             <CasesEditor cases={(config[f.key] as SwitchCaseRow[]) ?? []} onChange={(c) => set(f.key, c)} />
+          ) : f.kind === 'loopBody' ? (
+            <LoopBodyEditor config={config} onConfig={onConfig} connectionOptions={connectionOptions} />
           ) : f.kind === 'select' ? (
             <Select value={(config[f.key] as string) ?? f.options?.[0] ?? ''} onChange={(v) => set(f.key, v)} options={(f.options ?? []).map((o) => ({ value: o, label: o }))} />
           ) : f.kind === 'textarea' ? (
@@ -233,6 +235,36 @@ export function ConfigFields({
         </Field>
       ))}
     </>
+  );
+}
+
+/** Editor for a `loop` step's body: an action picker (config.bodyType) + that action's own nested
+ *  config form (config.bodyConfig), rendered by reusing ConfigFields. Manages BOTH sibling keys, so
+ *  it takes the whole config + setter rather than a single field value. */
+function LoopBodyEditor({
+  config, onConfig, connectionOptions = [],
+}: { config: Record<string, unknown>; onConfig: (c: Record<string, unknown>) => void; connectionOptions?: ConnectionOption[] }) {
+  const bodyType = (config.bodyType as string) ?? '';
+  const spec = bodyType ? stepTypeSpec(bodyType) : undefined;
+  const setBodyType = (t: string) => onConfig({ ...config, bodyType: t, bodyConfig: {} }); // reset config on type change
+  const setBodyConfig = (bc: Record<string, unknown>) => onConfig({ ...config, bodyConfig: bc });
+  const options = [{ value: '', label: 'Choose an action…' }, ...LOOP_BODY_TYPES.map((t) => ({ value: t, label: stepTypeSpec(t)?.title ?? t }))];
+  return (
+    <div>
+      <Select value={bodyType} onChange={setBodyType} options={options} />
+      {bodyType && (
+        <div style={{ marginTop: 10, borderLeft: `2px solid ${tok.accentSoft}`, paddingLeft: 12 }}>
+          <div style={{ fontSize: 11, color: tok.inkFaint, marginBottom: 10 }}>
+            Runs once per item. Reference the current item with <code>{'${item}'}</code>, <code>{'${item.field}'}</code>, or <code>{'${itemIndex}'}</code>.
+          </div>
+          {spec && spec.config.length ? (
+            <ConfigFields spec={spec} config={(config.bodyConfig as Record<string, unknown>) ?? {}} onConfig={setBodyConfig} connectionOptions={connectionOptions} />
+          ) : (
+            <div style={{ fontSize: 12, color: tok.inkFaint }}>This action has no settings.</div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
