@@ -2,7 +2,7 @@
 
 > Living document. Goal: the most **intuitive, beautiful, and fun** n8n-class workflow tool —
 > built for non-technical agency users (PMs, crew leads, owners), with Claude woven in.
-> Last updated: 2026-06-14 (paused here).
+> Last updated: 2026-06-15 (N-way switch/case shipped).
 
 ## 1. Vision & principles
 
@@ -165,8 +165,31 @@ browser-verified** (see Findings → login wall).
     gate-on-unreached/no-condition/skipUnless); `expressions.check.ts` truthy cases; live API runs
     (true-path runs + false-path skips, and a gate-only step listed before its branch still routes
     right). Adversarially reviewed; 5 findings fixed (1 high ordering, 2 stale-dep, 2 low).
-- ◻️ **Still ahead:** Switch/case (N-way), real **loops** (for-each), parallel+join (OR-join),
-  suspending `wait`/`delay`; canvas true/false edge labels + green/red coloring (cosmetic).
+- ✅ **Real N-way switch/case** (done 2026-06-15): a pure `switch` step (in the engine default set
+  beside `branch`; added to `STEP_TYPES`/`CORE_TYPES` + `WORKFLOW_STEP_TYPES` + `STEP_VOCAB`) that
+  matches the resolved `config.value` against each `config.cases[].value` (trimmed, case-insensitive;
+  numbers coerce), FIRST match wins, and emits `{ value, matched, default, cases: { <caseId>: bool } }`
+  — `default = !matched` (the catch-all needs no per-case flag). Downstream arms gate via
+  `${steps.<sw>.output.cases.<id>}` / `.output.default`, **reusing the existing `when`-gate, skip-
+  cascade, and `whenRefs` ordering with NO run-loop change**. Authoring: a `cases` config-field kind +
+  a `CasesEditor` (value + optional label rows; case ids derived-once-then-frozen so editing a value
+  can't dangle a stored gate), the "Run on" picker extended to switch (one option per case + a "matches
+  nothing" default; control-dep repoint generalized to branches ∪ switches), a `switch` theme entry,
+  an AI-builder wiring rule + example, and a curated template ("Route change orders by tier"). 
+  - **Adversarially reviewed** (4-dimension Workflow → verify each): **8 findings fixed**. Notably a
+    **prototype-chain bug class** — the dup-id guard used `id in cases` (walks the prototype chain, so a
+    reachable case id like `constructor` was silently dropped) → now `hasOwnProperty`; and `getPath`
+    read inherited members (a gate on `cases.toString` resolved to `Object.prototype.toString` →
+    truthy) → now **own-property-only traversal** across the whole expression system. Plus case-id
+    stability (re-slug-on-edit dangled gates → ids frozen once assigned) and a React-key fix.
+  - Verified: typecheck; `switch.check.ts` (routing/default/cascade/nesting/ordering-without-dependsOn/
+    coercion/dup+empty cases/first-match-wins/**reserved-name ids**); `expressions.check.ts` own-prop
+    cases; `workflow-templates.check.ts` (the new template routes all variants); live API runs through
+    the real router→engine→DB (tier routing + `constructor` reserved-name case + no `cases.toString`
+    leak). Layered commits `feat(shared)`→`feat(trpc)`→`feat(web)`.
+- ◻️ **Still ahead:** real **loops** (for-each), parallel+join (OR-join), suspending `wait`/`delay`;
+  canvas true/false/case edge labels + coloring (cosmetic); switch reorder warning (case order is
+  first-match-significant).
 - ✅ **Triggers — inbound webhook + cron schedule** (done 2026-06-14): workflows fire themselves,
   riding the durable runner. New `workflow_triggers` table (migration `0036`; one row per
   workflow+type). A shared server-only `enqueueRun(orgId, target, inputs, actor, {requirePublished})`
