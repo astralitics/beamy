@@ -108,6 +108,53 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     }
   },
   {
+    "id": "batch-vendor-outreach",
+    "title": "Batch vendor outreach",
+    "description": "Drafts a short RFP cover note once, then emails it to every vendor on the list — one email per vendor, personalized.",
+    "category": "Vendors & procurement",
+    "triggerType": "manual",
+    "def": {
+      "name": "Batch vendor outreach",
+      "summary": "Draft an RFP note once, then email each vendor on the list (one personalized email per vendor).",
+      "steps": [
+        {
+          "id": "draft_note",
+          "type": "ai_agent_task",
+          "name": "Draft the RFP cover note",
+          "config": {
+            "prompt": "Write a short, friendly RFP cover note for project ${inputs.project_name}. Invite the vendor to bid, mention the scope in one line (${inputs.scope_summary}), and ask for a quote by ${inputs.due_date}. Leave a greeting line out — it's added per vendor."
+          }
+        },
+        {
+          "id": "email_each_vendor",
+          "type": "loop",
+          "name": "Email each vendor",
+          "dependsOn": [
+            "draft_note"
+          ],
+          "config": {
+            "items": "${inputs.vendors}",
+            "bodyType": "notify",
+            "bodyConfig": {
+              "channel": "email",
+              "to": "${item.email}",
+              "subject": "RFP — ${inputs.project_name}",
+              "body": "Hi ${item.name},\n\n${steps.draft_note.output.text}\n\nThank you,\n${inputs.company_name}"
+            }
+          }
+        },
+        {
+          "id": "done",
+          "type": "succeed",
+          "name": "All vendors emailed",
+          "dependsOn": [
+            "email_each_vendor"
+          ]
+        }
+      ]
+    }
+  },
+  {
     "id": "change-order-budget-triage",
     "title": "Change order budget triage",
     "description": "Drafts a change order, routes anything over the threshold to a PM approval, and sends small ones straight to the client.",

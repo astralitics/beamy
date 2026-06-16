@@ -13,6 +13,10 @@ const REPAIR = /missing|unknown|self-depend|cleared a gate|cycle|removed edge|re
 interface Variant { label: string; inputs?: Record<string, unknown>; approvals?: string[]; expect: "completed" | "paused" | "failed"; ran?: string; skipped?: string }
 // What each template should DO when run with mock handlers (drives the gate + branch arms).
 const VARIANTS: Record<string, Variant[]> = {
+  "batch-vendor-outreach": [
+    { label: "emails each vendor on the list", inputs: { vendors: [{ email: "a@x.com", name: "A" }, { email: "b@x.com", name: "B" }], project_name: "P", company_name: "Co" }, expect: "completed", ran: "email_each_vendor" },
+    { label: "empty vendor list still completes", inputs: { vendors: [] }, expect: "completed", ran: "done" },
+  ],
   "change-order-routing-by-tier": [
     { label: "high → pauses at PM approval", inputs: { tier: "high" }, expect: "paused" },
     { label: "high + approved → emails the high-value CO", inputs: { tier: "high" }, approvals: ["pm_approval"], expect: "completed", ran: "send_high", skipped: "send_mid" },
