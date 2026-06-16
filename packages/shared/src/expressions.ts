@@ -20,6 +20,10 @@ function getPath(root: unknown, path: string[]): unknown {
   let cur: unknown = root;
   for (const key of path) {
     if (cur == null) return undefined;
+    // Only traverse OWN properties of objects/arrays — never inherited ones, so a path like
+    // `…cases.toString` can't resolve to Object.prototype.toString and read as truthy in a gate.
+    // Primitives (string/number) keep their normal member access (e.g. a string's `.length`).
+    if (typeof cur === "object" && !Object.prototype.hasOwnProperty.call(cur, key)) return undefined;
     cur = (cur as Record<string, unknown>)[key];
   }
   return cur;

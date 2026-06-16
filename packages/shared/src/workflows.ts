@@ -79,7 +79,7 @@ export function verificationsFor(outputType: WorkflowOutputType): VerificationKi
 export const WORKFLOW_STEP_TYPES = [
   "mcp_tool_call", "function_call", "http_call", "ai_agent_task", "db_operation",
   "provision_resource", "call_workflow", "notify",
-  "branch", "loop", "parallel", "wait_for_condition", "delay",
+  "branch", "switch", "loop", "parallel", "wait_for_condition", "delay",
   "human_approval", "human_input",
   "succeed", "fail",
 ] as const;
