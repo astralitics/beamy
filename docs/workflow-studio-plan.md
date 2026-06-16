@@ -90,9 +90,13 @@ browser-verified** (see Findings → login wall).
   - Router: `runs.enqueue` (queued run + job) · `runs.tick` (drain this org now) · `runs.approveQueued`
     (re-arm a parked human gate). State machine: queued→running→{done|failed|waiting}; waiting
     re-armed by approval; failed retried w/ backoff to `maxAttempts`.
-  - Prod trigger: **Vercel Cron** `* * * * *` → `/api/cron/tick` (`cron-handler.ts`, CRON_SECRET-
-    guarded, bundled via `build-api.mjs`). ⚠️ Cadence needs a Vercel plan that allows per-minute
-    crons; set `CRON_SECRET` in prod env.
+  - Prod trigger: the `/api/cron/tick` function (`cron-handler.ts`, CRON_SECRET-guarded, bundled via
+    `build-api.mjs`) drains the queue + scans schedules. ⚠️ **The `crons` entry was REMOVED from
+    `vercel.json`** — the staging plan (Hobby) rejects a per-minute cron (deploy failed pointing at
+    cron usage-and-pricing). Until on Vercel Pro, nothing auto-fires: drain via the per-org
+    `runs.tick` ("Process queue" button) or "Run now". To re-enable auto-draining: upgrade to Pro
+    and re-add `"crons": [{ "path": "/api/cron/tick", "schedule": "* * * * *" }]` (+ set
+    `CRON_SECRET`), or drive `/api/cron/tick` from Supabase pg_cron + pg_net (plan-independent).
   - Verified locally (org-scoped tick = same drain logic): enqueue→done · gate→waiting→approve→done ·
     fail→retry/backoff→failed@maxAttempts · **survives a server restart**. Cron *firing* is prod-only.
   - ✅ **Durable-path UI** (Runs dashboard): **Queue run** (enqueue) + **Process queue** (manual
