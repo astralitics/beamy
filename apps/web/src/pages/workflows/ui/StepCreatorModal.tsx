@@ -5,8 +5,11 @@
 //   • inputs — each a literal value or wired from an earlier step's output (${steps.id.output.x})
 // Builds a WfStep draft (sans id) and hands it to onCreate.
 import { useState, type ReactNode } from 'react';
+import { exprPaths, resolveVars, type VarScope } from '@beamy/shared';
 import { Button, Field, Select, TextInput, stepTypeMeta, tok } from './theme';
 import { STEP_CREATE_GROUPS, stepTypeSpec, type StepConfigField, type StepTypeSpec } from './step-catalog';
+import { buildPreviewScope } from './expr-scope';
+import { ExpressionInput, type ExprSuggestion } from './ExpressionInput';
 import type { WfStep, WfStepOutput } from './types';
 
 export interface CatalogStep {
@@ -23,13 +26,18 @@ export interface StepCreatorModalProps {
   siblings: WfStep[];
   /** Reusable step templates from the catalog — shown as a "From your catalog" group. */
   templates?: CatalogStep[];
+  /** When adding from a node's "+", the new step depends on this step instead of the last one. */
+  afterStepId?: string;
+  /** The org's stored Connections — populates a step's `connection`-kind config fields. */
+  connectionOptions?: ConnectionOption[];
   onCreate: (draft: Omit<WfStep, 'id'>) => void;
   onCancel: () => void;
 }
 
 interface InputRow { key: number; name: string; value: string }
 
-export function StepCreatorModal({ siblings, templates, onCreate, onCancel }: StepCreatorModalProps) {
+export function StepCreatorModal({ siblings, templates, afterStepId, connectionOptions, onCreate, onCancel }: StepCreatorModalProps) {
+  const afterName = afterStepId ? siblings.find((s) => s.id === afterStepId)?.name ?? afterStepId : null;
   const [type, setType] = useState('');
   const [name, setName] = useState('');
   const [config, setConfig] = useState<Record<string, unknown>>({});
@@ -66,7 +74,7 @@ export function StepCreatorModal({ siblings, templates, onCreate, onCancel }: St
     onCreate({
       type,
       name: name.trim() || spec.title,
-      dependsOn: last ? [last.id] : [],
+      dependsOn: afterStepId ? [afterStepId] : last ? [last.id] : [],
       config: Object.keys(config).length ? config : undefined,
       instructions: instructions.trim() || undefined,
       inputs: Object.keys(inputs).length ? inputs : undefined,
@@ -80,7 +88,10 @@ export function StepCreatorModal({ siblings, templates, onCreate, onCancel }: St
   return (
     <Overlay onCancel={onCancel}>
       <div style={{ padding: '18px 22px', borderBottom: `1px solid ${tok.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontFamily: tok.fontDisplay, fontSize: 21, color: tok.ink }}>Add a step</div>
+        <div>
+          <div style={{ fontFamily: tok.fontDisplay, fontSize: 21, color: tok.ink }}>Add a step</div>
+          {afterName && <div style={{ fontSize: 12, color: tok.inkMuted, marginTop: 2 }}>Runs after “{afterName}”</div>}
+        </div>
         <Button variant="ghost" size="sm" onClick={onCancel}>✕</Button>
       </div>
 
@@ -128,7 +139,7 @@ export function StepCreatorModal({ siblings, templates, onCreate, onCancel }: St
               <TextInput value={name} onChange={setName} placeholder={spec.title} />
             </Field>
 
-            <ConfigFields spec={spec} config={config} onConfig={setConfig} />
+            <ConfigFields spec={spec} config={config} onConfig={setConfig} connectionOptions={connectionOptions} />
 
             {spec.instructionsLabel && (
               <Field label={spec.instructionsLabel} hint="Shown to the person when the run reaches this step.">
@@ -191,16 +202,26 @@ function TypeGrid({ onPick, selected }: { onPick: (s: StepTypeSpec) => void; sel
   );
 }
 
-/** Reusable renderer for a step type's config fields — used by the modal AND the editor. */
+/** A stored Connection option for a `connection`-kind config field. */
+export interface ConnectionOption { value: string; label: string }
+
+/** Reusable renderer for a step type's config fields — used by the modal AND the editor.
+ *  `connectionOptions` populates any `connection`-kind field (the org's stored credentials). */
 export function ConfigFields({
-  spec, config, onConfig,
-}: { spec: StepTypeSpec; config: Record<string, unknown>; onConfig: (c: Record<string, unknown>) => void }) {
+  spec, config, onConfig, connectionOptions = [],
+}: { spec: StepTypeSpec; config: Record<string, unknown>; onConfig: (c: Record<string, unknown>) => void; connectionOptions?: ConnectionOption[] }) {
   const set = (key: string, value: unknown) => onConfig({ ...config, [key]: value });
   return (
     <>
       {spec.config.map((f: StepConfigField) => (
         <Field key={f.key} label={f.label} hint={f.hint}>
-          {f.kind === 'select' ? (
+          {f.kind === 'connection' ? (
+            <Select
+              value={(config[f.key] as string) ?? ''}
+              onChange={(v) => set(f.key, v)}
+              options={[{ value: '', label: connectionOptions.length ? 'No authentication' : 'No connections yet' }, ...connectionOptions]}
+            />
+          ) : f.kind === 'select' ? (
             <Select value={(config[f.key] as string) ?? f.options?.[0] ?? ''} onChange={(v) => set(f.key, v)} options={(f.options ?? []).map((o) => ({ value: o, label: o }))} />
           ) : f.kind === 'textarea' ? (
             <TextArea value={(config[f.key] as string) ?? ''} onChange={(v) => set(f.key, v)} rows={3} placeholder={f.placeholder} />
@@ -217,6 +238,8 @@ function InputsSection({ rows, onRows, siblings }: { rows: InputRow[]; onRows: (
   const add = () => onRows([...rows, { key: rows.length + (rows[rows.length - 1]?.key ?? 0) + 1, name: '', value: '' }]);
   const update = (key: number, patch: Partial<InputRow>) => onRows(rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   const remove = (key: number) => onRows(rows.filter((r) => r.key !== key));
+  // Design-time scope for the live "→ resolves to" preview (synthetic, type-shaped placeholders).
+  const scope = buildPreviewScope(siblings);
 
   return (
     <div>
@@ -225,30 +248,83 @@ function InputsSection({ rows, onRows, siblings }: { rows: InputRow[]; onRows: (
       )}
       {rows.map((r) => (
         <div key={r.key} style={{ border: `1px solid ${tok.border}`, borderRadius: tok.radiusSm, padding: 11, marginBottom: 10, background: tok.surfaceAlt }}>
-          <div style={{ display: 'flex', gap: 8, marginBottom: siblings.length ? 8 : 0 }}>
-            <div style={{ width: 160 }}><TextInput value={r.name} onChange={(v) => update(r.key, { name: v })} placeholder="input name" /></div>
-            <div style={{ flex: 1 }}><TextInput value={r.value} onChange={(v) => update(r.key, { value: v })} placeholder="value or ${steps.…}" /></div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <div style={{ width: 150, flexShrink: 0 }}><TextInput value={r.name} onChange={(v) => update(r.key, { name: v })} placeholder="input name" /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <ExpressionField value={r.value} onChange={(v) => update(r.key, { value: v })} siblings={siblings} scope={scope} />
+            </div>
             <Button variant="ghost" size="sm" onClick={() => remove(r.key)}>✕</Button>
           </div>
-          {siblings.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-              <span style={{ fontSize: 11, color: tok.inkFaint }}>wire from:</span>
-              {siblings.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => update(r.key, { value: referenceFor(s) })}
-                  style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: tok.font, border: `1px solid ${tok.border}`, background: tok.surface, color: tok.inkMuted }}
-                >
-                  {s.name ?? s.id}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       ))}
       <Button variant="outline" size="sm" onClick={add}>+ Add input</Button>
     </div>
   );
+}
+
+/** Expression editor for an input value: type a literal, use `${` autocomplete, or click a "wire
+ * from" chip. Shows the reference's human label (fx) and a live "→ resolves to" sample preview. */
+export function ExpressionField({ value, onChange, siblings, scope }: { value: string; onChange: (v: string) => void; siblings: WfStep[]; scope: VarScope }) {
+  const refs = siblings.flatMap((s) => {
+    const outs = s.outputs ?? [];
+    if (outs.length === 0) return [{ label: s.name ?? s.id, expr: `\${steps.${s.id}.output}` }];
+    return outs.map((o) => ({ label: `${s.name ?? s.id} · ${o.name}`, expr: `\${steps.${s.id}.output.${o.id}}` }));
+  });
+  const suggestions: ExprSuggestion[] = refs.map((r) => ({ path: r.expr.slice(2, -1), label: r.label }));
+  const label = labelForRef(value, siblings);
+  const tokens = exprPaths(value);
+  let previewText = '';
+  if (tokens.length) {
+    const resolved = resolveVars(value, scope);
+    previewText = resolved == null ? '' : typeof resolved === 'object' ? JSON.stringify(resolved) : String(resolved);
+  }
+  return (
+    <div>
+      <ExpressionInput value={value} onChange={onChange} suggestions={suggestions} placeholder="value or ${steps.…}" />
+      {label && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: `${tok.accent}1A`, color: tok.accent }}>fx</span>
+          <span style={{ fontSize: 11, color: tok.inkMuted }}>{label}</span>
+        </div>
+      )}
+      {tokens.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: tok.surfaceAlt, color: tok.inkFaint }}>fx sample</span>
+          <span style={{ fontSize: 11, color: tok.inkMuted, fontFamily: 'ui-monospace, monospace' }}>→ {previewText ? (previewText.length > 120 ? `${previewText.slice(0, 120)}…` : previewText) : 'no upstream data'}</span>
+        </div>
+      )}
+      {refs.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 8 }}>
+          <span style={{ fontSize: 11, color: tok.inkFaint }}>wire from:</span>
+          {refs.map((ref) => {
+            const on = value.trim() === ref.expr;
+            return (
+              <button
+                key={ref.expr}
+                onClick={() => onChange(ref.expr)}
+                title={ref.expr}
+                style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: tok.font, border: `1px solid ${on ? tok.accent : tok.border}`, background: on ? `${tok.accent}14` : tok.surface, color: on ? tok.accent : tok.inkMuted }}
+              >
+                {ref.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Human-readable label for a `${steps.id.output.x}` reference (or null if not such an expression).
+ *  The `.output` segment is optional — the engine resolver treats `${steps.id.x}` the same way. */
+function labelForRef(value: string, siblings: WfStep[]): string | null {
+  const m = /^\$\{steps\.([^.}]+)(?:\.output)?(?:\.([^}]+))?\}$/.exec((value ?? '').trim());
+  if (!m) return null;
+  const step = siblings.find((s) => s.id === m[1]);
+  const stepName = step?.name ?? m[1];
+  const out = step?.outputs?.find((o) => o.id === m[2]);
+  const outName = out?.name ?? m[2] ?? 'output';
+  return `${stepName} → ${outName}`;
 }
 
 function TextArea({ value, onChange, rows, placeholder }: { value: string; onChange: (v: string) => void; rows: number; placeholder?: string }) {
@@ -261,11 +337,6 @@ function TextArea({ value, onChange, rows, placeholder }: { value: string; onCha
       style={{ width: '100%', padding: '8px 11px', borderRadius: tok.radiusSm, border: `1px solid ${tok.border}`, fontFamily: tok.font, fontSize: 13, color: tok.ink, boxSizing: 'border-box', resize: 'vertical' }}
     />
   );
-}
-
-function referenceFor(step: WfStep): string {
-  const out = step.outputs?.[0];
-  return out ? `\${steps.${step.id}.output.${out.id}}` : `\${steps.${step.id}.output}`;
 }
 
 function parseValue(v: string): unknown {

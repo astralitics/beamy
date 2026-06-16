@@ -21,6 +21,11 @@ export * from "./vendors";
 export * from "./verticals";
 export * from "./work-items";
 export * from "./workflows";
+export * from "./expressions";
+export * from "./schedule";
+export * from "./workflow-vocab";
+export * from "./workflow-builder";
+export * from "./workflow-templates";
 
 export const orgRoleSchema = z.enum(["owner", "admin", "member"]);
 export type OrgRole = z.infer<typeof orgRoleSchema>;

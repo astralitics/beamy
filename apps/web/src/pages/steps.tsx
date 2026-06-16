@@ -203,7 +203,24 @@ function StepDetailLoaded({ template, onBack }: { template: any; onBack: () => v
 
   const meta = stepTypeMeta(draft.stepType);
   const spec = stepTypeSpec(draft.stepType);
-  const isUploadStep = draft.outputs.length === 1 && ["photo-set", "file"].includes(draft.outputs[0]?.type ?? "");
+  const connections = trpc.connections.list.useQuery();
+  const connectionOptions = (connections.data ?? []).map((c) => ({ value: c.id, label: c.name }));
+
+  // Pinned input values (the n8n "pin data" borrow) — persisted per-step in
+  // localStorage so the step can be test-run without executing upstream. The
+  // pinned `project` flows into the run modal as the upload destination.
+  const pinKey = `beamy.stepPin.${template.id}`;
+  const [pinned, setPinned] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem(pinKey) ?? "{}"); } catch { return {}; }
+  });
+  const pinValue = (name: string, value: string) =>
+    setPinned((p) => {
+      const next = { ...p, [name]: value };
+      try { localStorage.setItem(pinKey, JSON.stringify(next)); } catch { /* storage off */ }
+      return next;
+    });
+  const projectInput = draft.inputs.find((i) => i.type === "entity-ref" || i.name.toLowerCase() === "project");
+  const pinnedProject = projectInput ? pinned[projectInput.name] ?? "" : "";
 
   return (
     <>
@@ -221,9 +238,16 @@ function StepDetailLoaded({ template, onBack }: { template: any; onBack: () => v
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 18, alignItems: "start" }}>
-        {/* design */}
-        <div style={{ border: `1px solid ${tok.border}`, borderRadius: tok.radius, background: tok.surface, padding: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,0.8fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.05fr)", gap: 14, alignItems: "start" }}>
+        {/* input — values fed to the step (pinned for testing) */}
+        <div style={{ border: `1px solid ${tok.border}`, borderRadius: tok.radius, background: tok.surface, padding: 16, position: "sticky", top: 16 }}>
+          <SectionTitle>Input</SectionTitle>
+          <p style={{ fontSize: 12, color: tok.inkFaint, marginTop: 0, marginBottom: 14 }}>Values fed to this step. Pin one to test without running the steps before it.</p>
+          <InputPane inputs={draft.inputs} pinned={pinned} onPin={pinValue} />
+        </div>
+
+        {/* design — the step's contract */}
+        <div style={{ border: `1px solid ${tok.border}`, borderRadius: tok.radius, background: tok.surface, padding: 16 }}>
           <SectionTitle>Design</SectionTitle>
           <Field label="Name"><TextInput value={draft.name} onChange={(v) => set({ name: v })} /></Field>
           <Field label="Type"><Select value={draft.stepType} onChange={(v) => set({ stepType: v })} options={STEP_TYPE_OPTIONS} /></Field>
@@ -231,67 +255,117 @@ function StepDetailLoaded({ template, onBack }: { template: any; onBack: () => v
           <Field label="Instructions" hint="Guidance for the operator or runtime.">
             <textarea value={draft.instructions} onChange={(e) => set({ instructions: e.target.value })} rows={2} style={{ width: "100%", padding: "8px 11px", borderRadius: tok.radiusSm, border: `1px solid ${tok.border}`, fontFamily: tok.font, fontSize: 13, color: tok.ink, boxSizing: "border-box", resize: "vertical" }} />
           </Field>
-          {spec && spec.config.length > 0 && <ConfigFields spec={spec} config={draft.config} onConfig={(c) => set({ config: c })} />}
+          {spec && spec.config.length > 0 && <ConfigFields spec={spec} config={draft.config} onConfig={(c) => set({ config: c })} connectionOptions={connectionOptions} />}
 
           <div style={{ height: 1, background: tok.border, margin: "8px 0 14px" }} />
-          <SubTitle>Inputs</SubTitle>
+          <SubTitle>Inputs (declared)</SubTitle>
           <InputsDeclEditor inputs={draft.inputs} onChange={(inputs) => set({ inputs })} />
+        </div>
 
-          <div style={{ height: 1, background: tok.border, margin: "16px 0 14px" }} />
-          <SubTitle>Outputs &amp; success criteria</SubTitle>
+        {/* outputs — what the step produces + how to verify (its own column, like inputs) */}
+        <div style={{ border: `1px solid ${tok.border}`, borderRadius: tok.radius, background: tok.surface, padding: 16 }}>
+          <SectionTitle>Outputs</SectionTitle>
+          <p style={{ fontSize: 12, color: tok.inkFaint, marginTop: 0, marginBottom: 14 }}>What the step produces, and the success criteria each output is checked against.</p>
           <OutputsEditor outputs={draft.outputs} onChange={(outputs) => set({ outputs })} />
         </div>
 
-        {/* evaluations */}
-        <div style={{ border: `1px solid ${tok.border}`, borderRadius: tok.radius, background: tok.surface, padding: 18, position: "sticky", top: 16 }}>
-          <SectionTitle>Evaluations</SectionTitle>
-          {isUploadStep ? (
-            <>
-              <p style={{ fontSize: 12, color: tok.inkFaint, marginTop: 0, marginBottom: 14 }}>
-                Design an evaluation's criteria, then run the step for real — upload the pictures and we grade what you produced.
-              </p>
-              <UploadEvalPanel templateId={template.id} output={draft.outputs[0]!} instructions={draft.instructions} />
-            </>
-          ) : (
-            <>
-              <p style={{ fontSize: 12, color: tok.inkFaint, marginTop: 0, marginBottom: 14 }}>
-                Provide a sample output for each declared output; we score it against the success criteria above.
-              </p>
-              <TestPanel templateId={template.id} outputs={draft.outputs} />
-            </>
-          )}
+        {/* output tests — one test per output: execute + graded result */}
+        <div style={{ border: `1px solid ${tok.border}`, borderRadius: tok.radius, background: tok.surface, padding: 16, position: "sticky", top: 16 }}>
+          <SectionTitle>Output tests</SectionTitle>
+          <p style={{ fontSize: 12, color: tok.inkFaint, marginTop: 0, marginBottom: 14 }}>One test per output — design criteria or pin a sample, then execute and we grade it.</p>
+          <OutputTestsColumn templateId={template.id} outputs={draft.outputs} instructions={draft.instructions} inputs={draft.inputs} defaultProjectId={pinnedProject} />
         </div>
       </div>
     </>
   );
 }
 
-function TestPanel({ templateId, outputs }: { templateId: string; outputs: WfStepOutput[] }) {
+// ── Input pane: the values fed to the step, pinned for testing (n8n "pin data") ──
+function InputPane({ inputs, pinned, onPin }: { inputs: WfStepInput[]; pinned: Record<string, string>; onPin: (name: string, value: string) => void }) {
+  const projQ = trpc.projects.list.useQuery({});
+  const projectOptions = (projQ.data ?? []).map((p) => ({ value: p.id, label: p.name }));
+  if (inputs.length === 0) {
+    return <div style={{ fontSize: 13, color: tok.inkFaint }}>This step consumes no inputs.</div>;
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {inputs.map((inp) => {
+        const isProject = inp.type === "entity-ref" || inp.name.toLowerCase() === "project";
+        const val = pinned[inp.name] ?? "";
+        return (
+          <div key={inp.name} style={{ border: `1px solid ${tok.border}`, borderRadius: tok.radiusSm, padding: 11, background: tok.surfaceAlt }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginBottom: 7 }}>
+              <span style={{ fontSize: 13, color: tok.ink, fontWeight: 600 }}>{inp.name}</span>
+              <Badge label={inp.type} color="#185FA5" />
+            </div>
+            {isProject ? (
+              <Select value={val} onChange={(v) => onPin(inp.name, v)} options={[{ value: "", label: projQ.isLoading ? "Loading…" : "Choose a project…" }, ...projectOptions]} />
+            ) : (
+              <TextInput value={val} onChange={(v) => onPin(inp.name, v)} placeholder={`Pin a sample ${inp.type}…`} />
+            )}
+            {val && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: tok.inkFaint }}>
+                <span style={{ width: 6, height: 6, borderRadius: 999, background: "#059669", display: "inline-block" }} />
+                pinned for testing
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Output tests column: one test per declared output (the n8n NDV output pane) ──
+function OutputTestsColumn({ templateId, outputs, instructions, inputs, defaultProjectId }: { templateId: string; outputs: WfStepOutput[]; instructions: string; inputs: WfStepInput[]; defaultProjectId?: string }) {
+  if (outputs.length === 0) {
+    return <div style={{ fontSize: 13, color: tok.inkFaint }}>Declare an output (in the Outputs column) so there's something to test.</div>;
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {outputs.map((o, i) => {
+        const isUpload = ["photo-set", "file"].includes(o.type);
+        return (
+          <div key={o.id || i}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: tok.ink }}>{o.name}</span>
+              <Badge label={o.type} color="#7C3AED" />
+            </div>
+            {isUpload ? (
+              <UploadEvalPanel templateId={templateId} output={o} primary={i === 0} instructions={instructions} inputs={inputs} defaultProjectId={defaultProjectId} />
+            ) : (
+              <TestPanel templateId={templateId} output={o} primary={i === 0} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TestPanel({ templateId, output, primary }: { templateId: string; output: WfStepOutput; primary?: boolean }) {
   const utils = trpc.useUtils();
   const tests = trpc.workflows.stepTests.listForTemplate.useQuery({ stepTemplateId: templateId });
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
-  const [vals, setVals] = useState<Record<string, string>>({});
+  const [val, setVal] = useState("");
   const create = trpc.workflows.stepTests.create.useMutation({
     onSuccess: () => {
       void utils.workflows.stepTests.listForTemplate.invalidate({ stepTemplateId: templateId });
       setAdding(false);
       setName("");
-      setVals({});
+      setVal("");
     },
   });
 
-  const submit = () => {
-    const captured: Record<string, unknown> = {};
-    for (const o of outputs) captured[o.id] = parseValue(vals[o.id] ?? "");
-    create.mutate({ stepTemplateId: templateId, name: name.trim() || "Test", inputFixture: { captured } });
-  };
+  const submit = () =>
+    create.mutate({ stepTemplateId: templateId, name: name.trim() || "Test", outputId: output.id, inputFixture: { captured: { [output.id]: parseValue(val) } } });
 
-  const rows = tests.data ?? [];
+  const rows = (tests.data ?? []).filter((t) => t.outputId === output.id || (primary && t.outputId == null));
   return (
     <div>
       {rows.length === 0 && !adding && (
-        <div style={{ fontSize: 13, color: tok.inkFaint, padding: "0 0 12px" }}>No tests yet. Add one with a sample output to score it.</div>
+        <div style={{ fontSize: 13, color: tok.inkFaint, padding: "0 0 12px" }}>No tests yet. Add one with a sample to score it.</div>
       )}
 
       {rows.map((t) => (
@@ -301,18 +375,12 @@ function TestPanel({ templateId, outputs }: { templateId: string; outputs: WfSte
       {adding ? (
         <div style={{ border: `1px solid ${tok.border}`, borderRadius: tok.radiusSm, padding: 12, marginTop: 10, background: tok.surfaceAlt }}>
           <Field label="Test name"><TextInput value={name} onChange={setName} placeholder="e.g. Detailed estimate" /></Field>
-          {outputs.length === 0 ? (
-            <div style={{ fontSize: 12, color: tok.danger, marginBottom: 8 }}>Declare an output first (left) so there's something to score.</div>
-          ) : (
-            outputs.map((o) => (
-              <Field key={o.id} label={`Sample “${o.name}” (${o.type})`} hint={`e.g. ${sampleHint(o.type)}`}>
-                <TextInput value={vals[o.id] ?? ""} onChange={(v) => setVals((s) => ({ ...s, [o.id]: v }))} placeholder={sampleHint(o.type)} />
-              </Field>
-            ))
-          )}
+          <Field label={`Sample “${output.name}” (${output.type})`} hint={`e.g. ${sampleHint(output.type)}`}>
+            <TextInput value={val} onChange={setVal} placeholder={sampleHint(output.type)} />
+          </Field>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
             <Button variant="ghost" size="sm" onClick={() => setAdding(false)}>Cancel</Button>
-            <Button size="sm" disabled={create.isPending || outputs.length === 0} onClick={submit}>Save test</Button>
+            <Button size="sm" disabled={create.isPending} onClick={submit}>Save test</Button>
           </div>
         </div>
       ) : (
@@ -382,20 +450,20 @@ function ScoreRing({ score, passed }: { score: number; passed: boolean }) {
 
 // ── upload-step evaluations: design criteria, then run the step for real ──────────
 
-function UploadEvalPanel({ templateId, output, instructions }: { templateId: string; output: WfStepOutput; instructions: string }) {
+function UploadEvalPanel({ templateId, output, primary, instructions, inputs, defaultProjectId }: { templateId: string; output: WfStepOutput; primary?: boolean; instructions: string; inputs: WfStepInput[]; defaultProjectId?: string }) {
   const utils = trpc.useUtils();
   const tests = trpc.workflows.stepTests.listForTemplate.useQuery({ stepTemplateId: templateId });
   const [creating, setCreating] = useState(false);
-  const rows = tests.data ?? [];
+  const rows = (tests.data ?? []).filter((t) => t.outputId === output.id || (primary && t.outputId == null));
   const refresh = () => utils.workflows.stepTests.listForTemplate.invalidate({ stepTemplateId: templateId });
   return (
     <div>
       {rows.length === 0 && !creating && (
         <div style={{ fontSize: 13, color: tok.inkFaint, padding: "0 0 12px" }}>No evaluations yet. Add one to set its criteria, then run the step against it.</div>
       )}
-      {rows.map((t) => <EvalRow key={t.id} test={t} output={output} instructions={instructions} />)}
+      {rows.map((t) => <EvalRow key={t.id} test={t} output={output} instructions={instructions} inputs={inputs} defaultProjectId={defaultProjectId} />)}
       {creating ? (
-        <NewEvalForm templateId={templateId} onCancel={() => setCreating(false)} onDone={() => { setCreating(false); void refresh(); }} />
+        <NewEvalForm templateId={templateId} outputId={output.id} onCancel={() => setCreating(false)} onDone={() => { setCreating(false); void refresh(); }} />
       ) : (
         <div style={{ marginTop: 10 }}><Button variant="outline" size="sm" onClick={() => setCreating(true)}>+ New evaluation</Button></div>
       )}
@@ -413,7 +481,7 @@ function summarizeCriteria(criteria: any[]): string {
   return parts.join(" · ") || "no criteria";
 }
 
-function EvalRow({ test, output, instructions }: { test: any; output: WfStepOutput; instructions: string }) {
+function EvalRow({ test, output, instructions, inputs, defaultProjectId }: { test: any; output: WfStepOutput; instructions: string; inputs: WfStepInput[]; defaultProjectId?: string }) {
   const runs = trpc.workflows.stepTests.listRuns.useQuery({ stepTestId: test.id });
   const [running, setRunning] = useState(false);
   const latest = (runs.data ?? [])[0];
@@ -428,12 +496,12 @@ function EvalRow({ test, output, instructions }: { test: any; output: WfStepOutp
         </div>
         <Button size="sm" variant="outline" onClick={() => setRunning(true)}>Run</Button>
       </div>
-      {running && <RunEvalModal test={test} output={output} instructions={instructions} onClose={() => { setRunning(false); void runs.refetch(); }} />}
+      {running && <RunEvalModal test={test} output={output} instructions={instructions} inputs={inputs} defaultProjectId={defaultProjectId} onClose={() => { setRunning(false); void runs.refetch(); }} />}
     </div>
   );
 }
 
-function NewEvalForm({ templateId, onDone, onCancel }: { templateId: string; onDone: () => void; onCancel: () => void }) {
+function NewEvalForm({ templateId, outputId, onDone, onCancel }: { templateId: string; outputId: string; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState("");
   const [minCount, setMinCount] = useState("4");
   const [jpg, setJpg] = useState(true);
@@ -448,7 +516,7 @@ function NewEvalForm({ templateId, onDone, onCancel }: { templateId: string; onD
     if (allowed.length) criteria.push({ kind: "all_mime_type", params: { allowed } });
     const mb = parseFloat(maxMB);
     if (mb > 0) criteria.push({ kind: "all_size_range", params: { max_bytes: Math.round(mb * 1048576) } });
-    create.mutate({ stepTemplateId: templateId, name: name.trim() || "Evaluation", criteria });
+    create.mutate({ stepTemplateId: templateId, name: name.trim() || "Evaluation", outputId, criteria });
   };
   const numStyle = { width: 56, margin: "0 6px", padding: "5px 7px", borderRadius: 6, border: `1px solid ${tok.border}`, fontFamily: tok.font } as const;
   return (
@@ -472,63 +540,148 @@ function NewEvalForm({ templateId, onDone, onCancel }: { templateId: string; onD
   );
 }
 
-function RunEvalModal({ test, output, instructions, onClose }: { test: any; output: WfStepOutput; instructions: string; onClose: () => void }) {
+interface UploadFile {
+  localId: string;
+  name: string;
+  type: string;
+  size: number;
+  status: "uploading" | "done" | "error";
+  docId?: string;
+  path?: string;
+  error?: string;
+}
+
+/**
+ * The real step-run modal: Brief (instructions + criteria) → Act (pick a real
+ * project, upload site photos via the live signed-URL flow) → Verify (grade the
+ * actual `documents` rows the server reads back) → Resolve (paths + verdict).
+ */
+function RunEvalModal({ test, instructions, inputs, defaultProjectId, onClose }: { test: any; output: WfStepOutput; instructions: string; inputs: WfStepInput[]; defaultProjectId?: string; onClose: () => void }) {
   const utils = trpc.useUtils();
-  const [files, setFiles] = useState<{ name: string; type: string; size: number }[]>([]);
+  const projectsQ = trpc.projects.list.useQuery({});
+  const [projectId, setProjectId] = useState(defaultProjectId ?? "");
+  // The step declares its inputs; a "project" entity-ref is the one we collect
+  // here (its value is the project the photos upload into).
+  const projectInput = inputs.find((i) => i.type === "entity-ref" || i.name.toLowerCase() === "project");
+  const [files, setFiles] = useState<UploadFile[]>([]);
   const [result, setResult] = useState<any | null>(null);
-  const run = trpc.workflows.stepTests.run.useMutation({
+  const createDoc = trpc.documents.create.useMutation();
+  const grade = trpc.workflows.stepTests.runUpload.useMutation({
     onSuccess: (r) => { setResult(r); void utils.workflows.stepTests.listRuns.invalidate({ stepTestId: test.id }); },
   });
-  const onPick = (list: FileList | null) => {
-    setFiles(Array.from(list ?? []).map((f) => ({ name: f.name, type: f.type, size: f.size })));
+
+  const projectOptions = (projectsQ.data ?? []).map((p) => ({ value: p.id, label: p.name }));
+  const uploading = files.some((f) => f.status === "uploading");
+  const uploadedIds = files.filter((f) => f.status === "done" && f.docId).map((f) => f.docId as string);
+
+  async function onPick(list: FileList | null) {
+    const picked = Array.from(list ?? []);
+    if (!picked.length || !projectId) return;
     setResult(null);
-  };
+    for (const file of picked) {
+      const localId = `${file.name}-${file.size}-${Math.random().toString(36).slice(2, 7)}`;
+      const mimeType = file.type || "application/octet-stream";
+      setFiles((prev) => [...prev, { localId, name: file.name, type: mimeType, size: file.size, status: "uploading" }]);
+      try {
+        const res = await createDoc.mutateAsync({ projectId, name: file.name, mimeType, sizeBytes: file.size });
+        const put = await fetch(res.upload.signedUrl, { method: "PUT", body: file, headers: { "content-type": mimeType } });
+        if (!put.ok) throw new Error(`storage ${put.status}`);
+        setFiles((prev) => prev.map((f) => (f.localId === localId ? { ...f, status: "done", docId: res.document.id, path: res.document.storagePath } : f)));
+      } catch (e) {
+        setFiles((prev) => prev.map((f) => (f.localId === localId ? { ...f, status: "error", error: e instanceof Error ? e.message : String(e) } : f)));
+      }
+    }
+  }
+
+  const dot = (c: string) => ({ width: 7, height: 7, borderRadius: 999, background: c, flexShrink: 0 } as const);
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(28,25,23,.4)", display: "grid", placeItems: "center", zIndex: 50, padding: 20 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(560px, 100%)", maxHeight: "86vh", display: "flex", flexDirection: "column", background: tok.surface, border: `1px solid ${tok.border}`, borderRadius: tok.radius, boxShadow: "0 20px 50px rgba(0,0,0,.2)", overflow: "hidden" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(580px, 100%)", maxHeight: "88vh", display: "flex", flexDirection: "column", background: tok.surface, border: `1px solid ${tok.border}`, borderRadius: tok.radius, boxShadow: "0 20px 50px rgba(0,0,0,.2)", overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: `1px solid ${tok.border}` }}>
-          <div style={{ fontFamily: tok.fontDisplay, fontSize: 19, color: tok.ink }}>Run: {test.name}</div>
+          <div style={{ fontFamily: tok.fontDisplay, fontSize: 19, color: tok.ink }}>Run step: {test.name}</div>
           <div style={{ fontSize: 12, color: tok.inkFaint, marginTop: 3 }}>{summarizeCriteria((test.criteria as any[]) ?? [])}</div>
         </div>
         <div style={{ padding: 20, overflowY: "auto", flex: 1 }}>
+          {/* Brief */}
           {instructions && (
-            <div style={{ background: tok.surfaceAlt, border: `1px solid ${tok.border}`, borderRadius: tok.radiusSm, padding: "10px 12px", fontSize: 13, color: tok.ink, marginBottom: 14 }}>
+            <div style={{ background: tok.surfaceAlt, border: `1px solid ${tok.border}`, borderRadius: tok.radiusSm, padding: "10px 12px", fontSize: 13, color: tok.ink, marginBottom: 16 }}>
               <span style={{ fontWeight: 600 }}>Instructions: </span>{instructions}
             </div>
           )}
-          <label style={{ display: "block", border: `2px dashed ${tok.border}`, borderRadius: tok.radius, padding: "26px 16px", textAlign: "center", cursor: "pointer", color: tok.inkMuted, fontSize: 13 }}>
-            <input type="file" multiple accept="image/*" style={{ display: "none" }} onChange={(e) => onPick(e.target.files)} />
-            {files.length ? `${files.length} file${files.length === 1 ? "" : "s"} selected — click to change` : "Click to choose site pictures"}
+
+          {/* Inputs — the step consumes a project (entity-ref); the photos upload into it */}
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: tok.inkFaint, marginBottom: 8 }}>
+            {projectInput ? "Inputs" : "Destination"}
+          </div>
+          <Field
+            label={projectInput ? `${projectInput.name} · project` : "Upload into project"}
+            hint={files.length ? "Locked while files are uploaded." : projectInput ? "The project this step runs on — photos upload into its library." : "The photos land in this project's document library."}
+          >
+            {files.length > 0 ? (
+              <div style={{ padding: "8px 11px", borderRadius: tok.radiusSm, border: `1px solid ${tok.border}`, fontSize: 13, color: tok.ink, background: tok.surfaceAlt }}>
+                {projectOptions.find((p) => p.value === projectId)?.label ?? "—"}
+              </div>
+            ) : (
+              <Select value={projectId} onChange={setProjectId} options={[{ value: "", label: projectsQ.isLoading ? "Loading…" : "Choose a project…" }, ...projectOptions]} />
+            )}
+          </Field>
+          {!projectsQ.isLoading && projectOptions.length === 0 && (
+            <div style={{ fontSize: 12, color: tok.danger, marginTop: -6, marginBottom: 8 }}>No projects in this workspace yet — create one first.</div>
+          )}
+
+          {/* Act — upload */}
+          <label style={{ display: "block", marginTop: 6, border: `2px dashed ${tok.border}`, borderRadius: tok.radius, padding: "24px 16px", textAlign: "center", cursor: projectId ? "pointer" : "not-allowed", color: projectId ? tok.inkMuted : tok.inkFaint, fontSize: 13, opacity: projectId ? 1 : 0.6 }}>
+            <input type="file" multiple accept="image/*" disabled={!projectId} style={{ display: "none" }} onChange={(e) => { onPick(e.target.files); e.currentTarget.value = ""; }} />
+            {projectId ? "Click to upload site photos" : "Choose a project first"}
           </label>
+
           {files.length > 0 && (
             <div style={{ marginTop: 12, border: `1px solid ${tok.border}`, borderRadius: tok.radiusSm, overflow: "hidden" }}>
               {files.map((f, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "6px 10px", borderBottom: i < files.length - 1 ? `1px solid ${tok.border}` : "none", color: tok.inkMuted }}>
-                  <span style={{ color: tok.ink }}>{f.name}</span>
-                  <span>{f.type.replace("image/", "").toUpperCase() || "?"} · {(f.size / 1048576).toFixed(1)}MB</span>
+                <div key={f.localId} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, padding: "7px 10px", borderBottom: i < files.length - 1 ? `1px solid ${tok.border}` : "none" }}>
+                  <span style={dot(f.status === "done" ? "#16A34A" : f.status === "error" ? "#DC2626" : "#D97706")} />
+                  <span style={{ color: tok.ink, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+                  <span style={{ color: tok.inkFaint }}>
+                    {f.status === "uploading" ? "uploading…" : f.status === "error" ? (f.error ?? "failed") : `${f.type.replace("image/", "").toUpperCase() || "?"} · ${(f.size / 1048576).toFixed(1)}MB`}
+                  </span>
                 </div>
               ))}
             </div>
           )}
+
+          {/* Resolve */}
           {result && (
-            <div style={{ marginTop: 16, display: "flex", gap: 12, alignItems: "flex-start" }}>
-              <ScoreRing score={result.score ?? 0} passed={result.passed} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: result.passed ? "#16A34A" : "#DC2626", marginBottom: 4 }}>{result.passed ? "Passed" : "Failed"} · {result.score}/100</div>
-                {((result.verificationResults as any[]) ?? []).map((r, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, padding: "2px 0" }}>
-                    <span style={{ width: 7, height: 7, borderRadius: 999, background: r.status === "pass" ? "#16A34A" : r.status === "fail" ? "#DC2626" : "#A8A29E" }} />
-                    <span style={{ color: tok.ink }}>{r.kind}</span>
-                    {r.message && <span style={{ color: tok.inkFaint }}>— {r.message}</span>}
-                  </div>
-                ))}
+            <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${tok.border}` }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <ScoreRing score={result.score ?? 0} passed={result.passed} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: result.passed ? "#16A34A" : "#DC2626", marginBottom: 4 }}>{result.passed ? "Passed" : "Failed"} · {result.score}/100</div>
+                  {((result.verificationResults as any[]) ?? []).map((r, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, padding: "2px 0" }}>
+                      <span style={dot(r.status === "pass" ? "#16A34A" : r.status === "fail" ? "#DC2626" : "#A8A29E")} />
+                      <span style={{ color: tok.ink }}>{r.kind}</span>
+                      {r.message && <span style={{ color: tok.inkFaint }}>— {r.message}</span>}
+                    </div>
+                  ))}
+                </div>
               </div>
+              {((result.paths as string[]) ?? []).length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: tok.inkFaint, marginBottom: 6 }}>Output · image paths</div>
+                  <div style={{ border: `1px solid ${tok.border}`, borderRadius: tok.radiusSm, background: tok.surfaceAlt, padding: "8px 10px", fontFamily: "ui-monospace, monospace", fontSize: 11, color: tok.inkMuted }}>
+                    {(result.paths as string[]).map((p, i) => <div key={i} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p}</div>)}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
-        <div style={{ padding: "14px 20px", borderTop: `1px solid ${tok.border}`, display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <Button variant="ghost" onClick={onClose}>Close</Button>
-          <Button disabled={!files.length || run.isPending} onClick={() => run.mutate({ stepTestId: test.id, captured: { [output.id]: files } })}>{run.isPending ? "Grading…" : "Grade upload"}</Button>
+        <div style={{ padding: "14px 20px", borderTop: `1px solid ${tok.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, color: tok.inkFaint }}>{uploadedIds.length ? `${uploadedIds.length} uploaded` : ""}</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button variant="ghost" onClick={onClose}>Close</Button>
+            <Button disabled={!uploadedIds.length || uploading || grade.isPending} onClick={() => grade.mutate({ stepTestId: test.id, projectId, documentIds: uploadedIds })}>{grade.isPending ? "Verifying…" : "Verify & grade"}</Button>
+          </div>
         </div>
       </div>
     </div>

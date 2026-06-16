@@ -225,6 +225,48 @@
       "when": 1781198194434,
       "tag": "0031_steady_vision",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1781300176551,
+      "tag": "0032_round_beast",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1781449089699,
+      "tag": "0033_lucky_mauler",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1781451556482,
+      "tag": "0034_stale_blue_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1781453972633,
+      "tag": "0035_brainy_slyde",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1781463967308,
+      "tag": "0036_lean_gamora",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1781464027308,
+      "tag": "0037_enable_rls_workflow_tables",
+      "breakpoints": true
     }
   ]
 }

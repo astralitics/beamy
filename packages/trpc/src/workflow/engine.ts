@@ -1,8 +1,11 @@
 // The workflow DAG engine — vendored from the Astralitics catalog `workflows` module
 // (astralitics-catalog/packages/modules/workflows/src/engine + capabilities/handlers).
-// Pure + dependency-injected: topologically orders steps, dispatches each by type, passes
-// outputs forward, cascades skips, fails fast, and PAUSES at human gates. No db dependency —
-// the persistence wrapper lives in the workflows router.
+// Dependency-injected: topologically orders steps, dispatches each by type, passes outputs
+// forward, cascades skips, fails fast, and PAUSES at human gates. No db dependency — the
+// persistence wrapper lives in the workflows router. Variable resolution (${...}) lives in
+// @beamy/shared (a pure, import-free module) so the client editor and this engine resolve
+// identically; it's imported below and re-exported for existing engine importers.
+import { exprPaths, resolveVars, truthy, type VarScope } from "@beamy/shared";
 
 // ── fixed step-type vocabulary ──────────────────────────────────
 export const STEP_TYPES = [
@@ -29,6 +32,9 @@ export interface WorkflowStep {
   config?: Record<string, unknown>;
   run?: (ctx: RunContext) => unknown | Promise<unknown>;
   skipUnless?: string;
+  /** Conditional gate: a `${...}` expression; if it resolves falsy the step (and its dependents)
+   *  skip. Powers IF — downstream steps gate on a branch's `${steps.<id>.output.onTrue|onFalse}`. */
+  when?: string;
 }
 export interface WorkflowDef {
   name: string;
@@ -57,6 +63,9 @@ export interface StepResult {
   output?: unknown;
   error?: string;
   childRun?: RunResult;
+  /** Wall-clock timing of this step's execution, epoch ms. Omitted for skipped/paused steps. */
+  startedAt?: number;
+  finishedAt?: number;
 }
 export interface RunResult {
   status: "completed" | "paused" | "failed";
@@ -65,16 +74,38 @@ export interface RunResult {
   pausedStepId?: string;
 }
 
+/** The step ids referenced by a `when` gate (the `steps.<id>...` heads), restricted to real steps.
+ *  These become implicit ordering edges so a gated step is always ordered AFTER the branch(es) it
+ *  reads — the engine guarantees this regardless of how the definition was authored. */
+function whenRefs(when: string | undefined, ids: Set<string>): string[] {
+  if (when == null || when === "") return [];
+  const out = new Set<string>();
+  for (const body of exprPaths(when)) {
+    const parts = body.split(".");
+    if (parts[0] === "steps" && parts[1] && ids.has(parts[1])) out.add(parts[1]);
+  }
+  return [...out];
+}
+
 function topoOrder(steps: WorkflowStep[]): WorkflowStep[] {
+  const ids = new Set(steps.map((s) => s.id));
   const byId = new Map(steps.map((s) => [s.id, s]));
-  const indeg = new Map(steps.map((s) => [s.id, (s.dependsOn ?? []).length]));
-  const queue = steps.filter((s) => (s.dependsOn ?? []).length === 0).map((s) => s.id);
+  // Effective dependencies = explicit dependsOn ∪ steps referenced by the `when` gate (self-refs
+  // excluded). This makes a `when` reference a real ordering edge — and feeds cycle detection.
+  const depsOf = (s: WorkflowStep) => {
+    const d = new Set(s.dependsOn ?? []);
+    for (const w of whenRefs(s.when, ids)) if (w !== s.id) d.add(w);
+    return [...d];
+  };
+  const edeps = new Map(steps.map((s) => [s.id, depsOf(s)]));
+  const indeg = new Map(steps.map((s) => [s.id, edeps.get(s.id)!.length]));
+  const queue = steps.filter((s) => edeps.get(s.id)!.length === 0).map((s) => s.id);
   const order: WorkflowStep[] = [];
   while (queue.length) {
     const id = queue.shift()!;
     order.push(byId.get(id)!);
     for (const s of steps) {
-      if ((s.dependsOn ?? []).includes(id)) {
+      if (edeps.get(s.id)!.includes(id)) {
         indeg.set(s.id, indeg.get(s.id)! - 1);
         if (indeg.get(s.id) === 0) queue.push(s.id);
       }
@@ -96,21 +127,47 @@ export async function runWorkflow(def: WorkflowDef, opts: RunOptions = {}): Prom
   const steps: StepResult[] = [];
   const statusById = new Map<string, StepStatus>();
 
-  for (const step of order) {
-    const deps = step.dependsOn ?? [];
+  for (const rawStep of order) {
+    // Centralized variable resolution: resolve ${inputs.x} / ${steps.id.output.y} in the step's
+    // config, inputs, instructions, and `when` gate ONCE here against the current run scope, so
+    // handlers receive already-resolved values and don't each re-implement resolution. This runs
+    // BEFORE the skip decision because the `when` gate needs the resolved value to evaluate.
+    // resolveVars is pure, so resolving a step that ends up skipped is harmless.
+    const scope: VarScope = { inputs, outputs };
+    const rawInstructions = (rawStep as { instructions?: unknown }).instructions;
+    const step: WorkflowStep = {
+      ...rawStep,
+      ...(rawStep.config ? { config: resolveVars(rawStep.config, scope) } : {}),
+      ...(rawStep.inputs ? { inputs: resolveVars(rawStep.inputs, scope) } : {}),
+      ...(rawStep.when != null ? { when: resolveVars(rawStep.when, scope) as string } : {}),
+    };
+    if (typeof rawInstructions === "string") {
+      (step as { instructions?: string }).instructions = resolveVars(rawInstructions, scope);
+    }
+
+    // Skip decision: a skipped dependency cascades; a falsy `when` gate skips (the IF off-path);
+    // the legacy `skipUnless` step-id key is kept verbatim for back-compat.
+    const deps = rawStep.dependsOn ?? [];
     const skipFromDep = deps.some((d) => statusById.get(d) === "skipped");
-    const skipFromBranch = step.skipUnless != null && !outputs[step.skipUnless];
-    if (skipFromDep || skipFromBranch) {
-      statusById.set(step.id, "skipped");
-      steps.push({ id: step.id, type: step.type, status: "skipped" });
+    // A gate exists iff `when` was authored (rawStep.when); it's evaluated on the RESOLVED value
+    // (step.when), which may be undefined if it referenced an unreached step → truthy(undefined) =
+    // false → skip. (Keying on step.when alone would wrongly treat "resolved to undefined" as "no
+    // gate" and run the step.)
+    const gated = rawStep.when != null && rawStep.when !== "";
+    const skipFromGate = gated && !truthy(step.when);
+    const skipFromLegacy = rawStep.skipUnless != null && !outputs[rawStep.skipUnless];
+    if (skipFromDep || skipFromGate || skipFromLegacy) {
+      statusById.set(rawStep.id, "skipped");
+      steps.push({ id: rawStep.id, type: rawStep.type, status: "skipped" });
       continue;
     }
 
     const ctx: RunContext = { inputs, outputs, step };
+    const startedAt = Date.now();
     try {
       if (step.type === "fail") {
         const msg = String((step.config?.reason as string) ?? "workflow failed");
-        steps.push({ id: step.id, type: step.type, status: "failed", error: msg });
+        steps.push({ id: step.id, type: step.type, status: "failed", error: msg, startedAt, finishedAt: Date.now() });
         return { status: "failed", steps, outputs };
       }
       if (step.type === "human_approval" || step.type === "human_input") {
@@ -120,13 +177,13 @@ export async function runWorkflow(def: WorkflowDef, opts: RunOptions = {}): Prom
         }
         outputs[step.id] = { approved: true };
         statusById.set(step.id, "completed");
-        steps.push({ id: step.id, type: step.type, status: "completed", output: outputs[step.id] });
+        steps.push({ id: step.id, type: step.type, status: "completed", output: outputs[step.id], startedAt, finishedAt: Date.now() });
         continue;
       }
       if (step.type === "delay" || step.type === "succeed") {
         outputs[step.id] = { ok: true };
         statusById.set(step.id, "completed");
-        steps.push({ id: step.id, type: step.type, status: "completed" });
+        steps.push({ id: step.id, type: step.type, status: "completed", startedAt, finishedAt: Date.now() });
         if (step.type === "succeed") break;
         continue;
       }
@@ -141,12 +198,12 @@ export async function runWorkflow(def: WorkflowDef, opts: RunOptions = {}): Prom
           return { status: "paused", steps, outputs, pausedStepId: step.id };
         }
         if (child.status === "failed") {
-          steps.push({ id: step.id, type: step.type, status: "failed", childRun: child, error: `child workflow "${childName}" failed` });
+          steps.push({ id: step.id, type: step.type, status: "failed", childRun: child, error: `child workflow "${childName}" failed`, startedAt, finishedAt: Date.now() });
           return { status: "failed", steps, outputs };
         }
         outputs[step.id] = child.outputs;
         statusById.set(step.id, "completed");
-        steps.push({ id: step.id, type: step.type, status: "completed", output: child.outputs, childRun: child });
+        steps.push({ id: step.id, type: step.type, status: "completed", output: child.outputs, childRun: child, startedAt, finishedAt: Date.now() });
         continue;
       }
 
@@ -155,11 +212,11 @@ export async function runWorkflow(def: WorkflowDef, opts: RunOptions = {}): Prom
       const output = await fn(ctx);
       outputs[step.id] = output;
       statusById.set(step.id, "completed");
-      steps.push({ id: step.id, type: step.type, status: "completed", output });
+      steps.push({ id: step.id, type: step.type, status: "completed", output, startedAt, finishedAt: Date.now() });
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
       statusById.set(step.id, "failed");
-      steps.push({ id: step.id, type: step.type, status: "failed", error });
+      steps.push({ id: step.id, type: step.type, status: "failed", error, startedAt, finishedAt: Date.now() });
       return { status: "failed", steps, outputs };
     }
   }
@@ -175,53 +232,16 @@ export const mockHandlers: Partial<Record<StepType, StepHandler>> = {
   provision_resource: (ctx) => ({ mock: true, resourceId: `mock_${ctx.step.id}` }),
   notify: () => ({ mock: true, sent: true }),
   function_call: () => ({ mock: true, note: "no function bound" }),
-  branch: (ctx) => (ctx.step.config?.value ?? true) as unknown,
+  // Real conditional branch (a core control-flow type, pure): evaluate the resolved condition's
+  // truthiness and emit named booleans so downstream steps can gate via
+  // `when: ${steps.<id>.output.onTrue}` / `…onFalse`. config is already var-resolved by the loop.
+  branch: (ctx) => {
+    const value = truthy((ctx.step.config as Record<string, unknown> | undefined)?.condition);
+    return { value, onTrue: value, onFalse: !value };
+  },
 };
 
 // ── variable resolution: ${inputs.x} / ${steps.<id>.output.y} ──
-export interface VarScope {
-  inputs?: Record<string, unknown>;
-  outputs?: Record<string, unknown>;
-}
-const TOKEN = /\$\{([^}]+)\}/g;
-const EXACT = /^\$\{([^}]+)\}$/;
-function getPath(root: unknown, path: string[]): unknown {
-  let cur: unknown = root;
-  for (const key of path) {
-    if (cur == null) return undefined;
-    cur = (cur as Record<string, unknown>)[key];
-  }
-  return cur;
-}
-export function resolveExpr(expr: string, scope: VarScope): unknown {
-  const parts = expr.trim().split(".").filter(Boolean);
-  if (parts.length === 0) return undefined;
-  const [head, ...rest] = parts;
-  if (head === "inputs") return getPath(scope.inputs ?? {}, rest);
-  if (head === "steps") {
-    const stepId = rest[0];
-    if (stepId == null) return undefined;
-    const stepOutput = (scope.outputs ?? {})[stepId];
-    const tail = rest[1] === "output" ? rest.slice(2) : rest.slice(1);
-    return getPath(stepOutput, tail);
-  }
-  return undefined;
-}
-export function resolveVars<T>(value: T, scope: VarScope): T {
-  if (typeof value === "string") {
-    const exact = value.match(EXACT);
-    if (exact) return resolveExpr(exact[1] ?? "", scope) as T;
-    return value.replace(TOKEN, (_m, expr) => {
-      const v = resolveExpr(expr, scope);
-      if (v == null) return "";
-      return typeof v === "object" ? JSON.stringify(v) : String(v);
-    }) as unknown as T;
-  }
-  if (Array.isArray(value)) return value.map((v) => resolveVars(v, scope)) as unknown as T;
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) out[k] = resolveVars(v, scope);
-    return out as T;
-  }
-  return value;
-}
+// The implementation moved to @beamy/shared (shared with the client editor). Re-exported here so
+// existing importers of `engine` keep working unchanged.
+export { resolveExpr, resolveVars, type VarScope } from "@beamy/shared";

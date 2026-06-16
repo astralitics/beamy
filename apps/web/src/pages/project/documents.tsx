@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -25,10 +26,25 @@ export default function ProjectDocuments() {
   const t = useT();
   const { project } = useOutletContext<{ project: ProjectDetail }>();
   const [search, setSearch] = useState("");
+  const [tab, setTab] = useState<"photos" | "files">("photos");
+  const [lightbox, setLightbox] = useState<DocumentRow | null>(null);
   const list = trpc.documents.list.useQuery({
     projectId: project.id,
     search: search.trim() || undefined,
   });
+
+  const all = list.data ?? [];
+  const photos = all.filter((d) => d.mimeType.startsWith("image/"));
+  const files = all.filter((d) => !d.mimeType.startsWith("image/"));
+
+  // Open on Photos, but fall back to Documents for a project that has files
+  // and no photos — so the first tab isn't an empty one. Runs once on load.
+  const tabInit = useRef(false);
+  useEffect(() => {
+    if (tabInit.current || !list.data) return;
+    tabInit.current = true;
+    if (photos.length === 0 && files.length > 0) setTab("files");
+  }, [list.data, photos.length, files.length]);
 
   return (
     <div>
@@ -42,6 +58,12 @@ export default function ProjectDocuments() {
           </p>
         </div>
         <UploadButton projectId={project.id} />
+      </div>
+
+      {/* Photos vs Documents — same library, split by file kind */}
+      <div className="mt-5 flex gap-1 border-b border-ink-200">
+        <TabButton active={tab === "photos"} onClick={() => setTab("photos")} label={t("documents.tab.photos")} count={photos.length} />
+        <TabButton active={tab === "files"} onClick={() => setTab("files")} label={t("documents.tab.files")} count={files.length} />
       </div>
 
       <div className="mt-4">
@@ -58,20 +80,140 @@ export default function ProjectDocuments() {
           <p className="text-xs text-slate-500">{t("common.loading")}</p>
         ) : list.error ? (
           <p className="text-xs text-rose-700">{list.error.message}</p>
-        ) : !list.data || list.data.length === 0 ? (
+        ) : tab === "photos" ? (
+          photos.length === 0 ? (
+            <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
+              {search.trim() ? t("documents.empty_photos_filtered") : t("documents.empty_photos")}
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              {photos.map((d) => (
+                <PhotoTile key={d.id} doc={d} onOpen={() => setLightbox(d)} />
+              ))}
+            </div>
+          )
+        ) : files.length === 0 ? (
           <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
-            {search.trim()
-              ? t("documents.empty_filtered")
-              : t("documents.empty")}
+            {search.trim() ? t("documents.empty_filtered") : t("documents.empty")}
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-2">
-            {list.data.map((d) => (
+            {files.map((d) => (
               <DocumentRowItem key={d.id} doc={d} />
             ))}
           </div>
         )}
       </div>
+
+      {lightbox && <Lightbox doc={lightbox} onClose={() => setLightbox(null)} />}
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  label,
+  count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  count: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative -mb-px px-3 py-2 text-sm font-medium transition-colors ${
+        active
+          ? "border-b-2 border-ink-900 text-ink-900"
+          : "border-b-2 border-transparent text-ink-500 hover:text-ink-800"
+      }`}
+    >
+      {label}
+      <span className="ml-1.5 text-xs text-ink-400">{count}</span>
+    </button>
+  );
+}
+
+// ────────────────────── photo grid ──────────────────────
+
+/** A single image thumbnail. Fetches its own short-lived signed URL. */
+function PhotoTile({ doc, onOpen }: { doc: DocumentRow; onOpen: () => void }) {
+  const urlQ = trpc.documents.getDownloadUrl.useQuery(
+    { id: doc.id },
+    { staleTime: 5 * 60 * 1000 },
+  );
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title={doc.name}
+      className="group relative block aspect-square overflow-hidden rounded-lg border border-paper-200 bg-paper-50"
+    >
+      {urlQ.data ? (
+        <img
+          src={urlQ.data.signedUrl}
+          alt={doc.name}
+          loading="lazy"
+          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+        />
+      ) : (
+        <span className="flex h-full w-full items-center justify-center text-[11px] text-slate-400">
+          {urlQ.error ? "—" : "…"}
+        </span>
+      )}
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/55 to-transparent px-2 py-1 text-left text-[11px] text-white">
+        {doc.name}
+      </span>
+    </button>
+  );
+}
+
+/** Click-to-enlarge overlay. Reuses the tile's cached signed URL. */
+function Lightbox({ doc, onClose }: { doc: DocumentRow; onClose: () => void }) {
+  const urlQ = trpc.documents.getDownloadUrl.useQuery(
+    { id: doc.id },
+    { staleTime: 5 * 60 * 1000 },
+  );
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
+      onClick={onClose}
+    >
+      <figure
+        className="flex max-h-full max-w-4xl flex-col items-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {urlQ.data ? (
+          <img
+            src={urlQ.data.signedUrl}
+            alt={doc.name}
+            className="max-h-[80vh] w-auto rounded-lg object-contain"
+          />
+        ) : (
+          <div className="text-sm text-white/70">…</div>
+        )}
+        <figcaption className="mt-3 text-center text-[13px] text-white/80">
+          {doc.name}
+        </figcaption>
+      </figure>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute right-5 top-5 text-2xl leading-none text-white/80 hover:text-white"
+      >
+        ×
+      </button>
     </div>
   );
 }

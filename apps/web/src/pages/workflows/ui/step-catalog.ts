@@ -6,7 +6,8 @@
 export interface StepConfigField {
   key: string;
   label: string;
-  kind: 'text' | 'textarea' | 'select';
+  /** `connection` renders a picker of the org's stored Connections (credentials). */
+  kind: 'text' | 'textarea' | 'select' | 'connection';
   placeholder?: string;
   options?: string[];
   hint?: string;
@@ -40,6 +41,7 @@ export const STEP_CREATE_GROUPS: { group: string; items: StepTypeSpec[] }[] = [
         config: [
           { key: 'method', label: 'Method', kind: 'select', options: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] },
           { key: 'url', label: 'URL', kind: 'text', placeholder: 'https://api.example.com/resource' },
+          { key: 'connectionId', label: 'Connection', kind: 'connection', hint: 'Optional — authenticate with a stored credential (its auth header is injected).' },
         ],
       },
       {
@@ -67,6 +69,9 @@ export const STEP_CREATE_GROUPS: { group: string; items: StepTypeSpec[] }[] = [
         config: [
           { key: 'channel', label: 'Channel', kind: 'select', options: ['email', 'sms', 'slack', 'in-app'] },
           { key: 'to', label: 'Recipient', kind: 'text', placeholder: 'client@firm.com' },
+          { key: 'subject', label: 'Subject', kind: 'text', placeholder: 'Your estimate is ready' },
+          { key: 'body', label: 'Message', kind: 'textarea', placeholder: 'Hi — your estimate is attached…', hint: 'Reference earlier steps with ${steps.<id>.output.<field>}.' },
+          { key: 'connectionId', label: 'Email provider', kind: 'connection', hint: 'Connection holding your email API key (Resend). Falls back to the server default.' },
         ],
       },
       {
@@ -102,8 +107,8 @@ export const STEP_CREATE_GROUPS: { group: string; items: StepTypeSpec[] }[] = [
       {
         type: 'branch',
         title: 'Branch',
-        blurb: 'Continue only when a condition holds.',
-        config: [{ key: 'condition', label: 'Continue when…', kind: 'text', placeholder: '${steps.review.output.approved}' }],
+        blurb: 'Split the flow: steps on the TRUE path run when the condition holds; FALSE-path steps run otherwise.',
+        config: [{ key: 'condition', label: 'True when…', kind: 'text', placeholder: '${steps.review.output.approved}', hint: 'Reference a yes/no value from an earlier step. Empty / 0 / false / no → the false path. (An empty list reads as false, an empty object as true.)' }],
       },
       {
         type: 'delay',

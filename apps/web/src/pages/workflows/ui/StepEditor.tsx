@@ -9,7 +9,7 @@ import {
   type WorkflowOutputType as OutputType,
 } from '@beamy/shared';
 import { STEP_TYPE_META } from './theme';
-import { ConfigFields } from './StepCreatorModal';
+import { ConfigFields, type ConnectionOption } from './StepCreatorModal';
 import { stepTypeSpec } from './step-catalog';
 import type { WfStep, WfStepOutput, WfVerification } from './types';
 
@@ -18,16 +18,27 @@ const STEP_TYPE_OPTIONS = Object.entries(STEP_TYPE_META).map(([value, m]) => ({ 
 export interface StepEditorProps {
   step: WfStep;
   siblings: WfStep[]; // other steps in the workflow (for dependsOn)
+  /** The org's stored Connections — populates a step's `connection`-kind config fields. */
+  connectionOptions?: ConnectionOption[];
   onSave: (step: WfStep) => void;
   onDelete?: () => void;
   onCancel?: () => void;
 }
 
-export function StepEditor({ step, siblings, onSave, onDelete, onCancel }: StepEditorProps) {
+export function StepEditor({ step, siblings, connectionOptions, onSave, onDelete, onCancel }: StepEditorProps) {
   const [draft, setDraft] = useState<WfStep>(() => ({ ...step, outputs: step.outputs ?? [], dependsOn: step.dependsOn ?? [] }));
   const set = (patch: Partial<WfStep>) => setDraft((d) => ({ ...d, ...patch }));
   const meta = stepTypeMeta(draft.type);
   const others = siblings.filter((s) => s.id !== draft.id);
+  // "Run on" gating: any branch sibling offers a true/false path to gate this step on.
+  const branchSiblings = others.filter((s) => s.type === 'branch');
+  const runOnOptions = [
+    { value: '', label: 'Always' },
+    ...branchSiblings.flatMap((b) => [
+      { value: `\${steps.${b.id}.output.onTrue}`, label: `When "${b.name ?? b.id}" is true` },
+      { value: `\${steps.${b.id}.output.onFalse}`, label: `When "${b.name ?? b.id}" is false` },
+    ]),
+  ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -49,7 +60,7 @@ export function StepEditor({ step, siblings, onSave, onDelete, onCancel }: StepE
         {(() => {
           const sp = stepTypeSpec(draft.type);
           return sp && sp.config.length ? (
-            <ConfigFields spec={sp} config={draft.config ?? {}} onConfig={(c) => set({ config: c })} />
+            <ConfigFields spec={sp} config={draft.config ?? {}} onConfig={(c) => set({ config: c })} connectionOptions={connectionOptions} />
           ) : null;
         })()}
         <Field label="Instructions" hint="Guidance shown to the operator (for human steps) or notes for the runtime.">
@@ -77,6 +88,25 @@ export function StepEditor({ step, siblings, onSave, onDelete, onCancel }: StepE
                 );
               })}
             </div>
+          </Field>
+        )}
+
+        {branchSiblings.length > 0 && (
+          <Field label="Run on" hint="Gate this step on a branch's path. To merge both paths back together, run after the Branch itself — not after both the true and false steps (that would skip it).">
+            <Select
+              value={draft.when ?? ''}
+              onChange={(v) => {
+                // Re-point the single branch dependency: drop any branch-sibling dep this gate added
+                // before, then add the newly-selected one. Adding it gives the canvas edge + cascade;
+                // the engine also orders by `when` so correctness doesn't depend on this.
+                const branchIds = new Set(branchSiblings.map((b) => b.id));
+                const kept = (draft.dependsOn ?? []).filter((d) => !branchIds.has(d));
+                if (!v) { set({ when: undefined, dependsOn: kept }); return; }
+                const branchId = /^\$\{steps\.([^.}]+)\.output\./.exec(v)?.[1];
+                set({ when: v, dependsOn: branchId ? [...kept, branchId] : kept });
+              }}
+              options={runOnOptions}
+            />
           </Field>
         )}
 

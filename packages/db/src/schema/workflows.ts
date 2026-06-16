@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { orgs } from "./orgs";
@@ -90,7 +91,7 @@ export const workflowRuns = pgTable(
     workflowName: text("workflow_name").notNull(),
     workflowVersion: text("workflow_version").notNull(), // pinned at run start
     status: text("status", {
-      enum: ["running", "paused", "completed", "failed", "cancelled"],
+      enum: ["queued", "running", "paused", "waiting", "completed", "failed", "cancelled"],
     })
       .notNull()
       .default("running"),
@@ -125,6 +126,8 @@ export const workflowRunSteps = pgTable(
     error: text("error"),
     order: integer("step_order").notNull(),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
   },
   (t) => ({
     byRun: index("workflow_run_steps_run_idx").on(t.runId, t.order),
@@ -165,6 +168,7 @@ export const stepTests = pgTable(
       .references(() => orgs.id, { onDelete: "cascade" }),
     stepTemplateId: uuid("step_template_id").notNull(), // soft ref -> step_templates.id
     name: text("name").notNull(),
+    outputId: text("output_id"), // which declared output this test targets (null = first output)
     criteria: jsonb("criteria"), // success criteria designed in this evaluation (OutputVerification[])
     inputFixture: jsonb("input_fixture"),
     expectedOutput: jsonb("expected_output"),
@@ -196,5 +200,109 @@ export const stepTestRuns = pgTable(
   },
   (t) => ({
     byTest: index("step_test_runs_test_idx").on(t.stepTestId, t.ranAt),
+  }),
+);
+
+/**
+ * connections — stored credentials a step can use to reach an external app (the "Credentials"
+ * concept from n8n/Zapier). Secret values are AES-GCM-encrypted into `secret_enc` and NEVER
+ * returned to the client; only metadata (name/provider/config) is. The runtime decrypts them
+ * server-side. Real provider integrations (OAuth, app-specific APIs) are still placeholders.
+ */
+export const connections = pgTable(
+  "connections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** Auth kind: api_key | bearer | basic | header (or a named provider later). */
+    provider: text("provider").notNull(),
+    /** base64(iv|tag|ciphertext) of the secret JSON. Server-only — never sent to the client. */
+    secretEnc: text("secret_enc"),
+    /** Non-secret config (e.g. header name, base URL). */
+    config: jsonb("config"),
+    ...audit,
+  },
+  (t) => ({
+    byOrg: index("connections_org_idx").on(t.orgId),
+  }),
+);
+
+/**
+ * workflow_jobs — the durable run queue. The synchronous runner (`runs.start`) stays for "Run now"
+ * on the canvas (instant feedback); jobs power background / triggered / retried / delayed runs.
+ * Because prod is serverless (Vercel — no always-on worker), the queue is drained on a schedule
+ * (Vercel Cron → a tick endpoint). Jobs are claimed atomically with `FOR UPDATE SKIP LOCKED` + a
+ * lease (`locked_at`/`locked_by`) so concurrent drains never double-run one. `run_after` gates
+ * eligibility (delays + retry backoff); a stale lease is reclaimed back to `queued`.
+ */
+export const workflowJobs = pgTable(
+  "workflow_jobs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    runId: uuid("run_id").notNull(), // soft ref -> workflow_runs.id
+    status: text("status", { enum: ["queued", "running", "waiting", "done", "failed"] })
+      .notNull()
+      .default("queued"),
+    attempts: integer("attempts").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(3),
+    runAfter: timestamp("run_after", { withTimezone: true }).notNull().defaultNow(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    lockedBy: text("locked_by"),
+    lastError: text("last_error"),
+    /** String[] of approved human-gate step ids, carried across resumes. */
+    approvals: jsonb("approvals"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    byClaim: index("workflow_jobs_claim_idx").on(t.status, t.runAfter),
+    byOrg: index("workflow_jobs_org_idx").on(t.orgId),
+    byRun: index("workflow_jobs_run_idx").on(t.runId),
+  }),
+);
+
+/**
+ * workflow_triggers — how a workflow fires itself (the "trigger" subsystem). One row per
+ * (workflow, type). A `webhook` row carries an unguessable token (a public inbound URL) + an
+ * optional encrypted HMAC secret; a `schedule` row carries a structured cadence in `config` plus a
+ * `nextDueAt` cursor advanced atomically by the cron scan (so overlapping/late ticks can't
+ * double-fire). Both, when due, enqueue a durable run via the shared `enqueueRun` helper — reusing
+ * the queue/retry/drain machinery. Org is resolved ONLY from this row, never from the request.
+ */
+export const workflowTriggers = pgTable(
+  "workflow_triggers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    workflowId: uuid("workflow_id").notNull(), // soft ref -> workflows.id
+    type: text("type", { enum: ["webhook", "schedule"] }).notNull(),
+    enabled: boolean("enabled").notNull().default(false),
+    /** Schedule cadence (ScheduleConfig discriminated union) for `schedule`; null for `webhook`. */
+    config: jsonb("config"),
+    /** Unguessable inbound-URL token (plaintext bearer locator), `webhook` only. */
+    webhookToken: text("webhook_token"),
+    /** AES-GCM-encrypted { hmacSecret } for optional signature verification; never returned. */
+    webhookSecretEnc: text("webhook_secret_enc"),
+    /** Header carrying the HMAC signature (default x-beamy-signature). */
+    signatureHeader: text("signature_header"),
+    /** Schedule cursor + dedupe (restart-safe; the DB is the schedule clock). */
+    nextDueAt: timestamp("next_due_at", { withTimezone: true }),
+    lastFiredAt: timestamp("last_fired_at", { withTimezone: true }),
+    lastFiredDedupeKey: text("last_fired_dedupe_key"),
+    ...audit,
+  },
+  (t) => ({
+    byToken: uniqueIndex("workflow_triggers_token_idx").on(t.webhookToken).where(sql`${t.webhookToken} IS NOT NULL`),
+    byWorkflowType: uniqueIndex("workflow_triggers_workflow_type_idx").on(t.workflowId, t.type),
+    byScan: index("workflow_triggers_scan_idx").on(t.type, t.enabled, t.nextDueAt),
+    byOrg: index("workflow_triggers_org_idx").on(t.orgId),
   }),
 );
