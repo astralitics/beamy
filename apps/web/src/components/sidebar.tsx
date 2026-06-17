@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink, useMatch } from "react-router-dom";
+import { trpc } from "../lib/trpc";
 import { useLocale, useT } from "../lib/i18n";
 import type { MessageKey } from "../lib/i18n";
 import { useVertical } from "../lib/vertical";
@@ -103,6 +104,8 @@ export function Sidebar({
   const projectMatch = useMatch("/projects/:id/*");
   const inProject = Boolean(projectMatch);
   const projectId = projectMatch?.params.id;
+  const isPlatformAdmin =
+    trpc.me.isPlatformAdmin.useQuery().data?.isPlatformAdmin ?? false;
 
   return (
     <>
@@ -182,6 +185,13 @@ export function Sidebar({
                 ))}
               </ul>
             ))}
+        {!inProject && isPlatformAdmin && (
+          <ul className="mt-5 space-y-0.5 border-t border-ink-800 pt-4">
+            <li>
+              <SidebarLink to="/admin/workspaces">All workspaces</SidebarLink>
+            </li>
+          </ul>
+        )}
         </nav>
 
         <div className="border-t border-ink-800 p-2">
