@@ -2,7 +2,7 @@
 
 > Living document. Goal: the most **intuitive, beautiful, and fun** n8n-class workflow tool —
 > built for non-technical agency users (PMs, crew leads, owners), with Claude woven in.
-> Last updated: 2026-06-14 (paused here).
+> Last updated: 2026-06-15 (N-way switch/case + for-each loops shipped).
 
 ## 1. Vision & principles
 
@@ -165,8 +165,58 @@ browser-verified** (see Findings → login wall).
     gate-on-unreached/no-condition/skipUnless); `expressions.check.ts` truthy cases; live API runs
     (true-path runs + false-path skips, and a gate-only step listed before its branch still routes
     right). Adversarially reviewed; 5 findings fixed (1 high ordering, 2 stale-dep, 2 low).
-- ◻️ **Still ahead:** Switch/case (N-way), real **loops** (for-each), parallel+join (OR-join),
-  suspending `wait`/`delay`; canvas true/false edge labels + green/red coloring (cosmetic).
+- ✅ **Real N-way switch/case** (done 2026-06-15): a pure `switch` step (in the engine default set
+  beside `branch`; added to `STEP_TYPES`/`CORE_TYPES` + `WORKFLOW_STEP_TYPES` + `STEP_VOCAB`) that
+  matches the resolved `config.value` against each `config.cases[].value` (trimmed, case-insensitive;
+  numbers coerce), FIRST match wins, and emits `{ value, matched, default, cases: { <caseId>: bool } }`
+  — `default = !matched` (the catch-all needs no per-case flag). Downstream arms gate via
+  `${steps.<sw>.output.cases.<id>}` / `.output.default`, **reusing the existing `when`-gate, skip-
+  cascade, and `whenRefs` ordering with NO run-loop change**. Authoring: a `cases` config-field kind +
+  a `CasesEditor` (value + optional label rows; case ids derived-once-then-frozen so editing a value
+  can't dangle a stored gate), the "Run on" picker extended to switch (one option per case + a "matches
+  nothing" default; control-dep repoint generalized to branches ∪ switches), a `switch` theme entry,
+  an AI-builder wiring rule + example, and a curated template ("Route change orders by tier"). 
+  - **Adversarially reviewed** (4-dimension Workflow → verify each): **8 findings fixed**. Notably a
+    **prototype-chain bug class** — the dup-id guard used `id in cases` (walks the prototype chain, so a
+    reachable case id like `constructor` was silently dropped) → now `hasOwnProperty`; and `getPath`
+    read inherited members (a gate on `cases.toString` resolved to `Object.prototype.toString` →
+    truthy) → now **own-property-only traversal** across the whole expression system. Plus case-id
+    stability (re-slug-on-edit dangled gates → ids frozen once assigned) and a React-key fix.
+  - Verified: typecheck; `switch.check.ts` (routing/default/cascade/nesting/ordering-without-dependsOn/
+    coercion/dup+empty cases/first-match-wins/**reserved-name ids**); `expressions.check.ts` own-prop
+    cases; `workflow-templates.check.ts` (the new template routes all variants); live API runs through
+    the real router→engine→DB (tier routing + `constructor` reserved-name case + no `cases.toString`
+    leak). Layered commits `feat(shared)`→`feat(trpc)`→`feat(web)`.
+- ✅ **Real for-each loops** (done 2026-06-15) — chose **"map a single inner action over a list"**
+  (Approach A) over a sub-workflow loop (Approach B) after a judge-panel design Workflow: A is atomic
+  in one engine pass (so **durable resume is unaffected** — no per-iteration replay / duplicate side
+  effects, which is exactly where B's footgun lives), serves the ~95% single-action case (email each
+  vendor, draft a reply per RFI), and needs no "make a child workflow first" friction. A `loop` step is
+  handled **inline** in `runWorkflow` (beside `call_workflow`): `config.items` (pre-resolved → an
+  array) + `config.bodyType` + raw `config.bodyConfig` re-resolved **per item** against `{item,
+  itemIndex}` (+ run scope) and dispatched through the SAME handler set, aggregating
+  `{ results, count, succeeded, failed }`. New resolver heads `item`/`itemIndex`
+  (`@beamy/shared/expressions`, backward-compatible). Guards: non-array items, missing
+  bodyType/bodyConfig, a **leaf-action allowlist** (`LOOP_BODY_TYPES`, shared by the engine guard +
+  the UI picker — branch/switch/human gates/nested loops are rejected, NOT silently run),
+  `maxIterations` floored+clamped (a non-positive/non-finite value falls back to the default, never a
+  negative cap), `continueOnFail` collecting `{_error}` index-aligned. Authoring: a "For each" step +
+  a `loopBody` config kind → `LoopBodyEditor` (action picker + the chosen action's nested config via
+  ConfigFields). AI-builder rule+example; a "Batch vendor outreach" template.
+  - **Adversarially reviewed** (4-dimension Workflow → verify each): **6 findings fixed** — the notable
+    one (HIGH): branch/switch ARE in the handler map, so they'd have run as loop bodies instead of
+    erroring → added the engine-level leaf allowlist. Plus `maxIterations` negative/float hardening,
+    a stale "loop is non-executable" comment, and test-coverage gaps (when-gate skip, items-from-a-
+    prior-step, branch/switch rejection).
+  - Verified: typecheck; `loop.check.ts` (per-item scope/aggregate/empty/non-array/continueOnFail/
+    maxIterations/allowlist/dispatch/gating/items-from-prior); all other fixtures; live API runs
+    through the real router→engine→DB (per-item `${item}`/`${itemIndex}`, aggregate drives a
+    downstream gate, branch-as-body rejected, negative cap falls back). Layered commits.
+- ◻️ **Still ahead:** **loop v2** (multi-step body — a sub-workflow per item — built *properly* with
+  per-iteration completion tracking so resume can't duplicate side effects); parallel+join (OR-join),
+  suspending `wait`/`delay`; canvas true/false/case edge labels + coloring (cosmetic); switch reorder
+  warning (case order is first-match-significant); a parallel/batched loop (today iterations are
+  sequential).
 - ✅ **Triggers — inbound webhook + cron schedule** (done 2026-06-14): workflows fire themselves,
   riding the durable runner. New `workflow_triggers` table (migration `0036`; one row per
   workflow+type). A shared server-only `enqueueRun(orgId, target, inputs, actor, {requirePublished})`

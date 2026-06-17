@@ -17,6 +17,144 @@ export interface WorkflowTemplate {
 
 export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
+    "id": "change-order-routing-by-tier",
+    "title": "Route change orders by tier",
+    "description": "Drafts a change order, then routes it three ways by budget tier: high-value needs a PM sign-off before it's sent; mid and low go straight to the client.",
+    "category": "Projects & change orders",
+    "triggerType": "manual",
+    "def": {
+      "name": "Route change orders by tier",
+      "summary": "Drafts a change order, then routes it three ways by budget tier: high needs PM approval; mid and low go straight to the client.",
+      "steps": [
+        {
+          "id": "draft_co",
+          "type": "ai_agent_task",
+          "name": "Draft the change order",
+          "config": {
+            "prompt": "Write a clear, client-facing change order for project ${inputs.project_name}. Scope change: ${inputs.scope_change}. Estimated cost: ${inputs.amount} ${inputs.currency}. Include a one-line summary, the reason, the cost impact, and the schedule impact. Keep it professional and concise."
+          }
+        },
+        {
+          "id": "classify_tier",
+          "type": "switch",
+          "name": "Route by budget tier",
+          "dependsOn": [
+            "draft_co"
+          ],
+          "config": {
+            "value": "${inputs.tier}",
+            "cases": [
+              { "id": "high", "value": "high", "label": "High-value" },
+              { "id": "mid", "value": "mid", "label": "Mid-tier" },
+              { "id": "low", "value": "low", "label": "Low-value" }
+            ]
+          }
+        },
+        {
+          "id": "pm_approval",
+          "type": "human_approval",
+          "name": "PM approves the high-value change order",
+          "dependsOn": [
+            "classify_tier"
+          ],
+          "when": "${steps.classify_tier.output.cases.high}",
+          "instructions": "This change order is in the high-value tier. Review the draft and the cost before it goes to the client. Approve to send it, or reject to revise.\n\n${steps.draft_co.output.text}"
+        },
+        {
+          "id": "send_high",
+          "type": "notify",
+          "name": "Email the approved change order",
+          "dependsOn": [
+            "pm_approval"
+          ],
+          "config": {
+            "channel": "email",
+            "to": "${inputs.client_email}",
+            "subject": "Change order for ${inputs.project_name}",
+            "body": "${steps.draft_co.output.text}"
+          }
+        },
+        {
+          "id": "send_mid",
+          "type": "notify",
+          "name": "Email the mid-tier change order",
+          "dependsOn": [
+            "classify_tier"
+          ],
+          "when": "${steps.classify_tier.output.cases.mid}",
+          "config": {
+            "channel": "email",
+            "to": "${inputs.client_email}",
+            "subject": "Change order for ${inputs.project_name}",
+            "body": "${steps.draft_co.output.text}"
+          }
+        },
+        {
+          "id": "send_low",
+          "type": "notify",
+          "name": "Email the low-value change order",
+          "dependsOn": [
+            "classify_tier"
+          ],
+          "when": "${steps.classify_tier.output.cases.low}",
+          "config": {
+            "channel": "email",
+            "to": "${inputs.client_email}",
+            "subject": "Quick change on ${inputs.project_name}",
+            "body": "${steps.draft_co.output.text}"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "batch-vendor-outreach",
+    "title": "Batch vendor outreach",
+    "description": "Drafts a short RFP cover note once, then emails it to every vendor on the list — one email per vendor, personalized.",
+    "category": "Vendors & procurement",
+    "triggerType": "manual",
+    "def": {
+      "name": "Batch vendor outreach",
+      "summary": "Draft an RFP note once, then email each vendor on the list (one personalized email per vendor).",
+      "steps": [
+        {
+          "id": "draft_note",
+          "type": "ai_agent_task",
+          "name": "Draft the RFP cover note",
+          "config": {
+            "prompt": "Write a short, friendly RFP cover note for project ${inputs.project_name}. Invite the vendor to bid, mention the scope in one line (${inputs.scope_summary}), and ask for a quote by ${inputs.due_date}. Leave a greeting line out — it's added per vendor."
+          }
+        },
+        {
+          "id": "email_each_vendor",
+          "type": "loop",
+          "name": "Email each vendor",
+          "dependsOn": [
+            "draft_note"
+          ],
+          "config": {
+            "items": "${inputs.vendors}",
+            "bodyType": "notify",
+            "bodyConfig": {
+              "channel": "email",
+              "to": "${item.email}",
+              "subject": "RFP — ${inputs.project_name}",
+              "body": "Hi ${item.name},\n\n${steps.draft_note.output.text}\n\nThank you,\n${inputs.company_name}"
+            }
+          }
+        },
+        {
+          "id": "done",
+          "type": "succeed",
+          "name": "All vendors emailed",
+          "dependsOn": [
+            "email_each_vendor"
+          ]
+        }
+      ]
+    }
+  },
+  {
     "id": "change-order-budget-triage",
     "title": "Change order budget triage",
     "description": "Drafts a change order, routes anything over the threshold to a PM approval, and sends small ones straight to the client.",

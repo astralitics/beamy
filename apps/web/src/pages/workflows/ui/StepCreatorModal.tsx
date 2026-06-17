@@ -7,7 +7,7 @@
 import { useState, type ReactNode } from 'react';
 import { exprPaths, resolveVars, type VarScope } from '@beamy/shared';
 import { Button, Field, Select, TextInput, stepTypeMeta, tok } from './theme';
-import { STEP_CREATE_GROUPS, stepTypeSpec, type StepConfigField, type StepTypeSpec } from './step-catalog';
+import { LOOP_BODY_TYPES, STEP_CREATE_GROUPS, stepTypeSpec, type StepConfigField, type StepTypeSpec } from './step-catalog';
 import { buildPreviewScope } from './expr-scope';
 import { ExpressionInput, type ExprSuggestion } from './ExpressionInput';
 import type { WfStep, WfStepOutput } from './types';
@@ -221,6 +221,10 @@ export function ConfigFields({
               onChange={(v) => set(f.key, v)}
               options={[{ value: '', label: connectionOptions.length ? 'No authentication' : 'No connections yet' }, ...connectionOptions]}
             />
+          ) : f.kind === 'cases' ? (
+            <CasesEditor cases={(config[f.key] as SwitchCaseRow[]) ?? []} onChange={(c) => set(f.key, c)} />
+          ) : f.kind === 'loopBody' ? (
+            <LoopBodyEditor config={config} onConfig={onConfig} connectionOptions={connectionOptions} />
           ) : f.kind === 'select' ? (
             <Select value={(config[f.key] as string) ?? f.options?.[0] ?? ''} onChange={(v) => set(f.key, v)} options={(f.options ?? []).map((o) => ({ value: o, label: o }))} />
           ) : f.kind === 'textarea' ? (
@@ -231,6 +235,100 @@ export function ConfigFields({
         </Field>
       ))}
     </>
+  );
+}
+
+/** Editor for a `loop` step's body: an action picker (config.bodyType) + that action's own nested
+ *  config form (config.bodyConfig), rendered by reusing ConfigFields. Manages BOTH sibling keys, so
+ *  it takes the whole config + setter rather than a single field value. */
+function LoopBodyEditor({
+  config, onConfig, connectionOptions = [],
+}: { config: Record<string, unknown>; onConfig: (c: Record<string, unknown>) => void; connectionOptions?: ConnectionOption[] }) {
+  const bodyType = (config.bodyType as string) ?? '';
+  const spec = bodyType ? stepTypeSpec(bodyType) : undefined;
+  const setBodyType = (t: string) => onConfig({ ...config, bodyType: t, bodyConfig: {} }); // reset config on type change
+  const setBodyConfig = (bc: Record<string, unknown>) => onConfig({ ...config, bodyConfig: bc });
+  const options = [{ value: '', label: 'Choose an action…' }, ...LOOP_BODY_TYPES.map((t) => ({ value: t, label: stepTypeSpec(t)?.title ?? t }))];
+  return (
+    <div>
+      <Select value={bodyType} onChange={setBodyType} options={options} />
+      {bodyType && (
+        <div style={{ marginTop: 10, borderLeft: `2px solid ${tok.accentSoft}`, paddingLeft: 12 }}>
+          <div style={{ fontSize: 11, color: tok.inkFaint, marginBottom: 10 }}>
+            Runs once per item. Reference the current item with <code>{'${item}'}</code>, <code>{'${item.field}'}</code>, or <code>{'${itemIndex}'}</code>.
+          </div>
+          {spec && spec.config.length ? (
+            <ConfigFields spec={spec} config={(config.bodyConfig as Record<string, unknown>) ?? {}} onConfig={setBodyConfig} connectionOptions={connectionOptions} />
+          ) : (
+            <div style={{ fontSize: 12, color: tok.inkFaint }}>This action has no settings.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A single case in a switch step's `config.cases`. Mirrors the engine's case shape. The `id` is the
+ *  stable output key a downstream step gates on (`${steps.<sw>.output.cases.<id>}`). It is assigned
+ *  ONCE (from the first non-empty value) and then frozen, so editing a value later can never dangle a
+ *  gate that already references the id; an as-yet-valueless row has no id (omitted). */
+export interface SwitchCaseRow { id?: string; value: string; label?: string }
+
+/** Slugify a case value into an output-key-safe id (lowercase, underscores). Shared with StepEditor. */
+export function slugifyCase(s: string): string {
+  return s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+}
+
+/** Assign ids to rows that don't have one yet (deriving a unique slug from the value); PRESERVE any id
+ *  already assigned. Keeping ids stable across value/label edits + add/remove is what prevents a
+ *  downstream `when` gate (which stored the id) from silently dangling. */
+function withCaseIds(rows: SwitchCaseRow[]): SwitchCaseRow[] {
+  const taken = new Set(rows.map((r) => r.id).filter((x): x is string => !!x));
+  return rows.map((r) => {
+    if (r.id) return r; // already has a stable id — never re-derive it
+    const v = r.value.trim();
+    if (!v) return r; // no value yet → leave it id-less until one exists
+    const base = slugifyCase(v) || 'case';
+    let id = base;
+    let n = 2;
+    while (taken.has(id)) id = `${base}_${n++}`;
+    taken.add(id);
+    return { ...r, id };
+  });
+}
+
+/** Editor for a switch step's cases. Each row is a value to match + an optional human label; the id is
+ *  derived once from the value and then frozen. Order matters (first match wins); anything unmatched
+ *  takes the default path. */
+function CasesEditor({ cases, onChange }: { cases: SwitchCaseRow[]; onChange: (c: SwitchCaseRow[]) => void }) {
+  const update = (i: number, patch: Partial<SwitchCaseRow>) =>
+    onChange(withCaseIds(cases.map((c, j) => (j === i ? { ...c, ...patch } : c))));
+  const add = () => onChange(withCaseIds([...cases, { value: '', label: '' }]));
+  const remove = (i: number) => onChange(withCaseIds(cases.filter((_, j) => j !== i)));
+
+  return (
+    <div>
+      {cases.length === 0 && (
+        <div style={{ fontSize: 12, color: tok.inkFaint, marginBottom: 8 }}>No cases yet — add one path per value you want to route.</div>
+      )}
+      {cases.map((c, i) => (
+        <div key={c.id ?? `row_${i}`} style={{ border: `1px solid ${tok.border}`, borderRadius: tok.radiusSm, padding: 10, marginBottom: 8, background: tok.surfaceAlt }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <TextInput value={c.value} onChange={(v) => update(i, { value: v })} placeholder="value to match (e.g. high)" />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <TextInput value={c.label ?? ''} onChange={(v) => update(i, { label: v })} placeholder="label (optional)" />
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => remove(i)}>✕</Button>
+          </div>
+          <div style={{ fontSize: 10, color: tok.inkFaint, marginTop: 5, fontFamily: 'ui-monospace, monospace' }}>
+            → routes to <span style={{ color: tok.inkMuted }}>output.cases.{c.id || '…'}</span>
+          </div>
+        </div>
+      ))}
+      <Button variant="outline" size="sm" onClick={add}>+ Add case</Button>
+    </div>
   );
 }
 

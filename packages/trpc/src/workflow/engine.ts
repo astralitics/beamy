@@ -5,19 +5,19 @@
 // persistence wrapper lives in the workflows router. Variable resolution (${...}) lives in
 // @beamy/shared (a pure, import-free module) so the client editor and this engine resolve
 // identically; it's imported below and re-exported for existing engine importers.
-import { exprPaths, resolveVars, truthy, type VarScope } from "@beamy/shared";
+import { exprPaths, LOOP_BODY_TYPES, resolveVars, truthy, type VarScope } from "@beamy/shared";
 
 // ── fixed step-type vocabulary ──────────────────────────────────
 export const STEP_TYPES = [
   "mcp_tool_call", "function_call", "http_call", "ai_agent_task", "db_operation",
   "provision_resource", "call_workflow", "notify",
-  "branch", "loop", "parallel", "wait_for_condition", "delay",
+  "branch", "switch", "loop", "parallel", "wait_for_condition", "delay",
   "human_approval", "human_input",
   "succeed", "fail",
 ] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 export const CORE_TYPES = new Set<StepType>([
-  "branch", "succeed", "fail", "human_approval", "human_input", "delay",
+  "branch", "switch", "succeed", "fail", "human_approval", "human_input", "delay",
 ]);
 export function isStepType(t: string): t is StepType {
   return (STEP_TYPES as readonly string[]).includes(t);
@@ -206,6 +206,59 @@ export async function runWorkflow(def: WorkflowDef, opts: RunOptions = {}): Prom
         steps.push({ id: step.id, type: step.type, status: "completed", output: child.outputs, childRun: child, startedAt, finishedAt: Date.now() });
         continue;
       }
+      if (step.type === "loop") {
+        // For-each: map ONE inner action over a list (Phase 3). `config.items` is already resolved by
+        // the run loop (it references the run scope), but `config.bodyConfig` must stay RAW so its
+        // `${item}`/`${itemIndex}` refs resolve PER ITEM here — not blanked by the top-level
+        // pre-resolution. The body dispatches through the SAME handler set (so real http/ai/notify
+        // run), giving the loop NO new pause semantics: it completes atomically into one aggregate
+        // output, so durable resume is unaffected. Human gates + nested loops aren't in the handler
+        // map, so a `bodyType` of those errors clearly (v1: no gates / no nesting inside a loop body).
+        const items = step.config?.items;
+        if (!Array.isArray(items)) throw new Error(`loop "${step.id}": config.items resolved to a non-array`);
+        const bodyType = String(step.config?.bodyType ?? "");
+        if (!bodyType) throw new Error(`loop "${step.id}": config.bodyType is required`);
+        // A loop body must be a single LEAF action — enforced here in the engine, independent of which
+        // handlers happen to be registered (branch/switch ARE in the handler set but aren't valid
+        // bodies; human gates / nested loops / terminals aren't either). Keeps the v1 contract true
+        // for hand- and AI-authored defs, not just the UI path.
+        if (!LOOP_BODY_TYPES.includes(bodyType)) {
+          throw new Error(`loop "${step.id}": "${bodyType}" is not a valid loop action — use one of ${LOOP_BODY_TYPES.join(", ")}`);
+        }
+        const rawBodyConfig = (rawStep.config as Record<string, unknown> | undefined)?.bodyConfig;
+        if (rawBodyConfig == null || typeof rawBodyConfig !== "object") {
+          throw new Error(`loop "${step.id}": config.bodyConfig is required`);
+        }
+        const bodyFn = (handlers as Record<string, StepHandler | undefined>)[bodyType];
+        if (!bodyFn) throw new Error(`loop "${step.id}": no handler for body type "${bodyType}"`);
+        // Safety cap: floor + fall back to the default for a non-positive / non-finite value (a typo'd
+        // "maxIterations" shouldn't fail the run, but it must never disable the cap), then clamp to 10k.
+        const wantCap = Math.floor(Number(step.config?.maxIterations ?? 1000));
+        const cap = Math.min(Number.isFinite(wantCap) && wantCap > 0 ? wantCap : 1000, 10000);
+        if (items.length > cap) throw new Error(`loop "${step.id}": ${items.length} items exceeds the ${cap}-iteration cap`);
+        const continueOnFail = truthy(step.config?.continueOnFail);
+        const results: unknown[] = [];
+        let succeeded = 0;
+        let failed = 0;
+        for (let i = 0; i < items.length; i++) {
+          const itemScope: VarScope = { inputs, outputs, item: items[i], itemIndex: i };
+          const bodyConfig = resolveVars(rawBodyConfig, itemScope) as Record<string, unknown>;
+          const bodyStep: WorkflowStep = { id: `${step.id}__item_${i}`, type: bodyType as StepType, config: bodyConfig };
+          try {
+            results.push(await bodyFn({ inputs, outputs, step: bodyStep }));
+            succeeded++;
+          } catch (e) {
+            const error = e instanceof Error ? e.message : String(e);
+            if (!continueOnFail) throw new Error(`loop "${step.id}": item ${i} failed: ${error}`);
+            results.push({ _error: error });
+            failed++;
+          }
+        }
+        outputs[step.id] = { results, count: items.length, succeeded, failed };
+        statusById.set(step.id, "completed");
+        steps.push({ id: step.id, type: step.type, status: "completed", output: outputs[step.id], startedAt, finishedAt: Date.now() });
+        continue;
+      }
 
       const fn = step.run ?? (handlers as Record<string, StepHandler | undefined>)[step.type];
       if (!fn) throw new Error(`no handler for step "${step.id}" of type "${step.type}"`);
@@ -238,6 +291,35 @@ export const mockHandlers: Partial<Record<StepType, StepHandler>> = {
   branch: (ctx) => {
     const value = truthy((ctx.step.config as Record<string, unknown> | undefined)?.condition);
     return { value, onTrue: value, onFalse: !value };
+  },
+  // N-way switch (a core control-flow type, pure). Matches the resolved `config.value` against each
+  // case's `value` (case-insensitive, whitespace-trimmed string equality; numbers coerce to string),
+  // FIRST match wins. Emits a per-case-id boolean map under `cases` (collision-safe: a case id can be
+  // any name, even "value"/"default"), `matched` = the winning case id (or null), and `default` =
+  // `!matched` (the catch-all). Downstream arms gate via `when: ${steps.<id>.output.cases.<caseId>}`
+  // or `${steps.<id>.output.default}`. config is already var-resolved by the run loop.
+  switch: (ctx) => {
+    const cfg = (ctx.step.config as Record<string, unknown> | undefined) ?? {};
+    const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
+    const target = norm(cfg.value);
+    const rawCases = Array.isArray(cfg.cases) ? (cfg.cases as unknown[]) : [];
+    const cases: Record<string, boolean> = {};
+    let matched: string | null = null;
+    for (const c of rawCases) {
+      if (!c || typeof c !== "object") continue;
+      const id = String((c as Record<string, unknown>).id ?? "").trim();
+      // hasOwnProperty (NOT `id in cases`): a case id that collides with an Object.prototype member
+      // (e.g. "constructor", "toString") is inherited, so `in` would always be true and silently drop
+      // the case. Assigning `cases[id]` then shadows the inherited member with an own key; downstream
+      // gates read it via getPath, which is own-property-only (so an inherited member can't leak as a
+      // truthy gate). ("__proto__" can't be set as a data key on a plain object — such a case simply
+      // won't route; the UI's slugifier never produces it anyway.)
+      if (!id || Object.prototype.hasOwnProperty.call(cases, id)) continue; // skip empty / duplicate ids
+      const hit = matched == null && norm((c as Record<string, unknown>).value) === target;
+      cases[id] = hit;
+      if (hit) matched = id;
+    }
+    return { value: cfg.value ?? null, matched, default: matched == null, cases };
   },
 };
 
