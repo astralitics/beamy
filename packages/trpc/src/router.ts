@@ -16,6 +16,7 @@ import { changeOrdersRouter } from "./routers/change-orders";
 import { extractionRouter } from "./routers/extraction";
 import { membersRouter } from "./routers/members";
 import { orgsRouter } from "./routers/orgs";
+import { platformAdminRouter } from "./routers/platform-admin";
 import { projectsRouter } from "./routers/projects";
 import { proposalsRouter } from "./routers/proposals";
 import { servicesRouter } from "./routers/services";
@@ -44,6 +45,7 @@ export const appRouter = router({
   services: servicesRouter,
   members: membersRouter,
   orgs: orgsRouter,
+  platformAdmin: platformAdminRouter,
   projects: projectsRouter,
   proposals: proposalsRouter,
   specs: specsRouter,

@@ -35,7 +35,13 @@ export const orgScopedProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
     // Honor the client's requested active org (x-active-org), validated against
     // the user's real memberships; falls back to their default org otherwise.
-    const membership = await resolveOrgMembership(ctx.userId, ctx.activeOrgId);
+    // A platform admin may activate ANY org (the flag is server-computed, never
+    // client input — see resolveOrgMembership); normal users stay membership-gated.
+    const membership = await resolveOrgMembership(
+      ctx.userId,
+      ctx.activeOrgId,
+      ctx.isPlatformAdmin,
+    );
     if (!membership) {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -66,6 +72,20 @@ export const orgAdminProcedure = orgScopedProcedure.use(({ ctx, next }) => {
       code: "FORBIDDEN",
       message: "Admin role required",
     });
+  }
+  return next({ ctx });
+});
+
+/**
+ * PLATFORM-ADMIN tier — cross-tenant operators (granted by the PLATFORM_ADMIN_EMAILS
+ * allowlist; see context.ts). Built on `protectedProcedure`, NOT `orgScopedProcedure`,
+ * so these procedures reason across orgs by taking an explicit org id as input. Use ONLY
+ * for the platform-admin surface (list/enter/delete workspaces). The isPlatformAdmin flag
+ * is server-computed from the verified email — never trusted from the request.
+ */
+export const platformAdminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (!ctx.isPlatformAdmin) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Platform admin only" });
   }
   return next({ ctx });
 });
