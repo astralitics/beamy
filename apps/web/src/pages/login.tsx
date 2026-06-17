@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { readPendingInvite } from "../lib/invite";
 import { useT } from "../lib/i18n";
 import type { MessageKey } from "../lib/i18n";
 
@@ -105,9 +106,14 @@ export default function LoginPage() {
   async function signInWithGoogle() {
     setError(null);
     setSubmitting(true);
+    // If an invite is pending (the invite-link round-trip), come back to /redeem so
+    // it gets accepted; OAuth drops react-router state, so the path must carry it.
+    const redirectTo = readPendingInvite()
+      ? `${window.location.origin}/redeem`
+      : window.location.origin;
     const { error: oauthErr } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo },
     });
     // On success the browser navigates to Google; we only reach here on error.
     if (oauthErr) {
