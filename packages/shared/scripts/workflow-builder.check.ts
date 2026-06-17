@@ -93,12 +93,11 @@ import { runWorkflow, type WorkflowDef } from "../../trpc/src/workflow/engine";
   assert.equal(def.steps.length, 2);
 }
 
-// non-executable engine type (parallel — still a placeholder, not in STEP_VOCAB) → dropped (no
-// handler → would throw at runtime). NB: `loop` IS executable now (in the vocab), so it is kept.
+// non-executable engine type (loop/parallel) → dropped (no handler → would throw at runtime)
 {
-  const { def, dropped } = normalizeWorkflowDef({ name: "x", steps: [{ id: "p", type: "parallel" }, { id: "ok", type: "succeed" }] });
+  const { def, dropped } = normalizeWorkflowDef({ name: "x", steps: [{ id: "l", type: "loop" }, { id: "ok", type: "succeed" }] });
   assert.equal(def.steps.length, 1);
-  assert.ok(dropped.some((d) => d.includes("parallel")));
+  assert.ok(dropped.some((d) => d.includes("loop")));
 }
 
 // when-rewrite under a slug COLLISION must not point at the wrong step (single-pass, no chaining)

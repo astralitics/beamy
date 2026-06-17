@@ -30,7 +30,7 @@ const MAX_STEPS = 50;
 const MAX_STR = 4000;
 // Accept only EXECUTABLE types (the curated vocab — every one has an engine handler or special
 // case). Gating here, not on the broader engine list, keeps "accepted ⟹ runnable" true (so a
-// non-executable placeholder type like `parallel` is dropped+reported rather than persisted to throw).
+// non-executable type like `loop`/`parallel` is dropped+reported rather than persisted to throw).
 const STEP_SET = new Set<string>(STEP_VOCAB.map((v) => v.type));
 const TOP_KEYS = new Set(["id", "type", "name", "dependsOn", "config", "inputs", "instructions", "when"]);
 const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);

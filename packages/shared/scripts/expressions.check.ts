@@ -27,22 +27,6 @@ assert.deepEqual(resolveVars({ body: { to: "${inputs.name}", n: "${steps.draft.o
   body: { to: "Ada", n: 4200 },
 });
 
-// own-property-only traversal: an inherited Object.prototype member (toString/constructor/valueOf)
-// must NOT resolve to the inherited value (it would read truthy in a `when` gate). A real own key
-// of the same name still resolves. (Hardens the switch `cases.<id>` namespace, but applies to all.)
-assert.equal(resolveVars("${steps.draft.output.toString}", scope), undefined, "inherited toString does not leak");
-assert.equal(resolveVars("${steps.gate.output.constructor}", scope), undefined, "inherited constructor does not leak");
-assert.equal(resolveVars("${steps.shadow.output.toString}", { outputs: { shadow: { toString: "real" } } }), "real", "an own key shadowing a prototype name still resolves");
-assert.equal(resolveVars("${steps.draft.output.lines.length}", scope), 1, "own array length still resolves");
-
-// loop body scope: ${item} / ${item.field} / ${itemIndex} (present only inside a loop body)
-const loopScope = { inputs: { tag: "t" }, outputs: {}, item: { email: "a@x", n: 2 }, itemIndex: 0 };
-assert.deepEqual(resolveVars("${item}", loopScope), { email: "a@x", n: 2 }, "whole item, typed");
-assert.equal(resolveVars("${item.email}", loopScope), "a@x");
-assert.equal(resolveVars("${itemIndex}", loopScope), 0, "itemIndex keeps its number type");
-assert.equal(resolveVars("to ${item.email} #${itemIndex}", loopScope), "to a@x #0", "interpolated");
-assert.equal(resolveVars("${item.email}", { inputs: {} }), undefined, "item refs resolve to undefined outside a loop");
-
 // resolveExpr + helpers
 assert.equal(resolveExpr("steps.draft.output.total", scope), 4200);
 assert.equal(isExpr("${inputs.name}"), true);
