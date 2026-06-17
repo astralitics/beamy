@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { supabaseConfigured } from "../lib/supabase";
 import { trpc } from "../lib/trpc";
+import { setActiveOrg } from "../lib/active-org";
 import { useT } from "../lib/i18n";
 import { VERTICAL_LABELS, type Vertical } from "@beamy/shared";
 import {
@@ -30,7 +31,7 @@ export default function RedeemInvitePage() {
   const { session, loading: authLoading, signOut } = useAuth();
   const params = useParams();
   const navigate = useNavigate();
-  const utils = trpc.useUtils();
+  const location = useLocation();
 
   // Token comes from the invite-link path (/invite/:token); fall back to one
   // stashed before an OAuth redirect (when OrgGate bounced us to /redeem).
@@ -48,10 +49,13 @@ export default function RedeemInvitePage() {
   }, [authLoading, session, urlToken]);
 
   const accept = trpc.members.accept.useMutation({
-    onSuccess: async () => {
+    onSuccess: (data) => {
       clearPendingInvite();
-      await utils.me.membership.invalidate();
-      navigate("/", { replace: true });
+      // Make the just-joined workspace the active one, then HARD reload so the new
+      // x-active-org header is sent and the query cache reloads against that org
+      // (a soft navigate would keep the previous workspace's cached data + header).
+      setActiveOrg(data.orgId);
+      window.location.assign("/");
     },
     onError: (e) => setError(e.message),
   });
@@ -77,16 +81,17 @@ export default function RedeemInvitePage() {
   // Dev-bypass (no Supabase configured): the seeded dev user already has an org.
   if (!supabaseConfigured) return <Navigate to="/" replace />;
 
-  // Not signed in → go authenticate (the token, if any, was stashed above).
-  if (!session) return <Navigate to="/login" replace />;
+  // Signed-in member with no invite to act on → straight into the app.
+  if (session && membership.data?.hasMembership && !token) {
+    return <Navigate to="/" replace />;
+  }
 
-  // Already a member → nothing to redeem.
-  if (membership.data?.hasMembership) return <Navigate to="/" replace />;
+  const email = session?.user?.email ?? null;
 
-  const email = session.user?.email ?? null;
-
-  // No token → the "ask your admin" dead-end.
+  // No token at all: a logged-out visitor just needs to sign in; a signed-in user
+  // with no workspace + no invite gets the "ask your admin" dead-end.
   if (!token) {
+    if (!session) return <Navigate to="/login" replace />;
     return (
       <Shell email={email} onSignOut={() => void signOut()}>
         <h1 className="text-xl font-semibold tracking-tight text-slate-900">
@@ -108,7 +113,7 @@ export default function RedeemInvitePage() {
           ? t("redeem.reason.expired")
           : t("redeem.reason.not_found");
     return (
-      <Shell email={email} onSignOut={() => void signOut()}>
+      <Shell email={email} onSignOut={session ? () => void signOut() : undefined}>
         <h1 className="text-xl font-semibold tracking-tight text-slate-900">
           {t("redeem.unavailable.title")}
         </h1>
@@ -117,7 +122,8 @@ export default function RedeemInvitePage() {
     );
   }
 
-  // Valid (or still previewing) → confirmation screen.
+  // Valid (or still previewing) invite — the preview shared by the logged-out
+  // "sign in to accept" screen and the signed-in "accept" screen.
   const valid = peek.data?.valid ? peek.data : null;
   const isWorkspace = valid?.kind === "workspace";
   const verticalLabel = valid
@@ -134,6 +140,29 @@ export default function RedeemInvitePage() {
         })
       : t("redeem.invited_as", { org: valid.orgName, role: valid.role ?? "" });
 
+  // Logged OUT + a token: show what they've been invited to, then send them to sign
+  // in and return straight here (the token was also stashed for the OAuth round-trip).
+  if (!session) {
+    return (
+      <Shell email={null} onSignOut={undefined}>
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+          {heading}
+        </h1>
+        <p className="mt-2 text-sm text-slate-600">{body}</p>
+        <button
+          type="button"
+          onClick={() =>
+            navigate("/login", { state: { from: { pathname: location.pathname } } })
+          }
+          className="mt-5 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+        >
+          {t("redeem.sign_in_to_accept")}
+        </button>
+      </Shell>
+    );
+  }
+
+  // Signed in + a valid token → the accept screen (existing members included; multi-org).
   return (
     <Shell
       email={email}
@@ -176,7 +205,7 @@ function Shell({
 }: {
   children: React.ReactNode;
   email: string | null;
-  onSignOut: () => void;
+  onSignOut?: () => void;
   signOutLabel?: string;
 }) {
   const t = useT();
@@ -190,6 +219,7 @@ function Shell({
       </div>
       <div className="mt-8 rounded-lg border border-slate-200 bg-white p-6">
         {children}
+        {onSignOut && (
         <div className="mt-6 border-t border-slate-100 pt-4">
           {email && (
             <p className="text-xs text-slate-400">
@@ -204,6 +234,7 @@ function Shell({
             {signOutLabel ?? t("redeem.sign_out")}
           </button>
         </div>
+        )}
       </div>
     </div>
   );
