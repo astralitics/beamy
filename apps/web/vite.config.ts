@@ -32,8 +32,6 @@ export default defineConfig(({ mode }) => {
   for (const key of [
     "DATABASE_URL",
     "BEAMY_DEV_USER_ID",
-    "BEAMY_DEV_USER_EMAIL",
-    "PLATFORM_ADMIN_EMAILS",
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
     "ANTHROPIC_API_KEY",
@@ -105,7 +103,7 @@ function trpcDevServerPlugin(opts: {
 
       // Supabase admin client for verifying user JWTs. Created lazily so
       // dev-from-zero (no .env keys) doesn't fail to boot.
-      let supabaseAdmin: { auth: { getUser: (t: string) => Promise<{ data: { user: { id: string; email?: string | null } | null } }> } } | null = null;
+      let supabaseAdmin: { auth: { getUser: (t: string) => Promise<{ data: { user: { id: string } | null } }> } } | null = null;
       if (opts.authEnabled) {
         const supabaseModule = await server.ssrLoadModule(
           "@supabase/supabase-js",
@@ -133,7 +131,7 @@ function trpcDevServerPlugin(opts: {
         if (!req.url || !req.url.startsWith("/api/trpc")) return next();
         try {
           const fetchReq = await nodeReqToFetch(req);
-          const { userId, userEmail } = await resolveUserId(
+          const userId = await resolveUserId(
             fetchReq,
             supabaseAdmin,
             opts.devUserId,
@@ -143,7 +141,7 @@ function trpcDevServerPlugin(opts: {
             endpoint: "/api/trpc",
             req: fetchReq,
             router: appRouter,
-            createContext: () => buildContext({ userId, activeOrgId, userEmail }),
+            createContext: () => buildContext({ userId, activeOrgId }),
           });
           await pipeFetchToNode(fetchRes, res);
         } catch (err) {
@@ -158,33 +156,32 @@ function trpcDevServerPlugin(opts: {
 
 async function resolveUserId(
   req: Request,
-  supabaseAdmin: { auth: { getUser: (t: string) => Promise<{ data: { user: { id: string; email?: string | null } | null } }> } } | null,
+  supabaseAdmin: { auth: { getUser: (t: string) => Promise<{ data: { user: { id: string } | null } }> } } | null,
   devUserId: string,
-): Promise<{ userId: string; userEmail: string | null }> {
-  // Dev fallback (no/unverifiable token): the email comes from BEAMY_DEV_USER_EMAIL so the
-  // dev user can be made a platform admin locally by also listing it in PLATFORM_ADMIN_EMAILS.
-  const devEmail = process.env.BEAMY_DEV_USER_EMAIL || null;
+): Promise<string> {
   const header = req.headers.get("authorization");
   if (!header || !header.toLowerCase().startsWith("bearer ")) {
-    return { userId: devUserId, userEmail: devEmail };
+    return devUserId;
   }
   if (!supabaseAdmin) {
+    // Header sent but server can't verify (no SUPABASE_SERVICE_ROLE_KEY).
+    // Fall back to dev user — surfaces in logs.
     console.warn(
       "[trpc] Authorization header present but Supabase admin not configured; falling back to dev user",
     );
-    return { userId: devUserId, userEmail: devEmail };
+    return devUserId;
   }
   const token = header.slice(7).trim();
   try {
     const { data } = await supabaseAdmin.auth.getUser(token);
     if (!data.user) {
       console.warn("[trpc] Supabase rejected token; falling back to dev user");
-      return { userId: devUserId, userEmail: devEmail };
+      return devUserId;
     }
-    return { userId: data.user.id, userEmail: data.user.email ?? null };
+    return data.user.id;
   } catch (err) {
     console.warn("[trpc] token verification threw:", err);
-    return { userId: devUserId, userEmail: devEmail };
+    return devUserId;
   }
 }
 

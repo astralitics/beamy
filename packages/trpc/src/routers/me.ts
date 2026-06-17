@@ -98,15 +98,6 @@ export const meRouter = router({
   }),
 
   /**
-   * Whether the signed-in user is a platform admin (in the PLATFORM_ADMIN_EMAILS
-   * allowlist) — the client uses this to reveal the cross-tenant admin surface.
-   * Server-computed from the verified email; never trusted from the request.
-   */
-  isPlatformAdmin: protectedProcedure.query(({ ctx }) => ({
-    isPlatformAdmin: ctx.isPlatformAdmin,
-  })),
-
-  /**
    * Authorization gate — Beamy's take on petfactory's `am_i_authorized` +
    * `provision_user_onboarding`, reconciled with the 1-user→1-org invariant
    * (D-12, so no "personal + demo workspaces" — one org per user).

@@ -42,7 +42,6 @@ import ServicesPage from "./pages/services";
 import SettingsPage from "./pages/settings";
 import VendorsPage from "./pages/vendors";
 import WorkflowsPage from "./pages/workflows";
-import AdminWorkspacesPage from "./pages/admin-workspaces";
 
 export default function App() {
   // Reset the query cache whenever the signed-in user changes. tRPC queries
@@ -184,7 +183,6 @@ function AppShell() {
           </Route>
 
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/admin/workspaces" element={<AdminWorkspacesPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         </main>

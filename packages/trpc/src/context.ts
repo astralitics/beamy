@@ -2,28 +2,6 @@ import { and, asc, eq } from "drizzle-orm";
 import { getDb, orgMemberships, orgs, type OrgRole } from "@beamy/db";
 
 /**
- * Platform-admin allowlist — a small set of operators who can see/enter/manage ALL
- * workspaces (cross-tenant). Granted SOLELY by the `PLATFORM_ADMIN_EMAILS` env var
- * (comma/space/newline-separated), checked against the JWT-verified email. NOT stored
- * in tenant data, never client-settable. Empty/unset ⟹ NOBODY is an admin (safe default).
- */
-function parsePlatformAdminEmails(): Set<string> {
-  const raw = process.env.PLATFORM_ADMIN_EMAILS ?? "";
-  return new Set(
-    raw
-      .split(/[,\s]+/)
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
-/** True iff this (server-verified) email is in the allowlist. Email-less / empty allowlist → false. */
-export function isPlatformAdminEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return parsePlatformAdminEmails().has(email.trim().toLowerCase());
-}
-
-/**
  * Context shape — built per request before handing off to procedures.
  *
  * `userId` is always present after auth (anonymous → 401 in `protectedProcedure`).
@@ -39,10 +17,6 @@ export function isPlatformAdminEmail(email: string | null | undefined): boolean 
 export interface BaseContext {
   userId: string | null;
   activeOrgId: string | null;
-  /** The server-verified email (from the Supabase JWT). Used only to compute platform-admin. */
-  userEmail: string | null;
-  /** Computed once per request from `userEmail` + the PLATFORM_ADMIN_EMAILS allowlist. */
-  isPlatformAdmin: boolean;
   actor: string;
 }
 
@@ -64,14 +38,10 @@ export interface OrgScopedContext extends AuthedContext {
 export function buildContext(opts: {
   userId: string | null;
   activeOrgId?: string | null;
-  userEmail?: string | null;
 }): BaseContext {
-  const userEmail = opts.userEmail ?? null;
   return {
     userId: opts.userId,
     activeOrgId: opts.activeOrgId ?? null,
-    userEmail,
-    isPlatformAdmin: isPlatformAdminEmail(userEmail),
     actor: opts.userId ? `user:${opts.userId}` : "anonymous",
   };
 }
@@ -85,23 +55,8 @@ export function buildContext(opts: {
 export async function resolveOrgMembership(
   userId: string,
   preferredOrgId?: string | null,
-  isPlatformAdmin = false,
 ) {
   const db = getDb();
-
-  // PLATFORM ADMIN ONLY: may activate ANY existing org, with `owner` synthesized for
-  // this request (never written to org_memberships). Normal users NEVER enter this
-  // branch — it is gated entirely on the server-computed isPlatformAdmin flag — so the
-  // membership enforcement below is unchanged for everyone else. If the requested org
-  // doesn't exist, fall through to the admin's own default membership.
-  if (isPlatformAdmin && preferredOrgId) {
-    const [org] = await db
-      .select({ orgId: orgs.id })
-      .from(orgs)
-      .where(eq(orgs.id, preferredOrgId))
-      .limit(1);
-    if (org) return { orgId: org.orgId, role: "owner" as OrgRole };
-  }
 
   if (preferredOrgId) {
     const [preferred] = await db

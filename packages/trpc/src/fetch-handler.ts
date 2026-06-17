@@ -25,29 +25,27 @@ const admin =
       })
     : null;
 
-async function resolveUser(
-  req: Request,
-): Promise<{ userId: string | null; userEmail: string | null }> {
+async function resolveUserId(req: Request): Promise<string | null> {
   const header = req.headers.get("authorization");
   if (!header || !header.toLowerCase().startsWith("bearer ") || !admin) {
-    return { userId: null, userEmail: null };
+    return null;
   }
   const token = header.slice(7).trim();
   try {
     const { data } = await admin.auth.getUser(token);
-    return { userId: data.user?.id ?? null, userEmail: data.user?.email ?? null };
+    return data.user?.id ?? null;
   } catch {
-    return { userId: null, userEmail: null };
+    return null;
   }
 }
 
 export async function handleTrpcRequest(req: Request): Promise<Response> {
-  const { userId, userEmail } = await resolveUser(req);
+  const userId = await resolveUserId(req);
   const activeOrgId = req.headers.get("x-active-org") || null;
   return fetchRequestHandler({
     endpoint: "/api/trpc",
     req,
     router: appRouter,
-    createContext: () => buildContext({ userId, activeOrgId, userEmail }),
+    createContext: () => buildContext({ userId, activeOrgId }),
   });
 }
