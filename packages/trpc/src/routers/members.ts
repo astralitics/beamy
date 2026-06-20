@@ -199,6 +199,18 @@ export const membersRouter = router({
             message: "That invite has expired. Ask your admin for a new one.",
           });
 
+        // Email gate: the invite is bound to the address it was sent to. The
+        // verified email (from the JWT, never client input) MUST match —
+        // otherwise a signed-in user could open someone else's invite link and
+        // absorb the membership into their own account. (Velada's invariant.)
+        const inviteEmail = inv.email.toLowerCase();
+        if ((ctx.userEmail?.toLowerCase() ?? null) !== inviteEmail) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `This invite is for ${inviteEmail}. Sign in with that account to accept it.`,
+          });
+        }
+
         // Multi-org: a user may belong to several workspaces. A "workspace"
         // invite always provisions a new org (no clash). A "member" invite
         // joins inv.orgId — refuse only if they're already in THAT org.

@@ -35,7 +35,11 @@ export const orgScopedProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
     // Honor the client's requested active org (x-active-org), validated against
     // the user's real memberships; falls back to their default org otherwise.
-    const membership = await resolveOrgMembership(ctx.userId, ctx.activeOrgId);
+    const membership = await resolveOrgMembership(
+      ctx.userId,
+      ctx.activeOrgId,
+      ctx.isPlatformAdmin,
+    );
     if (!membership) {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -69,3 +73,22 @@ export const orgAdminProcedure = orgScopedProcedure.use(({ ctx, next }) => {
   }
   return next({ ctx });
 });
+
+/**
+ * Cross-tenant platform-admin tier. Requires an authenticated user whose
+ * verified email is on the `PLATFORM_ADMIN_EMAILS` allowlist (computed in
+ * context, never client input). Intentionally NOT org-scoped — procedures on
+ * this tier operate across every tenant (see `routers/admin`). The
+ * membership-required path (orgScopedProcedure) is untouched for normal users.
+ */
+export const platformAdminProcedure = protectedProcedure.use(
+  ({ ctx, next }) => {
+    if (!ctx.isPlatformAdmin) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Platform admin required",
+      });
+    }
+    return next({ ctx });
+  },
+);

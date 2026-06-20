@@ -16,8 +16,33 @@ import { getDb, orgMemberships, orgs, type OrgRole } from "@beamy/db";
  */
 export interface BaseContext {
   userId: string | null;
+  /** Verified email from the JWT (resolved by the request handler). */
+  userEmail: string | null;
   activeOrgId: string | null;
   actor: string;
+  /**
+   * True when `userEmail` is on the `PLATFORM_ADMIN_EMAILS` allowlist. Platform
+   * admins are authorized without a membership and can operate across tenants
+   * via `platformAdminProcedure`. Computed server-side from the verified email —
+   * never client input — so it can't be spoofed.
+   */
+  isPlatformAdmin: boolean;
+}
+
+/**
+ * Comma/space-separated allowlist of platform-admin emails, lowercased. Empty /
+ * unset ⟹ nobody is a platform admin. The only out-of-band grant of cross-tenant
+ * power; mirrors Cadenza/Velada's `PLATFORM_ADMIN_EMAIL`, widened to a list.
+ */
+const PLATFORM_ADMIN_EMAILS: ReadonlySet<string> = new Set(
+  (process.env.PLATFORM_ADMIN_EMAILS ?? "")
+    .split(/[,\s]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+export function isPlatformAdminEmail(email: string | null | undefined): boolean {
+  return email != null && PLATFORM_ADMIN_EMAILS.has(email.toLowerCase());
 }
 
 export interface AuthedContext extends BaseContext {
@@ -37,12 +62,16 @@ export interface OrgScopedContext extends AuthedContext {
  */
 export function buildContext(opts: {
   userId: string | null;
+  userEmail?: string | null;
   activeOrgId?: string | null;
 }): BaseContext {
+  const userEmail = opts.userEmail ?? null;
   return {
     userId: opts.userId,
+    userEmail,
     activeOrgId: opts.activeOrgId ?? null,
     actor: opts.userId ? `user:${opts.userId}` : "anonymous",
+    isPlatformAdmin: isPlatformAdminEmail(userEmail),
   };
 }
 
@@ -51,10 +80,20 @@ export function buildContext(opts: {
  * memberships; we honor `preferredOrgId` (from the client) **only if** the user
  * is actually a member of it — otherwise we fall back to a deterministic default
  * (earliest joined). Returns null if the user belongs to no org.
+ *
+ * Platform-admin cross-tenant entry: when `isPlatformAdmin` is true and the
+ * caller explicitly requests a `preferredOrgId` they're NOT a real member of,
+ * we synthesize an `owner` membership for that org (if it exists) so the admin
+ * can operate inside any workspace. This is NEVER persisted, only ever runs
+ * when the server-computed `isPlatformAdmin` is true, and requires an explicit
+ * org request — so the normal membership path is byte-for-byte unchanged for
+ * everyone else, and an admin with no active-org request still resolves to null
+ * (→ routed to the console, not silently into a random tenant).
  */
 export async function resolveOrgMembership(
   userId: string,
   preferredOrgId?: string | null,
+  isPlatformAdmin = false,
 ) {
   const db = getDb();
 
@@ -70,6 +109,16 @@ export async function resolveOrgMembership(
       )
       .limit(1);
     if (preferred) return preferred;
+
+    // Cross-tenant: a platform admin entering a workspace they don't belong to.
+    if (isPlatformAdmin) {
+      const [org] = await db
+        .select({ id: orgs.id })
+        .from(orgs)
+        .where(eq(orgs.id, preferredOrgId))
+        .limit(1);
+      if (org) return { orgId: org.id, role: "owner" as const };
+    }
     // Fall through: requested org isn't one of theirs → use the default.
   }
 

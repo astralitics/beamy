@@ -1,4 +1,5 @@
 import { router } from "./init";
+import { adminRouter } from "./routers/admin";
 import { meRouter } from "./routers/me";
 import { activityRouter } from "./routers/activity";
 import { assetsRouter } from "./routers/assets";
@@ -25,6 +26,7 @@ import { workItemsRouter } from "./routers/work-items";
 import { workflowsRouter } from "./routers/workflows";
 
 export const appRouter = router({
+  admin: adminRouter,
   me: meRouter,
   activity: activityRouter,
   assets: assetsRouter,
