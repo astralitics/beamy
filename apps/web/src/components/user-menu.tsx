@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { trpc } from "../lib/trpc";
 import { useT } from "../lib/i18n";
 import { ProfileDialog } from "./profile-dialog";
 import { ChangePasswordDialog } from "./change-password-dialog";
@@ -14,7 +16,10 @@ import { ChangePasswordDialog } from "./change-password-dialog";
  */
 export function UserMenu() {
   const t = useT();
+  const navigate = useNavigate();
   const { session, signOut } = useAuth();
+  const authorize = trpc.me.authorize.useQuery(undefined, { retry: false });
+  const isPlatformAdmin = authorize.data?.isPlatformAdmin ?? false;
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
@@ -66,6 +71,18 @@ export function UserMenu() {
 
         {open && (
           <div className="absolute bottom-full left-0 right-0 z-40 mb-1.5 animate-rise overflow-hidden rounded-xl border border-ink-200/70 bg-white py-1.5 shadow-lift">
+            {isPlatformAdmin && (
+              <>
+                <MenuItem
+                  label="All workspaces"
+                  onClick={() => {
+                    setOpen(false);
+                    navigate("/admin/access");
+                  }}
+                />
+                <div className="my-1 border-t border-ink-100" />
+              </>
+            )}
             <MenuItem
               label={t("account.details")}
               onClick={() => {

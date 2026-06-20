@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./lib/auth";
 import { useT } from "./lib/i18n";
@@ -7,7 +7,9 @@ import { Sidebar } from "./components/sidebar";
 import { Icon } from "./components/ui";
 import { RequireAuth } from "./components/require-auth";
 import { OrgGate } from "./components/org-gate";
+import { AdminGate } from "./components/admin-gate";
 import { VerticalProvider } from "./lib/vertical";
+import AdminAccessPage from "./pages/admin";
 import HomePage from "./pages/home";
 import ClientsPage from "./pages/clients";
 import LoginPage from "./pages/login";
@@ -65,6 +67,17 @@ export default function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/invite/:token" element={<RedeemInvitePage />} />
       <Route path="/redeem" element={<RedeemInvitePage />} />
+      <Route path="/admin" element={<Navigate to="/admin/access" replace />} />
+      <Route
+        path="/admin/access"
+        element={
+          <RequireAuth>
+            <AdminGate>
+              <AdminAccessPage />
+            </AdminGate>
+          </RequireAuth>
+        }
+      />
       <Route
         path="/*"
         element={
