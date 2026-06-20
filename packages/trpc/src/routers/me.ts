@@ -151,19 +151,11 @@ export const meRouter = router({
       };
     }
 
-    // 2. Platform admin with no membership → still in (routes to the console).
-    if (ctx.isPlatformAdmin) {
-      return {
-        authorized: true as const,
-        hasMembership: false as const,
-        role: null,
-        org: null,
-        isPlatformAdmin: true as const,
-        pendingInviteToken: null as string | null,
-      };
-    }
-
-    // 3. Pending email-matched invite → authorized, route to /redeem.
+    // 2. Pending email-matched invite → route to /redeem to accept it. This is
+    //    checked BEFORE the platform-admin fallback so that an invited platform
+    //    admin still redeems their invite into a real membership, instead of
+    //    being short-circuited to the console (which left the invite stuck
+    //    "pending" forever).
     let pendingInviteToken: string | null = null;
     if (ctx.userEmail) {
       const [inv] = await db
@@ -180,14 +172,37 @@ export const meRouter = router({
         .limit(1);
       if (inv) pendingInviteToken = inv.token;
     }
+    if (pendingInviteToken) {
+      return {
+        authorized: true as const,
+        hasMembership: false as const,
+        role: null,
+        org: null,
+        isPlatformAdmin: ctx.isPlatformAdmin,
+        pendingInviteToken,
+      };
+    }
 
+    // 3. Platform admin with no membership + no invite → the console.
+    if (ctx.isPlatformAdmin) {
+      return {
+        authorized: true as const,
+        hasMembership: false as const,
+        role: null,
+        org: null,
+        isPlatformAdmin: true as const,
+        pendingInviteToken: null as string | null,
+      };
+    }
+
+    // 4. Not authorized — no membership, no invite, not an admin.
     return {
-      authorized: pendingInviteToken != null,
+      authorized: false as const,
       hasMembership: false as const,
       role: null,
       org: null,
       isPlatformAdmin: false as const,
-      pendingInviteToken,
+      pendingInviteToken: null as string | null,
     };
   }),
 });

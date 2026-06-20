@@ -31,11 +31,36 @@ import { redeemInvitation } from "../lib/redeem-invitation";
 export const membersRouter = router({
   list: orgScopedProcedure.query(async ({ ctx }) => {
     const db = getDb();
-    return await db
+    const rows = await db
       .select()
       .from(orgMemberships)
       .where(eq(orgMemberships.orgId, ctx.orgId))
       .orderBy(asc(orgMemberships.joinedAt));
+
+    // Resolve real names/emails from Supabase Auth so the roster shows people,
+    // not raw UUIDs (matches the platform-admin console). Falls back to ids if
+    // the service key isn't configured (dev-from-zero) or a row has no auth
+    // account (e.g. a local seed/phantom owner).
+    const usersById = new Map<string, { email: string | null; fullName: string | null }>();
+    try {
+      const { getSupabaseAdmin } = await import("../lib/supabase-admin");
+      const admin = getSupabaseAdmin();
+      const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      for (const u of data?.users ?? []) {
+        usersById.set(u.id, {
+          email: u.email ?? null,
+          fullName: (u.user_metadata?.full_name as string | undefined) ?? null,
+        });
+      }
+    } catch {
+      /* no service key / admin unavailable → fall back to ids below */
+    }
+
+    return rows.map((r) => ({
+      ...r,
+      email: usersById.get(r.userId)?.email ?? null,
+      fullName: usersById.get(r.userId)?.fullName ?? null,
+    }));
   }),
 
   listInvitations: orgScopedProcedure.query(async ({ ctx }) => {

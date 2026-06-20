@@ -82,8 +82,14 @@ export const adminRouter = router({
       return allOrgs.map((o) => ({ ...o, members: byOrg.get(o.id) ?? [] }));
     }),
 
-    /** All Supabase auth users (id + email + display name). Capped at 1000. */
+    /**
+     * EVERY Supabase auth login (capped 1000), each with the workspaces it
+     * belongs to. Includes accounts with NO membership (e.g. signed up but never
+     * joined) so they're visible + deletable — the app's only window into
+     * `auth.users`. Capped at 1000.
+     */
     users: platformAdminProcedure.query(async () => {
+      const db = getDb();
       const { getSupabaseAdmin } = await import("../lib/supabase-admin");
       const admin = getSupabaseAdmin();
       const { data, error } = await admin.auth.admin.listUsers({
@@ -95,13 +101,80 @@ export const adminRouter = router({
           code: "INTERNAL_SERVER_ERROR",
           message: error.message,
         });
+
+      const memberships = await db
+        .select({
+          userId: orgMemberships.userId,
+          orgId: orgMemberships.orgId,
+          role: orgMemberships.role,
+          orgName: orgs.name,
+        })
+        .from(orgMemberships)
+        .innerJoin(orgs, eq(orgs.id, orgMemberships.orgId));
+      const byUser = new Map<string, typeof memberships>();
+      for (const m of memberships) {
+        const arr = byUser.get(m.userId) ?? [];
+        arr.push(m);
+        byUser.set(m.userId, arr);
+      }
+
       return (data?.users ?? []).map((u) => ({
         id: u.id,
         email: u.email ?? null,
         fullName:
           (u.user_metadata?.full_name as string | undefined) ?? null,
+        memberships: (byUser.get(u.id) ?? []).map((m) => ({
+          orgId: m.orgId,
+          orgName: m.orgName,
+          role: m.role,
+        })),
       }));
     }),
+
+    /**
+     * Delete a login account ENTIRELY — the Supabase `auth.users` row AND all of
+     * its memberships ("remove from both"). This is the only place the app can
+     * delete a login. Refuses self-deletion. The auth row is removed last so a
+     * failure there doesn't leave us half-cleaned.
+     */
+    deleteUser: platformAdminProcedure
+      .input(z.object({ userId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        if (input.userId === ctx.userId)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "You cannot delete your own account.",
+          });
+        const db = getDb();
+        await db
+          .delete(orgMemberships)
+          .where(eq(orgMemberships.userId, input.userId));
+
+        const { getSupabaseAdmin } = await import("../lib/supabase-admin");
+        const admin = getSupabaseAdmin();
+        const { error } = await admin.auth.admin.deleteUser(input.userId);
+        if (error && !/not.?found/i.test(error.message ?? ""))
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: error.message ?? "Failed to delete the auth user.",
+          });
+
+        const [anchor] = await db
+          .select({ id: orgs.id })
+          .from(orgs)
+          .limit(1);
+        if (anchor) {
+          await db.insert(auditLog).values({
+            orgId: anchor.id,
+            actor: ctx.actor,
+            action: "user.deleted",
+            resourceType: "user",
+            resourceId: input.userId,
+            payload: { via: "platform_admin" },
+          });
+        }
+        return { ok: true as const };
+      }),
 
     /**
      * Audit a platform admin entering a workspace they don't belong to. The
