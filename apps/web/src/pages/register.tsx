@@ -1,43 +1,43 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { trpc } from "../lib/trpc";
 import { useT } from "../lib/i18n";
 import { Field, inputCls } from "./login";
 
 /**
- * RegisterPage — self-serve workspace creation (bootstrap).
+ * RegisterPage — create your LOGIN (Supabase auth account) only.
  *
- * Deliberately NOT linked from /login, which is invite-only (like petfactory).
- * This is how the FIRST owner of a brand-new workspace is created: sign up with
- * email + password, then provision the org. Everyone else joins via an invite
- * (/invite/:token). Mirrors petfactory's separate register route.
+ * Beamy is strictly invite-only: this page does NOT create a workspace. It
+ * exists so an invited person who doesn't yet have an account can make one,
+ * then have their email-matched invite grant them access (the `OrgGate` +
+ * pending-invite bridge takes over once a session lands). Workspaces are
+ * created by a platform admin, never here.
  */
+type LocationState = { from?: { pathname: string } };
+
 export default function RegisterPage() {
-  const t = useT();
   const { session, loading } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [orgName, setOrgName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const navigate = useNavigate();
-  const utils = trpc.useUtils();
-  const createOrg = trpc.orgs.create.useMutation();
 
-  if (!loading && session) return <Navigate to="/" replace />;
+  const from = (location.state as LocationState | null)?.from?.pathname ?? "/";
+
+  if (!loading && session) return <Navigate to={from} replace />;
 
   if (!supabaseConfigured) {
     return (
       <div className="mx-auto max-w-md p-10">
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-          <p className="font-medium">{t("register.supabase.title")}</p>
+          <p className="font-medium">Supabase isn't configured</p>
           <p className="mt-2">
-            {t("register.supabase.set")} <code>VITE_SUPABASE_URL</code>{" "}
-            {t("register.supabase.and")} <code>VITE_SUPABASE_ANON_KEY</code>{" "}
-            {t("register.supabase.in")} <code>.env</code>{" "}
-            {t("register.supabase.restart")}
+            Set <code>VITE_SUPABASE_URL</code> and{" "}
+            <code>VITE_SUPABASE_ANON_KEY</code> in <code>.env</code>, then
+            restart the dev server.
           </p>
         </div>
       </div>
@@ -54,17 +54,12 @@ export default function RegisterPage() {
         password,
       });
       if (suErr) throw suErr;
-      // Default org name = "<local-part>'s Workspace" if blank.
-      const localPart = email.split("@")[0] ?? "my";
-      const name = orgName.trim() || `${localPart}'s Workspace`;
-      const slug = slugify(name);
-      await createOrg.mutateAsync({ name, slug });
-      await utils.invalidate();
-      navigate("/", { replace: true });
+      // Session (if email confirmation is off) → the redirect above takes over;
+      // otherwise we send them to where they came from (their invite) so they
+      // can sign in once confirmed.
+      navigate(from, { replace: true });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t("register.error.fallback"),
-      );
+      setError(err instanceof Error ? err.message : "Could not create your account.");
     } finally {
       setSubmitting(false);
     }
@@ -79,14 +74,15 @@ export default function RegisterPage() {
         </span>
       </div>
       <h1 className="mt-6 text-xl font-semibold tracking-tight text-slate-900">
-        {t("register.title")}
+        Create your account
       </h1>
       <p className="mt-1 text-sm text-slate-600">
-        {t("register.lede")}
+        Sign up to accept your workspace invite. You'll join the workspace you
+        were invited to once you're signed in.
       </p>
 
       <form onSubmit={onSubmit} className="mt-6 space-y-3">
-        <Field label={t("register.field.email")}>
+        <Field label="Email">
           <input
             type="email"
             required
@@ -97,7 +93,7 @@ export default function RegisterPage() {
             autoComplete="email"
           />
         </Field>
-        <Field label={t("register.field.password")}>
+        <Field label="Password">
           <input
             type="password"
             required
@@ -108,39 +104,27 @@ export default function RegisterPage() {
             autoComplete="new-password"
           />
         </Field>
-        <Field label={t("register.field.workspace_name")}>
-          <input
-            value={orgName}
-            onChange={(e) => setOrgName(e.target.value)}
-            className={inputCls}
-            placeholder="Anderson Construction"
-          />
-        </Field>
         {error && <p className="text-sm text-rose-700">{error}</p>}
         <button
           type="submit"
           disabled={submitting}
           className="mt-2 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {submitting ? t("register.working") : t("register.create")}
+          {submitting ? "Working…" : "Create account"}
         </button>
       </form>
 
       <p className="mt-8 text-xs text-slate-400">
-        {t("register.have_workspace")}{" "}
-        <a href="/login" className="font-medium text-slate-600 hover:text-slate-900">
-          {t("login.sign_in")}
-        </a>
+        Already have an account?{" "}
+        <button
+          type="button"
+          onClick={() => navigate("/login", { state: { from: { pathname: from } } })}
+          className="font-medium text-slate-600 hover:text-slate-900"
+        >
+          Sign in
+        </button>
         .
       </p>
     </div>
   );
-}
-
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
 }

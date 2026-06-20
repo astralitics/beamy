@@ -35,7 +35,10 @@ async function resolveUser(
   const token = header.slice(7).trim();
   try {
     const { data } = await admin.auth.getUser(token);
-    return { userId: data.user?.id ?? null, userEmail: data.user?.email ?? null };
+    return {
+      userId: data.user?.id ?? null,
+      userEmail: data.user?.email ?? null,
+    };
   } catch {
     return { userId: null, userEmail: null };
   }
@@ -48,6 +51,6 @@ export async function handleTrpcRequest(req: Request): Promise<Response> {
     endpoint: "/api/trpc",
     req,
     router: appRouter,
-    createContext: () => buildContext({ userId, activeOrgId, userEmail }),
+    createContext: () => buildContext({ userId, userEmail, activeOrgId }),
   });
 }

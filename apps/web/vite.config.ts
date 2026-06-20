@@ -32,10 +32,9 @@ export default defineConfig(({ mode }) => {
   for (const key of [
     "DATABASE_URL",
     "BEAMY_DEV_USER_ID",
-    "BEAMY_DEV_USER_EMAIL",
-    "PLATFORM_ADMIN_EMAILS",
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
+    "PLATFORM_ADMIN_EMAILS",
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_MODEL",
     "EXTRACTION_MODEL",
@@ -133,7 +132,7 @@ function trpcDevServerPlugin(opts: {
         if (!req.url || !req.url.startsWith("/api/trpc")) return next();
         try {
           const fetchReq = await nodeReqToFetch(req);
-          const { userId, userEmail } = await resolveUserId(
+          const { userId, userEmail } = await resolveUser(
             fetchReq,
             supabaseAdmin,
             opts.devUserId,
@@ -143,7 +142,8 @@ function trpcDevServerPlugin(opts: {
             endpoint: "/api/trpc",
             req: fetchReq,
             router: appRouter,
-            createContext: () => buildContext({ userId, activeOrgId, userEmail }),
+            createContext: () =>
+              buildContext({ userId, userEmail, activeOrgId }),
           });
           await pipeFetchToNode(fetchRes, res);
         } catch (err) {
@@ -156,35 +156,39 @@ function trpcDevServerPlugin(opts: {
   };
 }
 
-async function resolveUserId(
+async function resolveUser(
   req: Request,
   supabaseAdmin: { auth: { getUser: (t: string) => Promise<{ data: { user: { id: string; email?: string | null } | null } }> } } | null,
   devUserId: string,
-): Promise<{ userId: string; userEmail: string | null }> {
-  // Dev fallback (no/unverifiable token): the email comes from BEAMY_DEV_USER_EMAIL so the
-  // dev user can be made a platform admin locally by also listing it in PLATFORM_ADMIN_EMAILS.
-  const devEmail = process.env.BEAMY_DEV_USER_EMAIL || null;
+): Promise<{ userId: string | null; userEmail: string | null }> {
   const header = req.headers.get("authorization");
   if (!header || !header.toLowerCase().startsWith("bearer ")) {
-    return { userId: devUserId, userEmail: devEmail };
+    // No token → dev user (no email, so never a platform admin in dev-bypass).
+    return { userId: devUserId, userEmail: null };
   }
   if (!supabaseAdmin) {
+    // Header sent but server can't verify (no SUPABASE_SERVICE_ROLE_KEY).
+    // Fall back to dev user — surfaces in logs.
     console.warn(
       "[trpc] Authorization header present but Supabase admin not configured; falling back to dev user",
     );
-    return { userId: devUserId, userEmail: devEmail };
+    return { userId: devUserId, userEmail: null };
   }
   const token = header.slice(7).trim();
   try {
     const { data } = await supabaseAdmin.auth.getUser(token);
     if (!data.user) {
-      console.warn("[trpc] Supabase rejected token; falling back to dev user");
-      return { userId: devUserId, userEmail: devEmail };
+      // A token WAS sent but is invalid/expired/orphaned. Do NOT fall back to
+      // the dev user — that silently downgrades a real (e.g. platform-admin)
+      // session to the seeded dev user, which is confusing and wrong. Return
+      // anonymous so protectedProcedure 401s and the client re-authenticates.
+      console.warn("[trpc] Supabase rejected token → anonymous (re-login needed)");
+      return { userId: null, userEmail: null };
     }
     return { userId: data.user.id, userEmail: data.user.email ?? null };
   } catch (err) {
-    console.warn("[trpc] token verification threw:", err);
-    return { userId: devUserId, userEmail: devEmail };
+    console.warn("[trpc] token verification threw → anonymous:", err);
+    return { userId: null, userEmail: null };
   }
 }
 

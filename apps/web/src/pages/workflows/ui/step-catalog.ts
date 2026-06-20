@@ -6,19 +6,12 @@
 export interface StepConfigField {
   key: string;
   label: string;
-  /** `connection` renders a picker of the org's stored Connections (credentials).
-   *  `cases` renders the switch cases editor (an array of { id, value, label? }).
-   *  `loopBody` renders the for-each body: an action picker + that action's nested config. */
-  kind: 'text' | 'textarea' | 'select' | 'connection' | 'cases' | 'loopBody';
+  /** `connection` renders a picker of the org's stored Connections (credentials). */
+  kind: 'text' | 'textarea' | 'select' | 'connection';
   placeholder?: string;
   options?: string[];
   hint?: string;
 }
-
-/** The action types offered as a `loop` body — single leaf actions (no human gates, control flow, or
- *  nested loops; the engine rejects those). Re-exported from the shared constant the engine enforces,
- *  so the picker and the runtime guard can never drift. */
-export { LOOP_BODY_TYPES } from '@beamy/shared';
 
 export interface StepTypeSpec {
   type: string;
@@ -116,26 +109,6 @@ export const STEP_CREATE_GROUPS: { group: string; items: StepTypeSpec[] }[] = [
         title: 'Branch',
         blurb: 'Split the flow: steps on the TRUE path run when the condition holds; FALSE-path steps run otherwise.',
         config: [{ key: 'condition', label: 'True when…', kind: 'text', placeholder: '${steps.review.output.approved}', hint: 'Reference a yes/no value from an earlier step. Empty / 0 / false / no → the false path. (An empty list reads as false, an empty object as true.)' }],
-      },
-      {
-        type: 'switch',
-        title: 'Switch',
-        blurb: 'Route to one of many paths: each case matches a value; anything unmatched takes the default path.',
-        config: [
-          { key: 'value', label: 'Value to check', kind: 'text', placeholder: '${steps.classify.output.tier}', hint: 'The value from an earlier step to match against the cases below. Matching ignores case and surrounding spaces.' },
-          { key: 'cases', label: 'Cases', kind: 'cases', hint: 'Each case routes a value to its own path. The first match wins; anything that matches nothing takes the default path.' },
-        ],
-      },
-      {
-        type: 'loop',
-        title: 'For each',
-        blurb: 'Repeat one action for every item in a list (email each vendor, draft a reply per RFI…).',
-        config: [
-          { key: 'items', label: 'List to repeat over', kind: 'text', placeholder: '${steps.fetch.output.rows} or ${inputs.vendors}', hint: 'An expression that resolves to a list. Each item runs the action below once.' },
-          { key: 'bodyConfig', label: 'For each item, do', kind: 'loopBody', hint: 'Pick the action to run per item; reference the current item with ${item}, ${item.field}, or ${itemIndex}.' },
-          { key: 'continueOnFail', label: 'Keep going if an item fails?', kind: 'select', options: ['no', 'yes'], hint: 'No = stop the whole run on the first failed item. Yes = record the error and keep going.' },
-          { key: 'maxIterations', label: 'Max items', kind: 'text', placeholder: '1000', hint: 'Safety cap (default 1000, max 10000).' },
-        ],
       },
       {
         type: 'delay',

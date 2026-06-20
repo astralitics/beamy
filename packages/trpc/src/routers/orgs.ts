@@ -1,21 +1,22 @@
 import { TRPCError } from "@trpc/server";
 import { auditLog, getDb, orgMemberships, orgs } from "@beamy/db";
 import { createOrgInputSchema } from "@beamy/shared";
-import { protectedProcedure, router } from "../init";
+import { platformAdminProcedure, router } from "../init";
 
 /**
- * `orgs` router — minimal org provisioning surface.
+ * `orgs` router — low-level org provisioning primitive.
  *
- * - `create` runs on `protectedProcedure` (auth required, but no existing
- *   org membership required). Called from the sign-up flow right after
- *   the Supabase user is created. Provisions the `orgs` row + an
- *   `org_memberships(role: "owner")` row in one transaction.
+ * - `create` runs on `platformAdminProcedure`. Beamy is strictly invite-only:
+ *   normal users can NOT self-create workspaces. Workspaces are provisioned by
+ *   a platform admin (the console's `admin.access.createWorkspace` is the
+ *   higher-level entry that also assigns an owner); this primitive remains for
+ *   admin/seed use.
  *
  * Future procedures (update, delete, transfer ownership) will land here
  * as they're needed.
  */
 export const orgsRouter = router({
-  create: protectedProcedure
+  create: platformAdminProcedure
     .input(createOrgInputSchema)
     .mutation(async ({ ctx, input }) => {
       const db = getDb();

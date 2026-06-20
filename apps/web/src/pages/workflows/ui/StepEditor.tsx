@@ -9,7 +9,7 @@ import {
   type WorkflowOutputType as OutputType,
 } from '@beamy/shared';
 import { STEP_TYPE_META } from './theme';
-import { ConfigFields, type ConnectionOption, type SwitchCaseRow } from './StepCreatorModal';
+import { ConfigFields, type ConnectionOption } from './StepCreatorModal';
 import { stepTypeSpec } from './step-catalog';
 import type { WfStep, WfStepOutput, WfVerification } from './types';
 
@@ -30,27 +30,14 @@ export function StepEditor({ step, siblings, connectionOptions, onSave, onDelete
   const set = (patch: Partial<WfStep>) => setDraft((d) => ({ ...d, ...patch }));
   const meta = stepTypeMeta(draft.type);
   const others = siblings.filter((s) => s.id !== draft.id);
-  // "Run on" gating: any branch or switch sibling offers a path to gate this step on. A branch offers
-  // its true/false paths; a switch offers one option per case + a "matches nothing" default.
+  // "Run on" gating: any branch sibling offers a true/false path to gate this step on.
   const branchSiblings = others.filter((s) => s.type === 'branch');
-  const switchSiblings = others.filter((s) => s.type === 'switch');
-  const controlSiblings = [...branchSiblings, ...switchSiblings];
   const runOnOptions = [
     { value: '', label: 'Always' },
     ...branchSiblings.flatMap((b) => [
       { value: `\${steps.${b.id}.output.onTrue}`, label: `When "${b.name ?? b.id}" is true` },
       { value: `\${steps.${b.id}.output.onFalse}`, label: `When "${b.name ?? b.id}" is false` },
     ]),
-    ...switchSiblings.flatMap((sw) => {
-      const cases = ((sw.config?.cases as SwitchCaseRow[] | undefined) ?? []).filter((c) => c.id);
-      return [
-        ...cases.map((c) => ({
-          value: `\${steps.${sw.id}.output.cases.${c.id}}`,
-          label: `When "${sw.name ?? sw.id}" = ${c.label?.trim() || c.value || c.id}`,
-        })),
-        { value: `\${steps.${sw.id}.output.default}`, label: `When "${sw.name ?? sw.id}" matches nothing` },
-      ];
-    }),
   ];
 
   return (
@@ -104,19 +91,19 @@ export function StepEditor({ step, siblings, connectionOptions, onSave, onDelete
           </Field>
         )}
 
-        {controlSiblings.length > 0 && (
-          <Field label="Run on" hint="Gate this step on a branch or switch path. To merge paths back together, run after the Branch/Switch itself — not after the arm steps (that would skip it).">
+        {branchSiblings.length > 0 && (
+          <Field label="Run on" hint="Gate this step on a branch's path. To merge both paths back together, run after the Branch itself — not after both the true and false steps (that would skip it).">
             <Select
               value={draft.when ?? ''}
               onChange={(v) => {
-                // Re-point the single control dependency: drop any branch/switch-sibling dep this gate
-                // added before, then add the newly-selected one. Adding it gives the canvas edge +
-                // cascade; the engine also orders by `when` so correctness doesn't depend on this.
-                const controlIds = new Set(controlSiblings.map((b) => b.id));
-                const kept = (draft.dependsOn ?? []).filter((d) => !controlIds.has(d));
+                // Re-point the single branch dependency: drop any branch-sibling dep this gate added
+                // before, then add the newly-selected one. Adding it gives the canvas edge + cascade;
+                // the engine also orders by `when` so correctness doesn't depend on this.
+                const branchIds = new Set(branchSiblings.map((b) => b.id));
+                const kept = (draft.dependsOn ?? []).filter((d) => !branchIds.has(d));
                 if (!v) { set({ when: undefined, dependsOn: kept }); return; }
-                const controlId = /^\$\{steps\.([^.}]+)\.output\./.exec(v)?.[1];
-                set({ when: v, dependsOn: controlId ? [...kept, controlId] : kept });
+                const branchId = /^\$\{steps\.([^.}]+)\.output\./.exec(v)?.[1];
+                set({ when: v, dependsOn: branchId ? [...kept, branchId] : kept });
               }}
               options={runOnOptions}
             />

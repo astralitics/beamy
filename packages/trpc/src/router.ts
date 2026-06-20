@@ -1,4 +1,5 @@
 import { router } from "./init";
+import { adminRouter } from "./routers/admin";
 import { meRouter } from "./routers/me";
 import { activityRouter } from "./routers/activity";
 import { assetsRouter } from "./routers/assets";
@@ -16,7 +17,6 @@ import { changeOrdersRouter } from "./routers/change-orders";
 import { extractionRouter } from "./routers/extraction";
 import { membersRouter } from "./routers/members";
 import { orgsRouter } from "./routers/orgs";
-import { platformAdminRouter } from "./routers/platform-admin";
 import { projectsRouter } from "./routers/projects";
 import { proposalsRouter } from "./routers/proposals";
 import { servicesRouter } from "./routers/services";
@@ -26,6 +26,7 @@ import { workItemsRouter } from "./routers/work-items";
 import { workflowsRouter } from "./routers/workflows";
 
 export const appRouter = router({
+  admin: adminRouter,
   me: meRouter,
   activity: activityRouter,
   assets: assetsRouter,
@@ -45,7 +46,6 @@ export const appRouter = router({
   services: servicesRouter,
   members: membersRouter,
   orgs: orgsRouter,
-  platformAdmin: platformAdminRouter,
   projects: projectsRouter,
   proposals: proposalsRouter,
   specs: specsRouter,

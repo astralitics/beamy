@@ -8,10 +8,6 @@
 export interface VarScope {
   inputs?: Record<string, unknown>;
   outputs?: Record<string, unknown>;
-  /** Inside a `loop` body only: the current item and its 0-based index, for `${item}` /
-   *  `${item.field}` / `${itemIndex}`. Absent outside a loop (those refs then resolve to undefined). */
-  item?: unknown;
-  itemIndex?: number;
 }
 
 /** Matches every `${...}` token in a string. Has the /g flag (stateful lastIndex) — only use it
@@ -24,10 +20,6 @@ function getPath(root: unknown, path: string[]): unknown {
   let cur: unknown = root;
   for (const key of path) {
     if (cur == null) return undefined;
-    // Only traverse OWN properties of objects/arrays — never inherited ones, so a path like
-    // `…cases.toString` can't resolve to Object.prototype.toString and read as truthy in a gate.
-    // Primitives (string/number) keep their normal member access (e.g. a string's `.length`).
-    if (typeof cur === "object" && !Object.prototype.hasOwnProperty.call(cur, key)) return undefined;
     cur = (cur as Record<string, unknown>)[key];
   }
   return cur;
@@ -39,8 +31,6 @@ export function resolveExpr(expr: string, scope: VarScope): unknown {
   if (parts.length === 0) return undefined;
   const [head, ...rest] = parts;
   if (head === "inputs") return getPath(scope.inputs ?? {}, rest);
-  if (head === "item") return getPath(scope.item, rest);
-  if (head === "itemIndex") return scope.itemIndex;
   if (head === "steps") {
     const stepId = rest[0];
     if (stepId == null) return undefined;
