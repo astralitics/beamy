@@ -19,6 +19,7 @@ const ROLES: Role[] = ["owner", "admin", "member"];
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type OrgRow = RouterOutputs["admin"]["access"]["orgs"][number];
 type Member = OrgRow["members"][number];
+type UserRow = RouterOutputs["admin"]["access"]["users"][number];
 
 /**
  * Platform-admin console — cross-tenant workspace + access management. Ported
@@ -46,6 +47,7 @@ export default function AdminAccessPage() {
   const [addTarget, setAddTarget] = useState<OrgRow | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ org: OrgRow; member: Member } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<OrgRow | null>(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<UserRow | null>(null);
 
   function refresh() {
     void utils.admin.access.orgs.invalidate();
@@ -69,8 +71,15 @@ export default function AdminAccessPage() {
       window.location.assign("/");
     },
   });
+  const deleteUser = trpc.admin.access.deleteUser.useMutation({
+    onSuccess: () => {
+      refresh();
+      setDeleteUserTarget(null);
+    },
+  });
 
   const orgs = orgsQuery.data ?? [];
+  const users = usersQuery.data ?? [];
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
@@ -162,6 +171,11 @@ export default function AdminAccessPage() {
                             {u?.email && u?.fullName && (
                               <div className="text-xs text-ink-400">{u.email}</div>
                             )}
+                            {!u && (
+                              <div className="text-xs text-amber-700">
+                                ⚠ no login account (orphaned / seed)
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-2.5">
                             <Select
@@ -203,6 +217,76 @@ export default function AdminAccessPage() {
         )}
       </div>
 
+      {/* All login accounts (auth.users) — incl. ones with no workspace. */}
+      <div className="mt-12">
+        <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
+          Users
+        </h2>
+        <p className="mt-1 text-sm text-ink-500">
+          Every login account on this deployment, and the workspaces they belong
+          to. "Delete account" removes the login and all its memberships.
+        </p>
+        <div className="mt-4 overflow-hidden rounded-xl border border-ink-200">
+          {usersQuery.isLoading ? (
+            <p className="px-4 py-5 text-sm text-ink-500">Loading users…</p>
+          ) : usersQuery.isError ? (
+            <p className="px-4 py-5 text-sm text-rose-700">
+              {usersQuery.error.message}
+            </p>
+          ) : users.length === 0 ? (
+            <p className="px-4 py-5 text-sm text-ink-400">No login accounts.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-400">
+                  <th className="px-4 py-2 font-medium">User</th>
+                  <th className="px-4 py-2 font-medium">Workspaces</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id} className="border-b border-ink-50 last:border-0">
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium text-ink-900">
+                        {u.fullName ?? u.email ?? u.id}
+                      </div>
+                      {u.email && u.fullName && (
+                        <div className="text-xs text-ink-400">{u.email}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {u.memberships.length === 0 ? (
+                        <span className="text-xs text-amber-700">
+                          ⚠ no workspace
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {u.memberships.map((m) => (
+                            <Pill key={m.orgId} tone="neutral">
+                              {m.orgName} · {m.role}
+                            </Pill>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setDeleteUserTarget(u)}
+                        className="text-xs font-medium text-rose-600 hover:text-rose-700"
+                      >
+                        Delete account
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
       {newOpen && (
         <NewWorkspaceDialog onClose={() => setNewOpen(false)} onDone={refresh} />
       )}
@@ -239,6 +323,23 @@ export default function AdminAccessPage() {
           org={deleteTarget}
           onClose={() => setDeleteTarget(null)}
           onDone={refresh}
+        />
+      )}
+      {deleteUserTarget && (
+        <ConfirmDialog
+          title="Delete account"
+          message={`Permanently delete the login ${
+            deleteUserTarget.email ?? deleteUserTarget.id
+          } and remove it from ${deleteUserTarget.memberships.length} workspace${
+            deleteUserTarget.memberships.length === 1 ? "" : "s"
+          }? This cannot be undone.`}
+          confirmLabel="Delete account"
+          cancelLabel="Cancel"
+          tone="danger"
+          loading={deleteUser.isPending}
+          error={deleteUser.error?.message}
+          onConfirm={() => deleteUser.mutate({ userId: deleteUserTarget.id })}
+          onClose={() => setDeleteUserTarget(null)}
         />
       )}
     </div>

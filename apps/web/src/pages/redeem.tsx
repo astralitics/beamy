@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { supabaseConfigured } from "../lib/supabase";
+import { supabase, supabaseConfigured } from "../lib/supabase";
 import { trpc } from "../lib/trpc";
 import { setActiveOrg } from "../lib/active-org";
 import { useT } from "../lib/i18n";
 import { VERTICAL_LABELS, type Vertical } from "@beamy/shared";
+
+const FIELD_CLS =
+  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
 
 /**
  * RedeemInvitePage — the invite landing (`/invite/:token`, `/redeem?token=…`).
@@ -32,6 +35,9 @@ export default function RedeemInvitePage() {
 
   const token = params.token?.trim() || sp.get("token")?.trim() || null;
   const [error, setError] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [signupErr, setSignupErr] = useState<string | null>(null);
 
   const accept = trpc.members.accept.useMutation({
     onSuccess: (data) => {
@@ -111,45 +117,131 @@ export default function RedeemInvitePage() {
         })
       : t("redeem.invited_as", { org: valid.orgName, role: valid.role ?? "" });
 
-  // Logged OUT + a token: show the invite, send them to sign in and return here.
+  // Logged OUT + a token. The invitee is (almost always) new, so lead straight
+  // with account creation — email is fixed to the invite (email-gated), they
+  // just pick a password (or use Google). On sign-up they're auto-joined.
   if (!session) {
+    // Wait for the invite preview before showing the form (need the email).
+    if (!valid) {
+      return (
+        <Shell email={null} onSignOut={undefined}>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+            {heading}
+          </h1>
+          <p className="mt-2 text-sm text-slate-600">
+            {t("redeem.loading_invitation")}
+          </p>
+        </Shell>
+      );
+    }
+    const acceptEmail = inviteEmail ?? "";
+    const busy = submitting || accept.isPending;
+
+    const createAndJoin = async (e: FormEvent) => {
+      e.preventDefault();
+      setSignupErr(null);
+      setSubmitting(true);
+      try {
+        const { data, error: suErr } = await supabase.auth.signUp({
+          email: acceptEmail,
+          password,
+        });
+        if (suErr) throw suErr;
+        if (data.session) {
+          // Confirmation disabled → signed in immediately → accept + land in.
+          accept.mutate({ token });
+        } else {
+          setSignupErr(
+            "Check your email to confirm your account, then reopen this link.",
+          );
+          setSubmitting(false);
+        }
+      } catch (err) {
+        setSignupErr(
+          err instanceof Error
+            ? /already registered/i.test(err.message)
+              ? "You already have an account — sign in instead."
+              : err.message
+            : "Could not create your account.",
+        );
+        setSubmitting(false);
+      }
+    };
+
+    const joinWithGoogle = async () => {
+      setSignupErr(null);
+      const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
+      });
+      if (oauthErr) setSignupErr(oauthErr.message);
+    };
+
     return (
       <Shell email={null} onSignOut={undefined}>
         <h1 className="text-xl font-semibold tracking-tight text-slate-900">
-          {heading}
+          {isWorkspace ? t("redeem.create_workspace") : "Create your account"}
         </h1>
         <p className="mt-2 text-sm text-slate-600">{body}</p>
-        {inviteEmail && (
-          <p className="mt-3 text-xs text-slate-500">
-            This invite is for <span className="font-medium">{inviteEmail}</span>.
-            Sign in with that account to accept it.
-          </p>
-        )}
+        <p className="mt-3 text-xs text-slate-500">
+          Joining as <span className="font-medium">{acceptEmail}</span>
+        </p>
+
         <button
           type="button"
-          onClick={() =>
-            navigate("/login", {
-              state: { from: { pathname: location.pathname + location.search } },
-            })
-          }
-          className="mt-5 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          onClick={() => void joinWithGoogle()}
+          disabled={busy}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
         >
-          Sign in to accept
+          Continue with Google
         </button>
-        <p className="mt-3 text-center text-xs text-slate-500">
-          New here?{" "}
+
+        <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
+          <span className="h-px flex-1 bg-slate-200" />
+          or set a password
+          <span className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <form onSubmit={createAndJoin} className="space-y-3">
+          <input
+            type="email"
+            value={acceptEmail}
+            readOnly
+            className={`${FIELD_CLS} bg-slate-50 text-slate-500`}
+          />
+          <input
+            type="password"
+            required
+            minLength={6}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Create a password"
+            autoFocus
+            autoComplete="new-password"
+            className={FIELD_CLS}
+          />
+          {signupErr && <p className="text-sm text-rose-700">{signupErr}</p>}
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {busy ? t("redeem.joining") : "Create account & join"}
+          </button>
+        </form>
+
+        <p className="mt-4 text-center text-xs text-slate-500">
+          Already have an account?{" "}
           <button
             type="button"
             onClick={() =>
-              navigate("/register", {
-                state: {
-                  from: { pathname: location.pathname + location.search },
-                },
+              navigate("/login", {
+                state: { from: { pathname: location.pathname + location.search } },
               })
             }
             className="font-medium text-slate-700 hover:text-slate-900"
           >
-            Create an account
+            Sign in
           </button>
         </p>
       </Shell>

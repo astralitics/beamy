@@ -177,20 +177,25 @@ function RolePill({ role }: { role: OrgRole | InviteRole }) {
 
 function MemberItem({ member, isMe }: { member: MemberRow; isMe: boolean }) {
   const t = useT();
+  // Prefer a real name, then email, then the raw id (seed/phantom rows).
+  const primary =
+    member.fullName ??
+    member.email ??
+    `${member.userId.slice(0, 8)}…${member.userId.slice(-4)}`;
+  const showEmailLine = Boolean(member.fullName && member.email);
   return (
     <div className="flex items-center gap-3 px-4 py-3 text-sm">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-xs text-slate-700">
-            {member.userId.slice(0, 8)}…{member.userId.slice(-4)}
-          </span>
+          <span className="truncate font-medium text-slate-800">{primary}</span>
           {isMe && (
             <span className="text-xs font-medium text-slate-500">
               {t("settings.you")}
             </span>
           )}
         </div>
-        <div className="mt-0.5 text-xs text-slate-500">
+        <div className="mt-0.5 truncate text-xs text-slate-500">
+          {showEmailLine && <span>{member.email} · </span>}
           {t("settings.joined", {
             date: new Date(member.joinedAt).toLocaleDateString(),
           })}
