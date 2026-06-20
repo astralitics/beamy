@@ -17,11 +17,13 @@
     "check-rls": "tsx --env-file=../../.env src/check-rls.ts",
     "check-rls:ci": "tsx src/check-rls.ts",
     "seed": "tsx --env-file=../../.env src/seed.ts",
+    "provision-admins": "tsx --env-file=../../.env scripts/provision-admins.ts",
     "import-propuesta": "tsx --env-file=../../.env scripts/import-propuesta.ts",
     "seed-polanco": "tsx --env-file=../../.env scripts/seed-polanco.ts",
     "seed-demo": "tsx --env-file=../../.env scripts/seed-demo.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.4",
     "drizzle-orm": "^0.36.4",
     "postgres": "^3.4.5"
   },
