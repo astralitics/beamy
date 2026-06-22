@@ -59,10 +59,10 @@ export default function ProjectProposalDetail() {
 
   if (!proposalId) return null;
   if (proposalQ.isLoading) {
-    return <p className="text-xs text-slate-500">{t("common.loading")}</p>;
+    return <p className="text-xs text-text-muted">{t("common.loading")}</p>;
   }
   if (proposalQ.error) {
-    return <p className="text-xs text-rose-700">{proposalQ.error.message}</p>;
+    return <p className="text-xs text-danger">{proposalQ.error.message}</p>;
   }
   const p = proposalQ.data;
   if (!p) return null;
@@ -92,8 +92,8 @@ export default function ProjectProposalDetail() {
         {t("proposal.back")}
       </Link>
 
-      <div className="mt-3 overflow-hidden rounded-lg border border-paper-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between gap-4 border-b border-paper-200 px-5 py-3">
+      <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+        <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-3">
           <p className="text-[10px] uppercase tracking-[0.15em] text-slate-400">
             <span className="text-slate-700">{p.number}</span>
             <span className="mx-2 text-slate-300">|</span>
@@ -123,7 +123,7 @@ export default function ProjectProposalDetail() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 divide-y divide-paper-200 border-t border-paper-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div className="grid grid-cols-1 divide-y divide-border border-t border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <Fact label={t("proposal.fact_total")}>
             {p.totalAmount && p.totalCurrency
               ? fmt.currency(p.totalAmount, p.totalCurrency)
@@ -142,7 +142,7 @@ export default function ProjectProposalDetail() {
             type="button"
             onClick={() => transition.mutate({ id: p.id, to: advanceTo })}
             disabled={transition.isPending}
-            className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-paper-50 disabled:opacity-50"
+            className="rounded-xl bg-accent px-3 py-1.5 text-xs font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
           >
             {t("proposal.mark_status", {
               status: L.proposalStatus(advanceTo).toLowerCase(),
@@ -154,7 +154,7 @@ export default function ProjectProposalDetail() {
             type="button"
             onClick={() => transition.mutate({ id: p.id, to: "rejected" })}
             disabled={transition.isPending}
-            className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-paper-50 disabled:opacity-50"
+            className="rounded-xl border border-border bg-surface px-3 py-1.5 text-xs font-medium text-danger hover:bg-bg-subtle disabled:opacity-50"
           >
             {t("proposal.mark_status", {
               status: L.proposalStatus("rejected").toLowerCase(),
@@ -173,7 +173,7 @@ export default function ProjectProposalDetail() {
           type="button"
           onClick={() => setConfirmingDelete(true)}
           disabled={remove.isPending}
-          className="ml-auto text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
+          className="ml-auto text-xs text-danger hover:text-danger disabled:opacity-50"
         >
           {remove.isPending ? "…" : t("proposal.delete")}
         </button>
@@ -193,7 +193,7 @@ export default function ProjectProposalDetail() {
       </div>
 
       {htmlQ.isLoading && (
-        <p className="mt-5 text-xs text-slate-500">
+        <p className="mt-5 text-xs text-text-muted">
           {t("proposal.preview_loading")}
         </p>
       )}
@@ -201,35 +201,35 @@ export default function ProjectProposalDetail() {
         <ClientPreview html={htmlQ.data.html} filename={`${p.number}.html`} />
       )}
 
-      <div className="mt-5 overflow-hidden rounded-md border border-paper-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-paper-50 text-left">
-            <tr className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-              <th className="px-3 py-2">{t("proposal.col.section")}</th>
-              <th className="px-3 py-2">{t("col.description")}</th>
-              <th className="px-3 py-2">{t("proposal.col.rooms")}</th>
-              <th className="px-3 py-2 text-right">{t("col.qty")}</th>
-              <th className="px-3 py-2 text-right">{t("proposal.col.unit")}</th>
-              <th className="px-3 py-2 text-right">{t("proposal.col.total")}</th>
+      <div className="data-table mt-5">
+        <table>
+          <thead>
+            <tr>
+              <th>{t("proposal.col.section")}</th>
+              <th>{t("col.description")}</th>
+              <th>{t("proposal.col.rooms")}</th>
+              <th className="r">{t("col.qty")}</th>
+              <th className="r">{t("proposal.col.unit")}</th>
+              <th className="r">{t("proposal.col.total")}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-paper-200">
+          <tbody>
             {p.lines.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-4 text-xs text-slate-500">
+                <td colSpan={6} className="text-xs text-text-muted">
                   {t("proposal.no_lines")}
                 </td>
               </tr>
             ) : (
               p.lines.map((line) => (
                 <tr key={line.id} className="align-top">
-                  <td className="whitespace-nowrap px-3 py-2 text-[10px] uppercase tracking-wide text-safety-700">
+                  <td className="whitespace-nowrap text-[10px] uppercase tracking-wide text-safety-700">
                     {line.sectionLabel ?? "—"}
                   </td>
-                  <td className="px-3 py-2 text-blueprint-900">
+                  <td className="text-text">
                     {line.displayDescription}
                   </td>
-                  <td className="px-3 py-2">
+                  <td>
                     {line.roomNames && line.roomNames.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {line.roomNames.map((r, i) => (
@@ -242,20 +242,20 @@ export default function ProjectProposalDetail() {
                         ))}
                       </div>
                     ) : (
-                      <span className="text-slate-300">—</span>
+                      <span className="text-text-faint">—</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px]">
+                  <td className="r whitespace-nowrap font-mono text-[12px]">
                     {line.displayQty
                       ? `${trimQty(line.displayQty)}${line.displayUnit ? ` ${line.displayUnit}` : ""}`
                       : "—"}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px]">
+                  <td className="r whitespace-nowrap font-mono text-[12px]">
                     {line.displayUnitPrice
                       ? fmt.currency(line.displayUnitPrice, line.currency)
                       : "—"}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px] font-medium">
+                  <td className="r whitespace-nowrap font-mono text-[12px] font-medium">
                     {line.displayTotal
                       ? fmt.currency(line.displayTotal, line.currency)
                       : "—"}
@@ -265,15 +265,15 @@ export default function ProjectProposalDetail() {
             )}
           </tbody>
           {sub != null && (
-            <tfoot className="bg-paper-50 text-[12px]">
-              <tr className="border-t border-paper-200">
+            <tfoot className="bg-bg-subtle/45 text-[12px]">
+              <tr className="border-t border-border">
                 <td
                   colSpan={5}
-                  className="px-3 py-1.5 text-right uppercase tracking-wider text-slate-500"
+                  className="px-5 py-1.5 text-right uppercase tracking-wider text-text-muted"
                 >
                   {t("proposal.sum_subtotal")}
                 </td>
-                <td className="px-3 py-1.5 text-right font-mono">
+                <td className="px-5 py-1.5 text-right font-mono">
                   {fmt.currency(p.subtotalAmount ?? "0", cur)}
                 </td>
               </tr>
@@ -281,11 +281,11 @@ export default function ProjectProposalDetail() {
                 <tr>
                   <td
                     colSpan={5}
-                    className="px-3 py-1.5 text-right uppercase tracking-wider text-slate-500"
+                    className="px-5 py-1.5 text-right uppercase tracking-wider text-text-muted"
                   >
                     {t("proposal.sum_markup", { pct: mPct })}
                   </td>
-                  <td className="px-3 py-1.5 text-right font-mono">
+                  <td className="px-5 py-1.5 text-right font-mono">
                     {fmt.currency(mAmt.toFixed(2), cur)}
                   </td>
                 </tr>
@@ -294,23 +294,23 @@ export default function ProjectProposalDetail() {
                 <tr>
                   <td
                     colSpan={5}
-                    className="px-3 py-1.5 text-right uppercase tracking-wider text-slate-500"
+                    className="px-5 py-1.5 text-right uppercase tracking-wider text-text-muted"
                   >
                     {t("proposal.sum_discount")}
                   </td>
-                  <td className="px-3 py-1.5 text-right font-mono">
+                  <td className="px-5 py-1.5 text-right font-mono">
                     −{fmt.currency(dAmt.toFixed(2), cur)}
                   </td>
                 </tr>
               )}
-              <tr className="border-t border-paper-200 font-semibold text-blueprint-900">
+              <tr className="border-t border-border font-semibold text-text">
                 <td
                   colSpan={5}
-                  className="px-3 py-2 text-right uppercase tracking-wider"
+                  className="px-5 py-2 text-right uppercase tracking-wider"
                 >
                   {t("proposal.sum_total")}
                 </td>
-                <td className="px-3 py-2 text-right font-mono">
+                <td className="px-5 py-2 text-right font-mono">
                   {p.totalAmount ? fmt.currency(p.totalAmount, cur) : "—"}
                 </td>
               </tr>
@@ -325,10 +325,10 @@ export default function ProjectProposalDetail() {
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="px-5 py-3">
-      <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-slate-400">
+      <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-text-faint">
         {label}
       </p>
-      <p className="mt-1 truncate text-sm font-medium text-blueprint-900">
+      <p className="mt-1 truncate text-sm font-medium text-text">
         {children}
       </p>
     </div>
@@ -379,13 +379,13 @@ function ClientPreview({
   }
 
   return (
-    <div className="mt-5 overflow-hidden rounded-lg border border-paper-200 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-paper-200 px-4 py-2.5">
+    <div className="mt-5 overflow-hidden rounded-2xl border border-border bg-surface">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2.5">
         <div>
-          <p className="text-xs font-medium text-blueprint-900">
+          <p className="text-xs font-medium text-text">
             {t("proposal.preview")}
           </p>
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[10px] text-text-faint">
             {t("proposal.preview_hint")}
           </p>
         </div>
@@ -393,14 +393,14 @@ function ClientPreview({
           <button
             type="button"
             onClick={print}
-            className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-paper-50"
+            className="rounded-xl border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text-muted hover:bg-bg-subtle"
           >
             {t("proposal.print")}
           </button>
           <button
             type="button"
             onClick={download}
-            className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-paper-50"
+            className="rounded-xl border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text-muted hover:bg-bg-subtle"
           >
             {t("proposal.download_html")}
           </button>
@@ -410,7 +410,7 @@ function ClientPreview({
         ref={iframeRef}
         title={t("proposal.preview")}
         srcDoc={html}
-        className="h-[720px] w-full border-0 bg-paper-50"
+        className="h-[720px] w-full border-0 bg-bg-subtle"
       />
     </div>
   );

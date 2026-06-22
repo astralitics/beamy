@@ -45,7 +45,7 @@ export default function ProjectProposals() {
           <button
             type="button"
             onClick={() => setGenerating(true)}
-            className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-contrast hover:bg-accent-hover"
           >
             {t("proposals.generate_new")}
           </button>
@@ -64,9 +64,9 @@ export default function ProjectProposals() {
         {list.isLoading ? (
           <p className="text-xs text-slate-500">{t("common.loading")}</p>
         ) : list.error ? (
-          <p className="text-xs text-rose-700">{list.error.message}</p>
+          <p className="text-xs text-danger">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
-          <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
+          <p className="rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
             {t("proposals.empty_prefix")} <strong>{t("proposals.generate_new")}</strong>{" "}
             {t("proposals.empty_suffix")}
           </p>
@@ -103,7 +103,7 @@ function ProposalCard({
   return (
     <Link
       to={`/projects/${projectId}/proposals/${proposal.id}`}
-      className="block rounded-md border border-paper-200 bg-white p-3 hover:border-paper-300 hover:shadow-sm"
+      className="block rounded-xl border border-border bg-surface p-3 hover:border-border-strong hover:shadow-sm"
     >
       <div className="flex items-baseline gap-3">
         <span className="text-[11px] uppercase tracking-wider text-slate-500">
@@ -262,7 +262,7 @@ function GenerateForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-4 rounded-md border border-paper-200 bg-white p-4"
+      className="mt-4 rounded-2xl border border-border bg-surface p-4"
     >
       <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
         {t("proposals.form_eyebrow")}
@@ -358,8 +358,8 @@ function GenerateForm({
       <p className="mt-4 text-[10px] uppercase tracking-[0.12em] text-slate-500">
         {t("proposals.picker_header")}
       </p>
-      <div className="mt-1 rounded-md border border-paper-200">
-        <div className="flex items-center justify-between border-b border-paper-200 px-3 py-2">
+      <div className="mt-1 rounded-xl border border-border">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <label className="flex cursor-pointer select-none items-center gap-2">
             <input
               type="checkbox"
@@ -369,9 +369,9 @@ function GenerateForm({
               checked={allSelected}
               onChange={toggleAll}
               disabled={allEligible.length === 0}
-              className="h-4 w-4 accent-ink-900"
+              className="h-4 w-4 accent-accent"
             />
-            <span className="text-xs font-medium text-slate-700">
+            <span className="text-xs font-medium text-text-muted">
               {t("proposals.select_all")}
             </span>
           </label>
@@ -381,7 +381,7 @@ function GenerateForm({
             </span>
           )}
         </div>
-        <div className="max-h-72 overflow-y-auto divide-y divide-paper-200">
+        <div className="max-h-72 overflow-y-auto divide-y divide-border-subtle">
           {items.isLoading ? (
             <p className="p-3 text-xs text-slate-500">{t("common.loading")}</p>
           ) : allEligible.length === 0 ? (
@@ -427,19 +427,19 @@ function GenerateForm({
         </div>
       )}
 
-      {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
       <div className="mt-3 flex justify-end gap-2">
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
+          className="rounded-xl border border-border px-3 py-1 text-xs hover:bg-bg-subtle"
         >
           {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={generate.isPending}
-          className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-xl bg-accent px-3 py-1 text-xs font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
         >
           {generate.isPending ? t("proposals.generating") : t("proposals.generate_submit")}
         </button>
@@ -474,7 +474,7 @@ function WorkItemPickerRow({
   const cur = item.unitPriceCurrency ?? item.totalCurrency ?? "MXN";
 
   return (
-    <label className="flex cursor-pointer items-start gap-3 px-3 py-2 text-sm hover:bg-paper-50">
+    <label className="flex cursor-pointer items-start gap-3 px-3 py-2 text-sm hover:bg-bg-subtle">
       <input
         type="checkbox"
         checked={checked}
@@ -520,7 +520,7 @@ function WorkItemPickerRow({
 // ───────────────────────────────────── primitives ─────────────
 
 const inputCls =
-  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
+  "block w-full rounded-xl border border-border bg-surface px-3.5 h-10 text-[14px] text-text placeholder:text-text-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 function Field({
   label,
@@ -533,7 +533,7 @@ function Field({
 }) {
   return (
     <label className={`block text-sm ${wide ? "sm:col-span-2" : ""}`}>
-      <span className="text-slate-700">{label}</span>
+      <span className="text-text-muted">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );
@@ -552,8 +552,8 @@ function SumRow({
     <div
       className={`flex items-baseline justify-between ${
         strong
-          ? "border-t border-paper-200 pt-1.5 text-blueprint-900"
-          : "text-slate-500"
+          ? "border-t border-border pt-1.5 text-text"
+          : "text-text-muted"
       }`}
     >
       <span className="text-[11px] uppercase tracking-wider">{label}</span>

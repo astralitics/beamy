@@ -1,9 +1,21 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import type { BillingUnit, ServiceStatus } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
 import { useT } from "../lib/i18n";
+import { EmptyState } from "../components/vertical-mark";
+import {
+  Button,
+  Field,
+  Icon,
+  Input,
+  Modal,
+  PageHeader,
+  Pill,
+  Select,
+  Textarea,
+} from "../components/ui";
 
 type ServiceRow = inferRouterOutputs<AppRouter>["services"]["list"][number];
 type StatusFilter = ServiceStatus | "all";
@@ -39,103 +51,117 @@ export default function ServicesPage() {
   });
 
   return (
-    <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-10">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {t("nav.services")}
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">{t("services.lede")}</p>
+    <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-6 lg:px-10 lg:py-14">
+      <PageHeader
+        title={t("nav.services")}
+        lede={t("services.lede")}
+        action={
+          <Button
+            variant="primary"
+            onClick={() => setModalState({ mode: "create" })}
+          >
+            <Icon name="plus" className="h-4 w-4" />
+            {t("services.new")}
+          </Button>
+        }
+      />
+
+      <div className="mt-8 flex flex-wrap items-center gap-2">
+        <div className="w-44">
+          <Select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+          >
+            <option value="active">{t("services.filter.active")}</option>
+            <option value="archived">{t("services.filter.archived")}</option>
+            <option value="all">{t("services.filter.all")}</option>
+          </Select>
         </div>
-        <button
-          onClick={() => setModalState({ mode: "create" })}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          {t("services.new")}
-        </button>
+        <div className="relative min-w-[240px] flex-1">
+          <Icon
+            name="search"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-faint"
+          />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("services.search")}
+            className="pl-10"
+          />
+        </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-3">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-          className={selectCls}
-        >
-          <option value="active">{t("services.filter.active")}</option>
-          <option value="archived">{t("services.filter.archived")}</option>
-          <option value="all">{t("services.filter.all")}</option>
-        </select>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t("services.search")}
-          className="flex-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
-        />
-      </div>
-
-      <div className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white">
-        {list.isLoading ? (
-          <p className="p-6 text-sm text-slate-500">{t("common.loading")}</p>
-        ) : list.error ? (
-          <p className="p-6 text-sm text-rose-700">{list.error.message}</p>
-        ) : !list.data || list.data.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">
-            {search.trim()
-              ? t("services.empty_filtered")
-              : statusFilter === "archived"
-                ? t("services.empty_archived")
-                : t("services.empty")}
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
+      {list.isLoading ? (
+        <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center text-text-muted">
+          {t("common.loading")}
+        </div>
+      ) : list.error ? (
+        <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center text-danger">
+          {list.error.message}
+        </div>
+      ) : !list.data || list.data.length === 0 ? (
+        <div className="mt-6">
+          <EmptyState
+            title={
+              search.trim()
+                ? t("services.empty_filtered")
+                : statusFilter === "archived"
+                  ? t("services.empty_archived")
+                  : t("services.empty")
+            }
+          />
+        </div>
+      ) : (
+        <div className="data-table mt-6">
+          <table>
+            <thead>
               <tr>
-                <Th>{t("col.name")}</Th>
-                <Th>{t("services.col.default_rate")}</Th>
-                <Th>{t("services.col.tags")}</Th>
-                <Th className="w-24">{t("col.status")}</Th>
-                <Th className="w-28">{t("col.updated")}</Th>
-                <Th className="w-24 text-right">{t("services.col.actions")}</Th>
+                <th>{t("col.name")}</th>
+                <th>{t("services.col.default_rate")}</th>
+                <th>{t("services.col.tags")}</th>
+                <th className="w-24">{t("col.status")}</th>
+                <th className="w-28 r">{t("col.updated")}</th>
+                <th className="w-24 r">{t("services.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
               {list.data.map((s) => (
                 <tr
                   key={s.id}
-                  className="cursor-pointer border-b border-slate-100 last:border-b-0 hover:bg-slate-50"
+                  className="clickable group"
                   onClick={() => setModalState({ mode: "edit", service: s })}
                 >
-                  <Td>
-                    <div className="font-medium text-slate-900">{s.name}</div>
+                  <td>
+                    <div className="font-medium">{s.name}</div>
                     {s.description && (
-                      <div className="mt-0.5 truncate text-xs text-slate-500">
+                      <div className="mt-0.5 truncate text-xs text-text-muted">
                         {s.description}
                       </div>
                     )}
-                  </Td>
-                  <Td className="text-slate-600">
+                  </td>
+                  <td className="text-text-muted">
                     {s.defaultRateAmount && s.defaultRateCurrency
                       ? `${s.defaultRateAmount} ${s.defaultRateCurrency} ${unitLabel(s.billingUnit)}`
                       : unitLabel(s.billingUnit)}
-                  </Td>
-                  <Td className="text-slate-600">
+                  </td>
+                  <td className="text-text-muted">
                     {s.tags.length > 0 ? s.tags.join(", ") : "—"}
-                  </Td>
-                  <Td>
+                  </td>
+                  <td>
                     <StatusPill status={s.status} />
-                  </Td>
-                  <Td className="text-slate-500">
+                  </td>
+                  <td className="r whitespace-nowrap text-text-muted">
                     {new Date(s.updatedAt).toLocaleDateString()}
-                  </Td>
-                  <Td className="text-right">
+                  </td>
+                  <td className="r">
                     <RowActions service={s} />
-                  </Td>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
 
       {modalState.mode !== "closed" && (
         <ServiceFormModal
@@ -147,43 +173,11 @@ export default function ServicesPage() {
   );
 }
 
-function Th({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 ${className}`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return <td className={`px-4 py-3 ${className}`}>{children}</td>;
-}
-
 function StatusPill({ status }: { status: ServiceStatus }) {
-  const cls =
-    status === "active"
-      ? "bg-emerald-100 text-emerald-800"
-      : "bg-slate-100 text-slate-700";
   return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
-    >
+    <Pill tone={status === "active" ? "success" : "neutral"} dot>
       {status}
-    </span>
+    </Pill>
   );
 }
 
@@ -208,7 +202,7 @@ function RowActions({ service }: { service: ServiceRow }) {
         }
       }}
       disabled={pending}
-      className="text-xs text-slate-500 hover:text-slate-900 disabled:opacity-50"
+      className="text-xs text-text-muted hover:text-text disabled:opacity-50"
     >
       {pending
         ? "…"
@@ -294,129 +288,100 @@ function ServiceFormModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
-      onClick={onClose}
-    >
-      <form
-        onSubmit={onSubmit}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl"
-      >
-        <h2 className="text-lg font-semibold tracking-tight">
-          {isEdit ? t("services.edit_title") : t("services.new_title")}
-        </h2>
-        <div className="mt-4 space-y-3">
-          <Field label={t("services.field.name")}>
-            <input
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={inputCls}
-              placeholder="e.g. Kitchen renovation"
-              autoFocus
-            />
-          </Field>
-          <Field label={t("services.field.description")}>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className={inputCls}
-              placeholder={t("services.field.description_ph")}
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t("services.field.default_rate")}>
-              <div className="flex gap-2">
-                <input
-                  value={defaultRateAmount}
-                  onChange={(e) => setDefaultRateAmount(e.target.value)}
-                  className={`${inputCls} flex-1`}
-                  placeholder="125.00"
-                  inputMode="decimal"
-                />
-                <input
-                  value={defaultRateCurrency}
-                  onChange={(e) =>
-                    setDefaultRateCurrency(e.target.value.toUpperCase())
-                  }
-                  className={`${inputCls} w-16 uppercase`}
-                  placeholder="USD"
-                  maxLength={3}
-                />
-              </div>
-            </Field>
-            <Field label={t("services.field.billing_unit")}>
-              <select
-                value={billingUnit}
-                onChange={(e) =>
-                  setBillingUnit(e.target.value as BillingUnit)
-                }
-                className={selectCls}
-              >
-                {BILLING_UNITS.map((u) => (
-                  <option key={u} value={u}>
-                    {unitLabel(u)}
-                  </option>
-                ))}
-              </select>
-            </Field>
+    <Modal
+      title={isEdit ? t("services.edit_title") : t("services.new_title")}
+      onClose={onClose}
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-danger">{error}</p>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="submit"
+              form="service-form"
+              variant="primary"
+              disabled={submitting}
+            >
+              {submitting
+                ? t("common.saving")
+                : isEdit
+                  ? t("common.save")
+                  : t("common.create")}
+            </Button>
           </div>
-          <Field label={t("services.field.tags")}>
-            <input
-              value={tagsRaw}
-              onChange={(e) => setTagsRaw(e.target.value)}
-              className={inputCls}
-              placeholder="residential, kitchen, design-build"
-            />
+        </div>
+      }
+    >
+      <form id="service-form" onSubmit={onSubmit} className="space-y-4">
+        <Field label={t("services.field.name")} required>
+          <Input
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Kitchen renovation"
+            autoFocus
+          />
+        </Field>
+        <Field label={t("services.field.description")}>
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder={t("services.field.description_ph")}
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label={t("services.field.default_rate")}>
+            <div className="flex gap-2">
+              <Input
+                value={defaultRateAmount}
+                onChange={(e) => setDefaultRateAmount(e.target.value)}
+                className="flex-1"
+                placeholder="125.00"
+                inputMode="decimal"
+              />
+              <Input
+                value={defaultRateCurrency}
+                onChange={(e) =>
+                  setDefaultRateCurrency(e.target.value.toUpperCase())
+                }
+                className="w-16 uppercase"
+                placeholder="USD"
+                maxLength={3}
+              />
+            </div>
           </Field>
-          <Field label={t("services.field.notes")}>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className={inputCls}
-            />
+          <Field label={t("services.field.billing_unit")}>
+            <Select
+              value={billingUnit}
+              onChange={(e) => setBillingUnit(e.target.value as BillingUnit)}
+            >
+              {BILLING_UNITS.map((u) => (
+                <option key={u} value={u}>
+                  {unitLabel(u)}
+                </option>
+              ))}
+            </Select>
           </Field>
         </div>
-        {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            {submitting
-              ? t("common.saving")
-              : isEdit
-                ? t("common.save")
-                : t("common.create")}
-          </button>
-        </div>
+        <Field label={t("services.field.tags")}>
+          <Input
+            value={tagsRaw}
+            onChange={(e) => setTagsRaw(e.target.value)}
+            placeholder="residential, kitchen, design-build"
+          />
+        </Field>
+        <Field label={t("services.field.notes")}>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+          />
+        </Field>
       </form>
-    </div>
+    </Modal>
   );
 }
 
-const inputCls =
-  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
-
-const selectCls =
-  "block w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block text-sm">
-      <span className="text-slate-700">{label}</span>
-      <div className="mt-1">{children}</div>
-    </label>
-  );
-}

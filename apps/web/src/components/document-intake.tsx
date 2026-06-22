@@ -180,16 +180,16 @@ export function DocumentIntake({
       {working ? (
         <div className="flex flex-col items-center gap-4 py-10 text-center">
           <Spinner />
-          <p className="text-[15px] text-ink-700">{stage.label}</p>
+          <p className="text-[15px] text-text">{stage.label}</p>
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed border-ink-200 bg-paper-50 px-6 py-10 text-center">
+        <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed border-border bg-bg-subtle px-6 py-10 text-center">
           <Button variant="primary" onClick={() => fileRef.current?.click()}>
             {t("intake.pick.choose")}
           </Button>
-          <p className="text-xs text-ink-400">{t("intake.pick.hint")}</p>
+          <p className="text-xs text-text-faint">{t("intake.pick.hint")}</p>
           {stage.step === "error" && (
-            <p className="text-sm text-rose-600">{stage.message}</p>
+            <p className="text-sm text-danger">{stage.message}</p>
           )}
         </div>
       )}
@@ -635,13 +635,13 @@ function QuoteConfirm({
             </Button>
           </div>
           {lines.length === 0 ? (
-            <p className="rounded-md border border-dashed border-ink-200 bg-paper-50 px-4 py-6 text-center text-sm text-ink-500">
+            <p className="rounded-xl border border-dashed border-border bg-bg-subtle px-4 py-6 text-center text-sm text-text-muted">
               {t("intake.lines.empty")}
             </p>
           ) : (
-            <div className="overflow-hidden rounded-lg border border-ink-200/70">
+            <div className="overflow-hidden rounded-xl border border-border">
               <table className="w-full text-[13px]">
-                <thead className="border-b border-ink-100 bg-paper-50 text-left text-[11px] uppercase tracking-wide text-ink-500">
+                <thead className="border-b border-border-subtle bg-bg-subtle text-left text-[11px] uppercase tracking-wide text-text-muted">
                   <tr>
                     <th className="px-2 py-2 font-medium">
                       {t("intake.line.description")}
@@ -666,7 +666,7 @@ function QuoteConfirm({
                 </thead>
                 <tbody>
                   {lines.map((l, i) => (
-                    <tr key={i} className="border-b border-ink-50 last:border-0">
+                    <tr key={i} className="border-b border-border-subtle last:border-0">
                       <td className="px-2 py-1.5">
                         <input
                           value={l.description}
@@ -726,7 +726,7 @@ function QuoteConfirm({
                           type="button"
                           onClick={() => removeLine(i)}
                           aria-label={t("intake.lines.remove")}
-                          className="text-ink-400 hover:text-rose-600"
+                          className="text-text-faint hover:text-danger"
                         >
                           ×
                         </button>
@@ -741,7 +741,7 @@ function QuoteConfirm({
 
         <div className="mt-6">
           <p className="section-label mb-2">{t("intake.totals.title")}</p>
-          <div className="rounded-lg border border-ink-200/70 bg-paper-50 px-4 py-4">
+          <div className="rounded-xl border border-border bg-bg-subtle px-4 py-4">
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label={t("intake.field.subtotal")}>
                 <AmountInput value={subtotal} onChange={setSubtotal} />
@@ -753,7 +753,7 @@ function QuoteConfirm({
                 <AmountInput value={deposit} onChange={setDeposit} />
               </Field>
             </div>
-            <label className="mt-3 flex items-center gap-2 text-sm text-ink-700">
+            <label className="mt-3 flex items-center gap-2 text-sm text-text">
               <input
                 type="checkbox"
                 checked={ivaIncluded}
@@ -762,8 +762,8 @@ function QuoteConfirm({
               />
               {t("intake.field.iva_included")}
             </label>
-            <div className="mt-4 flex items-center justify-between gap-4 border-t border-ink-200 pt-4">
-              <span className="font-display text-lg text-ink-900">
+            <div className="mt-4 flex items-center justify-between gap-4 border-t border-border pt-4">
+              <span className="font-display text-lg text-text">
                 {t("intake.field.total")}
               </span>
               <div className="w-60">
@@ -821,7 +821,7 @@ function ConfirmFooter({
   const t = useT();
   return (
     <div className="flex items-center justify-between gap-3">
-      <p className="text-xs text-rose-600">{error}</p>
+      <p className="text-xs text-danger">{error}</p>
       <div className="flex gap-2">
         <Button type="button" variant="ghost" onClick={onClose}>
           {t("common.cancel")}
@@ -836,7 +836,7 @@ function ConfirmFooter({
 
 function Spinner() {
   return (
-    <span className="h-7 w-7 animate-spin rounded-full border-2 border-ink-200 border-t-ink-900" />
+    <span className="h-7 w-7 animate-spin rounded-full border-2 border-border border-t-accent" />
   );
 }
 
@@ -844,7 +844,7 @@ function Spinner() {
 const IVA_RATE = 0.16;
 
 const cellCls =
-  "block w-full rounded border border-ink-200 bg-white px-2 h-8 text-[13px] text-ink-900 focus:border-ink-900 focus:outline-none focus:ring-1 focus:ring-ink-900/10";
+  "block w-full rounded-xl border border-border bg-surface px-2 h-8 text-[13px] text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 /**
  * Normalize a company name for fuzzy matching: lowercase, strip accents,

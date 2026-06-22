@@ -62,9 +62,9 @@ export default function ProjectBillDetail() {
 
   if (!billId) return null;
   if (bill.isLoading)
-    return <p className="text-sm text-ink-500">{t("common.loading")}</p>;
+    return <p className="text-sm text-text-muted">{t("common.loading")}</p>;
   if (bill.error)
-    return <p className="text-sm text-rose-700">{bill.error.message}</p>;
+    return <p className="text-sm text-danger">{bill.error.message}</p>;
   if (!bill.data) return null;
 
   const b = bill.data;
@@ -128,7 +128,7 @@ export default function ProjectBillDetail() {
         </div>
       </header>
 
-      <section className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
         <Fact label={t("bill.fact.issued")}>
           {b.issuedAt ? fmt.date(b.issuedAt) : "—"}
         </Fact>
@@ -150,20 +150,20 @@ export default function ProjectBillDetail() {
           </h2>
           <Link
             to={`/projects/${project.id}/assets/${b.source.asset.id}`}
-            className="mt-3 flex items-center justify-between gap-4 rounded-xl border border-ink-200/70 bg-white px-5 py-4 transition-colors hover:bg-paper-50"
+            className="mt-3 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface px-5 py-4 transition-colors hover:bg-bg-subtle"
           >
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-faint">
                 {t("bill.source.asset_event")}
               </p>
-              <p className="mt-1 text-[15px] font-medium text-ink-900">
+              <p className="mt-1 text-[15px] font-medium text-text">
                 {b.source.asset.name}
               </p>
-              <p className="mt-0.5 text-[13px] text-ink-600">
+              <p className="mt-0.5 text-[13px] text-text-muted">
                 {b.source.event.summary}
               </p>
             </div>
-            <Icon name="chevron-right" className="h-4 w-4 text-ink-400" />
+            <Icon name="chevron-right" className="h-4 w-4 text-text-faint" />
           </Link>
         </section>
       )}
@@ -175,21 +175,21 @@ export default function ProjectBillDetail() {
           </h2>
           <Link
             to={`/projects/${project.id}/bids/${b.sourceBid.id}`}
-            className="mt-3 flex items-center justify-between gap-4 rounded-xl border border-ink-200/70 bg-white px-5 py-4 transition-colors hover:bg-paper-50"
+            className="mt-3 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface px-5 py-4 transition-colors hover:bg-bg-subtle"
           >
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-faint">
                 {t("bill.source.quote")}
               </p>
-              <p className="mt-1 text-[15px] font-medium text-ink-900">
+              <p className="mt-1 text-[15px] font-medium text-text">
                 {b.sourceBid.trade ?? t("bill.source.subcontractor_quote")}
                 {b.sourceBid.bidNumber ? ` · #${b.sourceBid.bidNumber}` : ""}
               </p>
-              <p className="mt-0.5 text-[13px] text-ink-600">
+              <p className="mt-0.5 text-[13px] text-text-muted">
                 {t("bill.source.quote_note")}
               </p>
             </div>
-            <Icon name="chevron-right" className="h-4 w-4 text-ink-400" />
+            <Icon name="chevron-right" className="h-4 w-4 text-text-faint" />
           </Link>
         </section>
       )}
@@ -209,7 +209,7 @@ export default function ProjectBillDetail() {
         <button
           type="button"
           onClick={() => setConfirmingDelete(true)}
-          className="text-[13px] text-rose-600 hover:text-rose-800"
+          className="text-[13px] text-danger hover:text-danger"
         >
           {t("detail.delete_bill")}
         </button>
@@ -245,12 +245,12 @@ function Fact({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+    <div className="bg-surface px-5 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-faint">
         {label}
       </p>
       <p
-        className={`mt-1 text-[16px] font-medium tnum ${tone === "alert" ? "text-rose-700" : "text-ink-900"}`}
+        className={`mt-1 text-[16px] font-medium tnum ${tone === "alert" ? "text-danger" : "text-text"}`}
       >
         {children}
       </p>

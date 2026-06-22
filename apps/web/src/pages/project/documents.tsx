@@ -71,7 +71,7 @@ export default function ProjectDocuments() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t("documents.search")}
-          className="block w-full max-w-md rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
+          className="block w-full max-w-md rounded-xl border border-border bg-surface px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
         />
       </div>
 
@@ -82,7 +82,7 @@ export default function ProjectDocuments() {
           <p className="text-xs text-rose-700">{list.error.message}</p>
         ) : tab === "photos" ? (
           photos.length === 0 ? (
-            <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
+            <p className="rounded-md border border-paper-200 bg-surface p-4 text-xs text-slate-500">
               {search.trim() ? t("documents.empty_photos_filtered") : t("documents.empty_photos")}
             </p>
           ) : (
@@ -93,7 +93,7 @@ export default function ProjectDocuments() {
             </div>
           )
         ) : files.length === 0 ? (
-          <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
+          <p className="rounded-md border border-paper-200 bg-surface p-4 text-xs text-slate-500">
             {search.trim() ? t("documents.empty_filtered") : t("documents.empty")}
           </p>
         ) : (
@@ -293,7 +293,7 @@ function UploadButton({ projectId }: { projectId: string }) {
         type="button"
         onClick={() => fileRef.current?.click()}
         disabled={busy}
-        className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800 disabled:opacity-50"
+        className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
       >
         {busy
           ? state.phase === "creating"
@@ -329,7 +329,7 @@ function DocumentRowItem({ doc }: { doc: DocumentRow }) {
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <div className="flex items-center gap-3 rounded-md border border-paper-200 bg-white p-3">
+    <div className="flex items-center gap-3 rounded-md border border-paper-200 bg-surface p-3">
       <FileGlyph mimeType={doc.mimeType} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-2">

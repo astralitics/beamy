@@ -218,7 +218,7 @@ export default function ProjectWorkItemDetail() {
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
                 {t("work_item.depends_on")}
               </h3>
-              <ul className="mt-3 divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200/70 bg-white text-sm">
+              <ul className="mt-3 divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200/70 bg-surface text-sm">
                 {existingDeps.map((d) => {
                   const pred = allItemsById.get(d.dependsOnId);
                   return (
@@ -303,7 +303,7 @@ function Fact({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white px-5 py-4">
+    <div className="bg-surface px-5 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
         {label}
       </p>

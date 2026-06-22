@@ -3,11 +3,19 @@ import { Link, NavLink, useMatch } from "react-router-dom";
 import { useLocale, useT } from "../lib/i18n";
 import type { MessageKey } from "../lib/i18n";
 import { useVertical } from "../lib/vertical";
-import { ProjectPicker } from "./project-picker";
-import { WorkspaceSwitcher } from "./workspace-switcher";
+import { useTheme } from "../lib/theme/theme-context";
+import { useCommandPalette } from "./command-palette";
 import { UserMenu } from "./user-menu";
 import { Icon } from "./ui";
 
+/**
+ * The navigation rail. Always espresso, in BOTH themes and BOTH verticals —
+ * the vertical whispers only through `--accent` (the active-item "catches the
+ * light" rail + the wordmark dot + the top horizon band), never through the
+ * sidebar surface. (This replaces the old forest-green landscaping remap,
+ * which read as "a different app".) Fixed dark hexes here are intentional: the
+ * rail is a constant dark surface, decoupled from the light/dark content theme.
+ */
 type NavItem = { to: string; labelKey: MessageKey; end?: boolean };
 type NavSection = {
   labelKey: MessageKey | null;
@@ -100,6 +108,7 @@ export function Sidebar({
 }) {
   const t = useT();
   const vertical = useVertical();
+  const { open: openCommand } = useCommandPalette();
   const projectMatch = useMatch("/projects/:id/*");
   const inProject = Boolean(projectMatch);
   const projectId = projectMatch?.params.id;
@@ -110,81 +119,88 @@ export function Sidebar({
       <div
         onClick={onClose}
         aria-hidden
-        className={`fixed inset-0 z-40 bg-ink-950/50 backdrop-blur-sm transition-opacity duration-200 lg:hidden ${
+        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-200 lg:hidden ${
           open ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
       <aside
-        data-vertical={vertical}
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col border-r border-ink-800 bg-ink-900 text-ink-200 transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col border-r border-rail-line bg-rail text-rail-muted transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="px-6 pb-4 pt-6">
+        <div className="px-4 pb-4 pt-6">
           <div className="flex items-center justify-between gap-3">
-            <Link to="/" className="inline-flex items-baseline gap-1.5">
-              <span className="font-display text-2xl font-normal leading-none tracking-tightest text-white">
+            <Link to="/" className="inline-flex items-center gap-2.5">
+              <span className="font-display text-2xl font-extrabold leading-none tracking-tightest text-text">
                 Beamy
               </span>
-              <span className="h-1 w-1 translate-y-[-2px] rounded-full bg-accent-300" />
+              <span className="beam translate-y-[1px]" />
             </Link>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <ThemeToggle />
               <LocaleToggle />
               <button
                 type="button"
                 onClick={onClose}
                 aria-label={t("nav.close_menu")}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 hover:bg-ink-800 hover:text-white lg:hidden"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-rail-muted hover:bg-bg-subtle hover:text-text lg:hidden"
               >
                 <Icon name="x" className="h-4 w-4" />
               </button>
             </div>
           </div>
-          <div className="mt-5 space-y-2">
-            <WorkspaceSwitcher />
-            <ProjectPicker />
-          </div>
-        </div>
-
-      {inProject && (
-        <div className="px-6 pb-2">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1 text-[12px] text-ink-400 hover:text-white"
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-rail-muted">
+            {vertical === "landscaping" ? "Landscaping" : "Construction"}
+          </p>
+          <button
+            type="button"
+            onClick={openCommand}
+            className="mt-4 flex w-full items-center gap-2.5 rounded-xl border border-rail-line bg-bg-subtle px-3.5 py-2.5 text-left text-[13px] text-rail-muted transition-colors hover:border-border-strong hover:text-text"
           >
-            <Icon name="chevron-left" className="h-3 w-3" />
-            {t("picker.back_to_workspace")}
-          </Link>
+            <Icon name="search" className="h-4 w-4" />
+            <span className="flex-1">{t("nav.search")}</span>
+            <kbd className="rounded border border-rail-line px-1.5 py-0.5 font-mono text-[10px] text-rail-muted">
+              ⌘K
+            </kbd>
+          </button>
         </div>
-      )}
 
-      <nav className="flex-1 overflow-y-auto px-3 py-2">
-        {inProject && projectId
-          ? PROJECT_NAV.map((section, idx) => (
-              <ProjectNavSection
-                key={section.labelKey ?? `_${idx}`}
-                section={section}
-                projectId={projectId}
-                topMargin={idx > 0}
-              />
-            ))
-          : WORKSPACE_NAV.map((group, idx) => (
-              <ul
-                key={idx}
-                className={`space-y-0.5 ${idx > 0 ? "mt-5" : ""}`}
-              >
-                {group.map((item) => (
-                  <li key={item.to}>
-                    <SidebarLink to={item.to} end={item.end}>
-                      {t(item.labelKey)}
-                    </SidebarLink>
-                  </li>
-                ))}
-              </ul>
-            ))}
+        {inProject && (
+          <div className="px-4 pb-2">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-rail-muted hover:text-text"
+            >
+              <Icon name="chevron-left" className="h-3 w-3" />
+              {t("picker.back_to_workspace")}
+            </Link>
+          </div>
+        )}
+
+        <nav className="flex-1 overflow-y-auto px-2 py-3">
+          {inProject && projectId
+            ? PROJECT_NAV.map((section, idx) => (
+                <ProjectNavSection
+                  key={section.labelKey ?? `_${idx}`}
+                  section={section}
+                  projectId={projectId}
+                  topMargin={idx > 0}
+                />
+              ))
+            : WORKSPACE_NAV.map((group, idx) => (
+                <ul key={idx} className={`space-y-0.5 ${idx > 0 ? "mt-6" : ""}`}>
+                  {group.map((item) => (
+                    <li key={item.to}>
+                      <SidebarLink to={item.to} end={item.end}>
+                        {t(item.labelKey)}
+                      </SidebarLink>
+                    </li>
+                  ))}
+                </ul>
+              ))}
         </nav>
 
-        <div className="border-t border-ink-800 p-2">
+        <div className="border-t border-rail-line p-2">
           <UserMenu />
         </div>
       </aside>
@@ -213,7 +229,7 @@ function ProjectNavSection({
 
   if (section.labelKey === null) {
     return (
-      <ul className={`space-y-0.5 ${topMargin ? "mt-5" : ""}`}>
+      <ul className={`space-y-0.5 ${topMargin ? "mt-4" : ""}`}>
         {items.map((item) => (
           <li key={item.to}>
             <SidebarLink to={item.to} end={item.end}>
@@ -226,24 +242,24 @@ function ProjectNavSection({
   }
 
   return (
-    <div className={topMargin ? "mt-5" : ""}>
+    <div>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="group flex w-full items-center gap-1 px-3 py-1 text-left"
+        className="group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-5 text-left"
       >
+        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-rail-muted group-hover:text-rail-ink">
+          {t(section.labelKey)}
+        </span>
         <Icon
           name="chevron-down"
-          className={`h-3 w-3 text-ink-500 transition-transform ${
+          className={`h-3 w-3 text-rail-muted/60 transition-transform ${
             open ? "" : "-rotate-90"
           }`}
         />
-        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-500 group-hover:text-ink-300">
-          {t(section.labelKey)}
-        </span>
       </button>
       {open && (
-        <ul className="mt-0.5 space-y-0.5">
+        <ul className="mt-1 space-y-0.5">
           {items.map((item) => (
             <li key={item.to}>
               <SidebarLink to={item.to} end={item.end}>
@@ -257,6 +273,22 @@ function ProjectNavSection({
   );
 }
 
+function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  const dark = theme === "dark";
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
+      title={dark ? "Light" : "Dark"}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-rail-muted transition-colors hover:bg-bg-subtle hover:text-text"
+    >
+      <Icon name={dark ? "sun" : "moon"} className="h-[18px] w-[18px]" />
+    </button>
+  );
+}
+
 function LocaleToggle() {
   const { locale, setLocale } = useLocale();
   const opts: { code: "en" | "es-MX"; label: string }[] = [
@@ -267,7 +299,7 @@ function LocaleToggle() {
     <div
       role="group"
       aria-label="Language"
-      className="inline-flex items-center rounded-full border border-ink-700 bg-ink-800 p-0.5 text-[11px] font-medium"
+      className="inline-flex items-center rounded-full border border-rail-line bg-bg-subtle p-0.5 text-[11px] font-medium"
     >
       {opts.map((o) => {
         const active = locale === o.code;
@@ -279,8 +311,8 @@ function LocaleToggle() {
             aria-pressed={active}
             className={`rounded-full px-2.5 py-1 transition-colors ${
               active
-                ? "bg-white text-ink-900"
-                : "text-ink-400 hover:text-white"
+                ? "bg-accent text-accent-contrast"
+                : "text-rail-muted hover:text-text"
             }`}
           >
             {o.label}
@@ -306,10 +338,10 @@ function SidebarLink({
       end={end ?? false}
       className={({ isActive }) =>
         [
-          "block rounded-md px-3 py-1.5 text-[14px] transition-colors",
+          "block rounded-lg px-3 py-2 text-[14px] transition-colors",
           isActive
-            ? "bg-ink-800 font-medium text-white"
-            : "text-ink-300 hover:bg-ink-800/60 hover:text-white",
+            ? "bg-accent-subtle font-semibold text-accent"
+            : "text-rail-muted hover:bg-bg-subtle hover:text-text",
         ].join(" ")
       }
     >

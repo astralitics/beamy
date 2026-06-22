@@ -72,9 +72,9 @@ export default function ProjectInvoiceDetail() {
 
   if (!invoiceId) return null;
   if (invoice.isLoading)
-    return <p className="text-sm text-ink-500">{t("common.loading")}</p>;
+    return <p className="text-sm text-text-muted">{t("common.loading")}</p>;
   if (invoice.error)
-    return <p className="text-sm text-rose-700">{invoice.error.message}</p>;
+    return <p className="text-sm text-danger">{invoice.error.message}</p>;
   if (!invoice.data) return null;
 
   const i = invoice.data;
@@ -145,7 +145,7 @@ export default function ProjectInvoiceDetail() {
         </div>
       </header>
 
-      <section className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-5">
         <Fact label={t("invoice.fact.issued")}>
           {i.issuedAt ? fmt.date(i.issuedAt) : "—"}
         </Fact>
@@ -176,7 +176,7 @@ export default function ProjectInvoiceDetail() {
         <button
           type="button"
           onClick={() => setConfirmingDelete(true)}
-          className="text-[13px] text-rose-600 hover:text-rose-800"
+          className="text-[13px] text-danger hover:text-danger"
         >
           {t("detail.delete_invoice")}
         </button>
@@ -212,12 +212,12 @@ function Fact({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+    <div className="bg-surface px-5 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-faint">
         {label}
       </p>
       <p
-        className={`mt-1 text-[16px] font-medium tnum ${tone === "alert" ? "text-rose-700" : "text-ink-900"}`}
+        className={`mt-1 text-[16px] font-medium tnum ${tone === "alert" ? "text-danger" : "text-text"}`}
       >
         {children}
       </p>

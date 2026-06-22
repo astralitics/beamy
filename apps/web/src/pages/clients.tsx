@@ -1,10 +1,22 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import type { ClientStatus } from "@beamy/shared";
 import { trpc } from "../lib/trpc";
 import { useT } from "../lib/i18n";
 import { ContactsSection } from "../components/contacts-section";
+import { EmptyState } from "../components/vertical-mark";
+import {
+  Button,
+  Field,
+  Icon,
+  Input,
+  Modal,
+  PageHeader,
+  Pill,
+  Select,
+  Textarea,
+} from "../components/ui";
 
 type ClientRow = inferRouterOutputs<AppRouter>["clients"]["list"][number];
 type StatusFilter = ClientStatus | "all";
@@ -25,92 +37,106 @@ export default function ClientsPage() {
   });
 
   return (
-    <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-10">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {t("nav.clients")}
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">{t("clients.lede")}</p>
+    <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-6 lg:px-10 lg:py-14">
+      <PageHeader
+        title={t("nav.clients")}
+        lede={t("clients.lede")}
+        action={
+          <Button
+            variant="primary"
+            onClick={() => setModalState({ mode: "create" })}
+          >
+            <Icon name="plus" className="h-4 w-4" />
+            {t("clients.new")}
+          </Button>
+        }
+      />
+
+      <div className="mt-8 flex flex-wrap items-center gap-2">
+        <div className="w-44">
+          <Select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+          >
+            <option value="active">{t("clients.filter.active")}</option>
+            <option value="archived">{t("clients.filter.archived")}</option>
+            <option value="all">{t("clients.filter.all")}</option>
+          </Select>
         </div>
-        <button
-          onClick={() => setModalState({ mode: "create" })}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          {t("clients.new")}
-        </button>
+        <div className="relative min-w-[240px] flex-1">
+          <Icon
+            name="search"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-faint"
+          />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("clients.search")}
+            className="pl-10"
+          />
+        </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-3">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-          className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
-        >
-          <option value="active">{t("clients.filter.active")}</option>
-          <option value="archived">{t("clients.filter.archived")}</option>
-          <option value="all">{t("clients.filter.all")}</option>
-        </select>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t("clients.search")}
-          className="flex-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
-        />
-      </div>
-
-      <div className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white">
-        {list.isLoading ? (
-          <p className="p-6 text-sm text-slate-500">{t("common.loading")}</p>
-        ) : list.error ? (
-          <p className="p-6 text-sm text-rose-700">{list.error.message}</p>
-        ) : !list.data || list.data.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">
-            {search.trim()
-              ? t("clients.empty_filtered")
-              : statusFilter === "archived"
-                ? t("clients.empty_archived")
-                : t("clients.empty")}
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
+      {list.isLoading ? (
+        <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center text-text-muted">
+          {t("common.loading")}
+        </div>
+      ) : list.error ? (
+        <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center text-danger">
+          {list.error.message}
+        </div>
+      ) : !list.data || list.data.length === 0 ? (
+        <div className="mt-6">
+          <EmptyState
+            title={
+              search.trim()
+                ? t("clients.empty_filtered")
+                : statusFilter === "archived"
+                  ? t("clients.empty_archived")
+                  : t("clients.empty")
+            }
+          />
+        </div>
+      ) : (
+        <div className="data-table mt-6">
+          <table>
+            <thead>
               <tr>
-                <Th>{t("col.name")}</Th>
-                <Th>{t("clients.col.primary_contact")}</Th>
-                <Th>{t("clients.col.tags")}</Th>
-                <Th className="w-24">{t("col.status")}</Th>
-                <Th className="w-28">{t("col.updated")}</Th>
-                <Th className="w-24 text-right">{t("clients.col.actions")}</Th>
+                <th>{t("col.name")}</th>
+                <th>{t("clients.col.primary_contact")}</th>
+                <th>{t("clients.col.tags")}</th>
+                <th className="w-24">{t("col.status")}</th>
+                <th className="w-28 r">{t("col.updated")}</th>
+                <th className="w-24 r">{t("clients.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
               {list.data.map((c) => (
                 <tr
                   key={c.id}
-                  className="cursor-pointer border-b border-slate-100 last:border-b-0 hover:bg-slate-50"
+                  className="clickable group"
                   onClick={() => setModalState({ mode: "edit", client: c })}
                 >
-                  <Td className="font-medium text-slate-900">{c.name}</Td>
-                  <Td className="text-slate-600">{c.primaryContact ?? "—"}</Td>
-                  <Td className="text-slate-600">
+                  <td className="font-medium">{c.name}</td>
+                  <td className="text-text-muted">{c.primaryContact ?? "—"}</td>
+                  <td className="text-text-muted">
                     {c.tags.length > 0 ? c.tags.join(", ") : "—"}
-                  </Td>
-                  <Td>
+                  </td>
+                  <td>
                     <StatusPill status={c.status} />
-                  </Td>
-                  <Td className="text-slate-500">
+                  </td>
+                  <td className="r whitespace-nowrap text-text-muted">
                     {new Date(c.updatedAt).toLocaleDateString()}
-                  </Td>
-                  <Td className="text-right">
+                  </td>
+                  <td className="r">
                     <RowActions client={c} />
-                  </Td>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
 
       {modalState.mode !== "closed" && (
         <ClientFormModal
@@ -122,43 +148,11 @@ export default function ClientsPage() {
   );
 }
 
-function Th({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 ${className}`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return <td className={`px-4 py-3 ${className}`}>{children}</td>;
-}
-
 function StatusPill({ status }: { status: ClientStatus }) {
-  const cls =
-    status === "active"
-      ? "bg-emerald-100 text-emerald-800"
-      : "bg-slate-100 text-slate-700";
   return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
-    >
+    <Pill tone={status === "active" ? "success" : "neutral"} dot>
       {status}
-    </span>
+    </Pill>
   );
 }
 
@@ -183,7 +177,7 @@ function RowActions({ client }: { client: ClientRow }) {
         }
       }}
       disabled={pending}
-      className="text-xs text-slate-500 hover:text-slate-900 disabled:opacity-50"
+      className="text-xs text-text-muted hover:text-text disabled:opacity-50"
     >
       {pending
         ? "…"
@@ -254,88 +248,76 @@ function ClientFormModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-8"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-lg bg-white shadow-xl"
-      >
-        <form onSubmit={onSubmit} className="p-6">
-          <h2 className="text-lg font-semibold tracking-tight">
-            {isEdit
-              ? t("clients.edit_title", { name: state.client.name })
-              : t("clients.new_title")}
-          </h2>
-          <div className="mt-4 space-y-3">
-            <Field label={t("clients.field.name")}>
-              <input
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className={inputCls}
-                autoFocus
-              />
-            </Field>
-            <Field label={t("clients.field.primary_contact")}>
-              <input
-                value={primaryContact}
-                onChange={(e) => setPrimaryContact(e.target.value)}
-                className={inputCls}
-                placeholder="e.g. Sarah Anderson"
-              />
-            </Field>
-            <Field label={t("col.address")}>
-              <input
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className={inputCls}
-              />
-            </Field>
-            <Field label={t("clients.field.notes")}>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                className={inputCls}
-              />
-            </Field>
-            <Field label={t("clients.field.tags")}>
-              <input
-                value={tagsRaw}
-                onChange={(e) => setTagsRaw(e.target.value)}
-                className={inputCls}
-                placeholder="residential, kitchen-reno"
-              />
-            </Field>
-          </div>
-          {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
-          <div className="mt-6 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
-            >
+    <Modal
+      title={
+        isEdit
+          ? t("clients.edit_title", { name: state.client.name })
+          : t("clients.new_title")
+      }
+      onClose={onClose}
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-danger">{error}</p>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
               {t("common.cancel")}
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
+              form="client-form"
+              variant="primary"
               disabled={submitting}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
             >
               {submitting
                 ? t("common.saving")
                 : isEdit
                   ? t("common.save")
                   : t("common.create")}
-            </button>
+            </Button>
           </div>
-        </form>
+        </div>
+      }
+    >
+      <form id="client-form" onSubmit={onSubmit} className="space-y-4">
+        <Field label={t("clients.field.name")} required>
+          <Input
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
+        </Field>
+        <Field label={t("clients.field.primary_contact")}>
+          <Input
+            value={primaryContact}
+            onChange={(e) => setPrimaryContact(e.target.value)}
+            placeholder="e.g. Sarah Anderson"
+          />
+        </Field>
+        <Field label={t("col.address")}>
+          <Input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+        </Field>
+        <Field label={t("clients.field.notes")}>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+          />
+        </Field>
+        <Field label={t("clients.field.tags")}>
+          <Input
+            value={tagsRaw}
+            onChange={(e) => setTagsRaw(e.target.value)}
+            placeholder="residential, kitchen-reno"
+          />
+        </Field>
+      </form>
 
-        {isEdit && <ClientContactsWrapper clientId={state.client.id} />}
-      </div>
-    </div>
+      {isEdit && <ClientContactsWrapper clientId={state.client.id} />}
+    </Modal>
   );
 }
 
@@ -366,14 +348,3 @@ function ClientContactsWrapper({ clientId }: { clientId: string }) {
   );
 }
 
-const inputCls =
-  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block text-sm">
-      <span className="text-slate-700">{label}</span>
-      <div className="mt-1">{children}</div>
-    </label>
-  );
-}

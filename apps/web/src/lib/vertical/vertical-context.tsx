@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 import type { Vertical } from "@beamy/shared";
 import { trpc } from "../trpc";
 
@@ -25,6 +25,17 @@ export function VerticalProvider({ children }: { children: ReactNode }) {
     vertical === "landscaping" || vertical === "construction"
       ? vertical
       : "construction";
+
+  // Mirror the vertical onto <html> so the HORIZON accent + band re-tint
+  // (`:root[data-vertical="landscaping"]` in index.css) applies app-wide —
+  // not just inside the sidebar. The whisper lives in the light, everywhere.
+  useEffect(() => {
+    document.documentElement.dataset.vertical = resolved;
+    return () => {
+      delete document.documentElement.dataset.vertical;
+    };
+  }, [resolved]);
+
   return (
     <VerticalContext.Provider value={resolved}>
       {children}

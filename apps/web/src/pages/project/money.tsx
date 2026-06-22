@@ -93,7 +93,7 @@ function ExecutionMoney({ project }: { project: ProjectDetail }) {
     <div className="space-y-10 animate-fade">
       <SummaryStrip summary={summary} fmt={fmt} />
 
-      <div className="border-b border-ink-100">
+      <div className="border-b border-border-subtle">
         <nav className="-mb-px flex items-center gap-6">
           <TabButton
             active={tab === "bills"}
@@ -196,7 +196,7 @@ function ProposalMoney({ project }: { project: ProjectDetail }) {
 
   return (
     <div className="space-y-10 animate-fade">
-      <div className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-3">
+      <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-3">
         <SummaryTile
           label={t("money.proposal.tile_accepted")}
           value={fmtCcyList(summary.accepted)}
@@ -216,33 +216,33 @@ function ProposalMoney({ project }: { project: ProjectDetail }) {
 
       <section>
         <div>
-          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
+          <h2 className="font-display text-2xl font-bold tracking-tight text-text">
             {t("money.proposal.title")}
           </h2>
-          <p className="mt-1 text-sm text-ink-500">
+          <p className="mt-1 text-sm text-text-muted">
             {t("money.proposal.lede")}
           </p>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
-          {proposalsQ.isLoading ? (
-            <p className="px-6 py-8 text-sm text-ink-500">
-              {t("common.loading")}
+        {proposalsQ.isLoading ? (
+          <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
+            {t("common.loading")}
+          </div>
+        ) : proposalsQ.error ? (
+          <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-danger">
+            {proposalsQ.error.message}
+          </div>
+        ) : proposals.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center">
+            <p className="font-display text-xl text-text">
+              {t("money.proposal.empty")}
             </p>
-          ) : proposalsQ.error ? (
-            <p className="px-6 py-8 text-sm text-rose-700">
-              {proposalsQ.error.message}
-            </p>
-          ) : proposals.length === 0 ? (
-            <div className="px-6 py-12 text-center">
-              <p className="font-display text-xl text-ink-900">
-                {t("money.proposal.empty")}
-              </p>
-            </div>
-          ) : (
-            <table className="w-full text-[14px]">
-              <thead className="border-b border-ink-100 bg-paper-50">
-                <tr className="text-left">
+          </div>
+        ) : (
+          <div className="data-table mt-6">
+            <table>
+              <thead>
+                <tr>
                   <Th>{t("money.proposal.col.proposal")}</Th>
                   <Th align="right">{t("col.amount")}</Th>
                   <Th>{t("money.proposal.col.receivable")}</Th>
@@ -254,24 +254,21 @@ function ProposalMoney({ project }: { project: ProjectDetail }) {
                 {proposals.map((p) => {
                   const ar = arByProposal.get(p.id);
                   return (
-                    <tr
-                      key={p.id}
-                      className="group border-b border-ink-100 transition-colors last:border-b-0 hover:bg-paper-50"
-                    >
+                    <tr key={p.id} className="group">
                       <Td>
                         <Link
                           to={`/projects/${project.id}/proposals/${p.id}`}
                           className="block"
                         >
-                          <span className="font-medium text-ink-900">
+                          <span className="font-medium text-text">
                             {p.title}
                           </span>
-                          <span className="block font-mono text-xs text-ink-500">
+                          <span className="block font-mono text-xs text-text-muted">
                             {p.number}
                           </span>
                         </Link>
                       </Td>
-                      <Td align="right" className="tnum font-medium text-ink-900">
+                      <Td align="right" className="tnum font-medium text-text">
                         {p.totalAmount && p.totalCurrency
                           ? fmt.currency(p.totalAmount, p.totalCurrency)
                           : "—"}
@@ -282,12 +279,12 @@ function ProposalMoney({ project }: { project: ProjectDetail }) {
                             {L.invoiceStatus(ar.status)}
                           </Pill>
                         ) : (
-                          <span className="text-ink-400">
+                          <span className="text-text-faint">
                             {t("money.proposal.ar_none")}
                           </span>
                         )}
                       </Td>
-                      <Td className="tnum text-ink-600">
+                      <Td className="tnum text-text-muted">
                         {p.decidedAt ? fmt.date(p.decidedAt) : "—"}
                       </Td>
                       <Td align="right">
@@ -295,7 +292,7 @@ function ProposalMoney({ project }: { project: ProjectDetail }) {
                           <Link
                             to={`/projects/${project.id}/invoices/${ar.id}`}
                             aria-label={t("invoice.open")}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-text-faint transition-colors hover:bg-bg-subtle hover:text-text"
                           >
                             <Icon name="chevron-right" className="h-4 w-4" />
                           </Link>
@@ -306,8 +303,8 @@ function ProposalMoney({ project }: { project: ProjectDetail }) {
                 })}
               </tbody>
             </table>
-          )}
-        </div>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -328,7 +325,7 @@ function SummaryStrip({
     return entries.map(([c, a]) => fmt.currency(a.toFixed(2), c)).join(" · ");
   }
   return (
-    <div className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
       <SummaryTile
         label={t("money.summary.outstanding_we_owe")}
         value={fmtCcyList(summary.billsOutstandingByCcy)}
@@ -367,18 +364,18 @@ function SummaryTile({
   tone?: "alert";
 }) {
   return (
-    <div className="bg-white px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+    <div className="bg-surface px-5 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-faint">
         {label}
       </p>
       <p
-        className={`mt-2 truncate text-[20px] font-medium tnum ${tone === "alert" ? "text-rose-700" : "text-ink-900"}`}
+        className={`mt-2 truncate text-[20px] font-medium tnum ${tone === "alert" ? "text-danger" : "text-text"}`}
         title={value}
       >
         {value}
       </p>
       <p
-        className={`mt-1 text-[12px] ${tone === "alert" ? "text-rose-600" : "text-ink-400"}`}
+        className={`mt-1 text-[12px] ${tone === "alert" ? "text-danger" : "text-text-faint"}`}
       >
         {meta}
       </p>
@@ -405,13 +402,13 @@ function TabButton({
       onClick={onClick}
       className={`relative -mb-px flex items-baseline gap-2 border-b-2 px-1 pb-3 pt-1 text-[14px] font-medium transition-colors ${
         active
-          ? "border-ink-900 text-ink-900"
-          : "border-transparent text-ink-500 hover:text-ink-800"
+          ? "border-accent text-text"
+          : "border-transparent text-text-muted hover:text-text"
       }`}
     >
       {label}
       <span
-        className={`tnum text-[12px] ${active ? "text-ink-400" : "text-ink-400"}`}
+        className={`tnum text-[12px] ${active ? "text-text-faint" : "text-text-faint"}`}
       >
         {count}
       </span>
@@ -460,10 +457,10 @@ function BillsTab({
     <section>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
+          <h2 className="font-display text-2xl font-bold tracking-tight text-text">
             {t("money.bills.title")}
           </h2>
-          <p className="mt-1 text-sm text-ink-500">{t("money.bills.lede")}</p>
+          <p className="mt-1 text-sm text-text-muted">{t("money.bills.lede")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" onClick={() => setImporting(true)}>
@@ -493,7 +490,7 @@ function BillsTab({
         <div className="relative min-w-[240px] flex-1">
           <Icon
             name="search"
-            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-faint"
           />
           <Input
             value={search}
@@ -504,33 +501,37 @@ function BillsTab({
         </div>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
-        {loading ? (
-          <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
-        ) : error ? (
-          <p className="px-6 py-8 text-sm text-rose-700">{error}</p>
-        ) : filtered.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <p className="font-display text-xl text-ink-900">
-              {search.trim() || statusFilter
-                ? t("money.bills.empty_filtered")
-                : t("money.bills.empty")}
-            </p>
-            {!search.trim() && !statusFilter && (
-              <Button
-                variant="primary"
-                onClick={() => setAdding(true)}
-                className="mt-5"
-              >
-                <Icon name="plus" className="h-4 w-4" />
-                {t("money.bills.add_first")}
-              </Button>
-            )}
-          </div>
-        ) : (
-          <table className="w-full text-[14px]">
-            <thead className="border-b border-ink-100 bg-paper-50">
-              <tr className="text-left">
+      {loading ? (
+        <div className="mt-4 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
+          {t("common.loading")}
+        </div>
+      ) : error ? (
+        <div className="mt-4 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-danger">
+          {error}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-border bg-surface px-6 py-12 text-center">
+          <p className="font-display text-xl text-text">
+            {search.trim() || statusFilter
+              ? t("money.bills.empty_filtered")
+              : t("money.bills.empty")}
+          </p>
+          {!search.trim() && !statusFilter && (
+            <Button
+              variant="primary"
+              onClick={() => setAdding(true)}
+              className="mt-5"
+            >
+              <Icon name="plus" className="h-4 w-4" />
+              {t("money.bills.add_first")}
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="data-table mt-4">
+          <table>
+            <thead>
+              <tr>
                 <Th>{t("col.description")}</Th>
                 <Th>{t("col.vendor")}</Th>
                 <Th align="right">{t("col.amount")}</Th>
@@ -543,33 +544,30 @@ function BillsTab({
               {filtered.map((b) => {
                 const overdue = isBillOverdue(b.status, b.dueAt) && b.dueAt && b.dueAt < today;
                 return (
-                  <tr
-                    key={b.id}
-                    className="group border-b border-ink-100 transition-colors last:border-b-0 hover:bg-paper-50"
-                  >
+                  <tr key={b.id} className="group">
                     <Td>
                       <Link
                         to={`/projects/${projectId}/bills/${b.id}`}
                         className="block"
                       >
-                        <span className="font-medium text-ink-900">
+                        <span className="font-medium text-text">
                           {b.description || b.billNumber || t("bill.untitled")}
                         </span>
                         {b.billNumber && b.description && (
-                          <span className="block font-mono text-xs text-ink-500">
+                          <span className="block font-mono text-xs text-text-muted">
                             #{b.billNumber}
                           </span>
                         )}
                       </Link>
                     </Td>
-                    <Td className="text-ink-600">
+                    <Td className="text-text-muted">
                       {b.vendor?.name ?? (
-                        <span className="text-ink-400">
+                        <span className="text-text-faint">
                           {t("money.bills.self_purchase")}
                         </span>
                       )}
                     </Td>
-                    <Td align="right" className="tnum text-ink-900 font-medium">
+                    <Td align="right" className="tnum text-text font-medium">
                       {fmt.currency(b.amount, b.currency)}
                     </Td>
                     <Td>
@@ -580,14 +578,14 @@ function BillsTab({
                         {overdue && <Pill tone="alert">{t("common.overdue")}</Pill>}
                       </div>
                     </Td>
-                    <Td className="tnum text-ink-600">
+                    <Td className="tnum text-text-muted">
                       {b.dueAt ? fmt.date(b.dueAt) : "—"}
                     </Td>
                     <Td align="right">
                       <Link
                         to={`/projects/${projectId}/bills/${b.id}`}
                         aria-label={t("bill.open")}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-text-faint transition-colors hover:bg-bg-subtle hover:text-text"
                       >
                         <Icon name="chevron-right" className="h-4 w-4" />
                       </Link>
@@ -597,8 +595,8 @@ function BillsTab({
               })}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
 
       {adding && (
         <BillCreateModal
@@ -659,10 +657,10 @@ function InvoicesTab({
     <section>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
+          <h2 className="font-display text-2xl font-bold tracking-tight text-text">
             {t("money.invoices.title")}
           </h2>
-          <p className="mt-1 text-sm text-ink-500">{t("money.invoices.lede")}</p>
+          <p className="mt-1 text-sm text-text-muted">{t("money.invoices.lede")}</p>
         </div>
         <Button variant="primary" onClick={() => setAdding(true)}>
           <Icon name="plus" className="h-4 w-4" />
@@ -691,7 +689,7 @@ function InvoicesTab({
         <div className="relative min-w-[240px] flex-1">
           <Icon
             name="search"
-            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-faint"
           />
           <Input
             value={search}
@@ -702,33 +700,37 @@ function InvoicesTab({
         </div>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
-        {loading ? (
-          <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
-        ) : error ? (
-          <p className="px-6 py-8 text-sm text-rose-700">{error}</p>
-        ) : filtered.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <p className="font-display text-xl text-ink-900">
-              {search.trim() || statusFilter
-                ? t("money.invoices.empty_filtered")
-                : t("money.invoices.empty")}
-            </p>
-            {!search.trim() && !statusFilter && (
-              <Button
-                variant="primary"
-                onClick={() => setAdding(true)}
-                className="mt-5"
-              >
-                <Icon name="plus" className="h-4 w-4" />
-                {t("money.invoices.draft_first")}
-              </Button>
-            )}
-          </div>
-        ) : (
-          <table className="w-full text-[14px]">
-            <thead className="border-b border-ink-100 bg-paper-50">
-              <tr className="text-left">
+      {loading ? (
+        <div className="mt-4 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
+          {t("common.loading")}
+        </div>
+      ) : error ? (
+        <div className="mt-4 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-danger">
+          {error}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-border bg-surface px-6 py-12 text-center">
+          <p className="font-display text-xl text-text">
+            {search.trim() || statusFilter
+              ? t("money.invoices.empty_filtered")
+              : t("money.invoices.empty")}
+          </p>
+          {!search.trim() && !statusFilter && (
+            <Button
+              variant="primary"
+              onClick={() => setAdding(true)}
+              className="mt-5"
+            >
+              <Icon name="plus" className="h-4 w-4" />
+              {t("money.invoices.draft_first")}
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="data-table mt-4">
+          <table>
+            <thead>
+              <tr>
                 <Th>{t("col.description")}</Th>
                 <Th>{t("col.client")}</Th>
                 <Th align="right">{t("col.amount")}</Th>
@@ -742,29 +744,26 @@ function InvoicesTab({
                 const overdue =
                   isInvoiceOverdue(i.status, i.dueAt) && i.dueAt && i.dueAt < today;
                 return (
-                  <tr
-                    key={i.id}
-                    className="group border-b border-ink-100 transition-colors last:border-b-0 hover:bg-paper-50"
-                  >
+                  <tr key={i.id} className="group">
                     <Td>
                       <Link
                         to={`/projects/${projectId}/invoices/${i.id}`}
                         className="block"
                       >
-                        <span className="font-medium text-ink-900">
+                        <span className="font-medium text-text">
                           {i.description || i.invoiceNumber || t("invoice.untitled")}
                         </span>
                         {i.invoiceNumber && i.description && (
-                          <span className="block font-mono text-xs text-ink-500">
+                          <span className="block font-mono text-xs text-text-muted">
                             #{i.invoiceNumber}
                           </span>
                         )}
                       </Link>
                     </Td>
-                    <Td className="text-ink-600">
-                      {i.client?.name ?? <span className="text-ink-400">—</span>}
+                    <Td className="text-text-muted">
+                      {i.client?.name ?? <span className="text-text-faint">—</span>}
                     </Td>
-                    <Td align="right" className="tnum text-ink-900 font-medium">
+                    <Td align="right" className="tnum text-text font-medium">
                       {fmt.currency(i.amount, i.currency)}
                     </Td>
                     <Td>
@@ -775,14 +774,14 @@ function InvoicesTab({
                         {overdue && <Pill tone="alert">{t("common.overdue")}</Pill>}
                       </div>
                     </Td>
-                    <Td className="tnum text-ink-600">
+                    <Td className="tnum text-text-muted">
                       {i.dueAt ? fmt.date(i.dueAt) : "—"}
                     </Td>
                     <Td align="right">
                       <Link
                         to={`/projects/${projectId}/invoices/${i.id}`}
                         aria-label={t("invoice.open")}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-text-faint transition-colors hover:bg-bg-subtle hover:text-text"
                       >
                         <Icon name="chevron-right" className="h-4 w-4" />
                       </Link>
@@ -792,8 +791,8 @@ function InvoicesTab({
               })}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
 
       {adding && (
         <InvoiceCreateModal
@@ -815,15 +814,7 @@ function Th({
   children?: React.ReactNode;
   align?: "left" | "right";
 }) {
-  return (
-    <th
-      className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 ${
-        align === "right" ? "text-right" : "text-left"
-      }`}
-    >
-      {children}
-    </th>
-  );
+  return <th className={align === "right" ? "r" : ""}>{children}</th>;
 }
 
 function Td({
@@ -836,9 +827,7 @@ function Td({
   className?: string;
 }) {
   return (
-    <td
-      className={`px-5 py-3 ${align === "right" ? "text-right" : "text-left"} ${className}`}
-    >
+    <td className={`${align === "right" ? "r" : ""} ${className}`}>
       {children}
     </td>
   );
@@ -907,7 +896,7 @@ function BillCreateModal({
       size="lg"
       footer={
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-rose-600">{error}</p>
+          <p className="text-xs text-danger">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
               {t("common.cancel")}
@@ -1077,7 +1066,7 @@ function InvoiceCreateModal({
       size="lg"
       footer={
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-rose-600">{error}</p>
+          <p className="text-xs text-danger">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
               {t("common.cancel")}

@@ -26,6 +26,7 @@ const coreEn = {
   "nav.settings": "Settings",
   "nav.open_menu": "Open menu",
   "nav.close_menu": "Close menu",
+  "nav.search": "Search…",
 
   // ── project picker ──
   "picker.label": "Project",
@@ -117,6 +118,40 @@ const coreEn = {
   "home.tile.vendors.sub": "Subs, suppliers, contacts",
   "home.tile.services": "Services",
   "home.tile.services.sub": "Reusable scope library",
+
+  // ── home cockpit ──
+  "home.greeting.morning": "Good morning",
+  "home.greeting.afternoon": "Good afternoon",
+  "home.greeting.evening": "Good evening",
+  "home.search_cta": "Search projects, clients, vendors…",
+  "home.attention": "Needs your attention",
+  "home.attention_hint": "Across every active project",
+  "home.attention_empty": "Nothing needs you right now.",
+  "home.attention_empty_sub":
+    "No overdue money, no blocked work, nothing awaiting your decision.",
+  "home.pulse.active": "Active projects",
+  "home.pulse.pipeline": "In pipeline",
+  "home.pulse.contract": "Active contract value",
+  "home.pulse.attention": "Open items",
+  "home.active": "Active projects",
+  "home.view_all": "View all projects",
+  "home.no_projects": "No projects yet.",
+  "home.start_first": "Start your first project",
+
+  // ── money (firm) ──
+  "money.title": "Money",
+  "money.lede": "Receivables and payables across every project.",
+  "money.section.ar": "Accounts receivable",
+  "money.section.ap": "Accounts payable",
+  "money.ar_hint": "Money clients owe you",
+  "money.ap_hint": "Money you owe vendors",
+  "money.outstanding": "Outstanding",
+  "money.overdue": "Overdue",
+  "money.collected": "Collected",
+  "money.paid": "Paid",
+  "money.aging": "Aging",
+  "money.empty": "Nothing on the books yet.",
+  "money.empty_sub": "Bills and invoices roll up here as you add them.",
 
   // ── projects list ──
   "projects.title": "Projects",
@@ -291,6 +326,7 @@ const coreEs: Partial<Record<keyof typeof coreEn, string>> = {
   "nav.settings": "Configuración",
   "nav.open_menu": "Abrir menú",
   "nav.close_menu": "Cerrar menú",
+  "nav.search": "Buscar…",
 
   // ── project picker ──
   "picker.label": "Proyecto",
@@ -376,6 +412,40 @@ const coreEs: Partial<Record<keyof typeof coreEn, string>> = {
   "home.tile.vendors.sub": "Subcontratistas, proveedores, contactos",
   "home.tile.services": "Servicios",
   "home.tile.services.sub": "Biblioteca reutilizable de alcances",
+
+  // ── home cockpit ──
+  "home.greeting.morning": "Buenos días",
+  "home.greeting.afternoon": "Buenas tardes",
+  "home.greeting.evening": "Buenas noches",
+  "home.search_cta": "Buscar proyectos, clientes, proveedores…",
+  "home.attention": "Requiere tu atención",
+  "home.attention_hint": "En todos los proyectos activos",
+  "home.attention_empty": "Nada requiere tu atención ahora.",
+  "home.attention_empty_sub":
+    "Sin dinero vencido, sin trabajo bloqueado, nada esperando tu decisión.",
+  "home.pulse.active": "Proyectos activos",
+  "home.pulse.pipeline": "En cartera",
+  "home.pulse.contract": "Valor de contratos activos",
+  "home.pulse.attention": "Pendientes",
+  "home.active": "Proyectos activos",
+  "home.view_all": "Ver todos los proyectos",
+  "home.no_projects": "Aún no hay proyectos.",
+  "home.start_first": "Crea tu primer proyecto",
+
+  // ── money (firm) ──
+  "money.title": "Dinero",
+  "money.lede": "Cuentas por cobrar y por pagar en todos los proyectos.",
+  "money.section.ar": "Cuentas por cobrar",
+  "money.section.ap": "Cuentas por pagar",
+  "money.ar_hint": "Lo que te deben los clientes",
+  "money.ap_hint": "Lo que debes a proveedores",
+  "money.outstanding": "Pendiente",
+  "money.overdue": "Vencido",
+  "money.collected": "Cobrado",
+  "money.paid": "Pagado",
+  "money.aging": "Antigüedad",
+  "money.empty": "Aún no hay movimientos.",
+  "money.empty_sub": "Las cuentas aparecerán aquí conforme las agregues.",
 
   // ── projects list ──
   "projects.title": "Proyectos",

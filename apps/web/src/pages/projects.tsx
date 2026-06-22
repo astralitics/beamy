@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
@@ -16,12 +16,14 @@ import {
   Icon,
   Input,
   Modal,
+  Money,
   MoneyInput,
   PageHeader,
   Pill,
   Select,
   Textarea,
 } from "../components/ui";
+import { EmptyState } from "../components/vertical-mark";
 
 type ProjectRow = inferRouterOutputs<AppRouter>["projects"]["list"][number];
 type StatusFilter = ProjectStatus | "all";
@@ -46,6 +48,7 @@ export default function ProjectsPage() {
   const fmt = useFormatters();
   const t = useT();
   const L = useLabels();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [typeFilter, setTypeFilter] = useState<ProjectType | "">("");
@@ -68,7 +71,7 @@ export default function ProjectsPage() {
   });
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-10 lg:py-14 animate-rise">
+    <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-6 sm:py-10 lg:px-10 lg:py-14 animate-rise">
       <PageHeader
         title={t("projects.title")}
         lede={t("projects.lede")}
@@ -113,7 +116,7 @@ export default function ProjectsPage() {
         <div className="relative min-w-[260px] flex-1">
           <Icon
             name="search"
-            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-faint"
           />
           <Input
             value={search}
@@ -124,78 +127,86 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
-        {list.isLoading ? (
-          <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
-        ) : list.error ? (
-          <p className="px-6 py-8 text-sm text-rose-700">{list.error.message}</p>
-        ) : !list.data || list.data.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <p className="font-display text-xl text-ink-900">
-              {search.trim() || typeFilter
+      {list.isLoading ? (
+        <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
+          {t("common.loading")}
+        </div>
+      ) : list.error ? (
+        <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-danger">
+          {list.error.message}
+        </div>
+      ) : !list.data || list.data.length === 0 ? (
+        <div className="mt-6">
+          <EmptyState
+            title={
+              search.trim() || typeFilter
                 ? t("projects.empty_filtered")
                 : statusFilter === "archived"
                   ? t("projects.empty_archived")
-                  : t("projects.empty")}
-            </p>
-            {!search.trim() && !typeFilter && statusFilter !== "archived" && (
-              <Button
-                variant="primary"
-                onClick={() => setModalState({ mode: "create" })}
-                className="mt-5"
-              >
-                <Icon name="plus" className="h-4 w-4" />
-                {t("projects.create_first")}
-              </Button>
-            )}
-          </div>
-        ) : (
-          <ul className="divide-y divide-ink-100">
-            {list.data.map((p) => (
-              <li key={p.id}>
-                <Link
-                  to={`/projects/${p.id}`}
-                  className="grid grid-cols-[1fr_auto_auto] items-center gap-6 px-6 py-4 transition-colors hover:bg-paper-50"
-                >
-                  <div className="min-w-0">
+                  : t("projects.empty")
+            }
+            action={
+              !search.trim() && !typeFilter && statusFilter !== "archived" ? (
+                <Button variant="primary" onClick={() => setModalState({ mode: "create" })}>
+                  <Icon name="plus" className="h-4 w-4" />
+                  {t("projects.create_first")}
+                </Button>
+              ) : undefined
+            }
+          />
+        </div>
+      ) : (
+        <div className="data-table mt-6">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("col.name")}</th>
+                <th className="hidden md:table-cell">{t("col.type")}</th>
+                <th className="r">{t("col.contract")}</th>
+                <th className="r hidden sm:table-cell">{t("col.updated")}</th>
+                <th aria-hidden className="w-8" />
+              </tr>
+            </thead>
+            <tbody>
+              {list.data.map((p) => (
+                <tr key={p.id} className="clickable group" onClick={() => navigate(`/projects/${p.id}`)}>
+                  <td>
                     <div className="flex items-center gap-2.5">
-                      <span className="truncate font-display text-[20px] leading-tight tracking-tight text-ink-900">
+                      <Link
+                        to={`/projects/${p.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="truncate font-display text-[17px] font-bold leading-tight tracking-tight text-text group-hover:text-accent"
+                      >
                         {p.name}
-                      </span>
+                      </Link>
                       <Pill tone={STATUS_TONE[p.status]} dot>
                         {t(`status.project.${p.status}` as const)}
                       </Pill>
                     </div>
-                    <p className="mt-1 truncate text-[13px] text-ink-500">
+                    <p className="mt-1 truncate text-[12px] text-text-muted md:hidden">
                       {L.projectType(p.projectType)}
-                      {p.address && (
-                        <>
-                          <span className="mx-2 text-ink-300">·</span>
-                          {p.address}
-                        </>
-                      )}
+                      {p.address && <span className="text-text-faint"> · {p.address}</span>}
                     </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="num text-[17px] text-ink-900">
-                      {p.contractAmount && p.contractCurrency
-                        ? fmt.currency(p.contractAmount, p.contractCurrency)
-                        : "—"}
-                    </p>
-                    <p className="mt-0.5 text-[12px] text-ink-400">
-                      {fmt.date(p.updatedAt)}
-                    </p>
-                  </div>
-                  <Icon
-                    name="chevron-right"
-                    className="h-4 w-4 text-ink-300 group-hover:text-ink-500"
-                  />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                  </td>
+                  <td className="hidden max-w-[260px] text-text-muted md:table-cell">
+                    <span className="block truncate">{L.projectType(p.projectType)}</span>
+                    {p.address && <span className="block truncate text-[12px] text-text-faint">{p.address}</span>}
+                  </td>
+                  <td className="r">
+                    <Money amount={p.contractAmount} currency={p.contractCurrency} mono />
+                  </td>
+                  <td className="r hidden whitespace-nowrap text-[12px] text-text-faint tnum sm:table-cell">
+                    {fmt.date(p.updatedAt)}
+                  </td>
+                  <td className="r">
+                    <Icon name="chevron-right" className="ml-auto h-4 w-4 text-text-faint transition-colors group-hover:text-accent" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {modalState.mode !== "closed" && (
         <ProjectFormModal
@@ -303,7 +314,7 @@ function ProjectFormModal({
       size="lg"
       footer={
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-rose-600">{error}</p>
+          <p className="text-xs text-danger">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
               {t("common.cancel")}

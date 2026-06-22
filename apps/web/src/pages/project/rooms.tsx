@@ -1,17 +1,19 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import { ROOM_TYPES_BY_VERTICAL, type RoomType } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useLabels, useT } from "../../lib/i18n";
 import { useVertical } from "../../lib/vertical";
+import { EmptyState } from "../../components/vertical-mark";
 import {
   Button,
   Field,
   Icon,
   Input,
   Modal,
+  PageHeader,
   Select,
   Textarea,
 } from "../../components/ui";
@@ -25,6 +27,7 @@ export default function ProjectRooms() {
   const L = useLabels();
   const t = useT();
   const vertical = useVertical();
+  const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
   const [typeFilter, setTypeFilter] = useState<RoomType | "">("");
   const [search, setSearch] = useState("");
@@ -47,21 +50,19 @@ export default function ProjectRooms() {
 
   return (
     <div className="animate-fade">
-      <div className="flex items-end justify-between gap-6">
-        <div>
-          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            {t("rooms.title")}
-          </h2>
-          <p className="mt-1 text-sm text-ink-500">{t("rooms.lede")}</p>
-        </div>
-        <Button variant="primary" onClick={() => setAdding(true)}>
-          <Icon name="plus" className="h-4 w-4" />
-          {t("rooms.add")}
-        </Button>
-      </div>
+      <PageHeader
+        title={t("rooms.title")}
+        lede={t("rooms.lede")}
+        action={
+          <Button variant="primary" onClick={() => setAdding(true)}>
+            <Icon name="plus" className="h-4 w-4" />
+            {t("rooms.add")}
+          </Button>
+        }
+      />
 
       <div className="mt-8 flex flex-wrap items-center gap-2">
-        <div className="w-52">
+        <div className="w-44">
           <Select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as RoomType | "")}
@@ -74,10 +75,10 @@ export default function ProjectRooms() {
             ))}
           </Select>
         </div>
-        <div className="relative min-w-[260px] flex-1">
+        <div className="relative min-w-[240px] flex-1">
           <Icon
             name="search"
-            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-faint"
           />
           <Input
             value={search}
@@ -88,85 +89,90 @@ export default function ProjectRooms() {
         </div>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
-        {list.isLoading ? (
-          <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
-        ) : list.error ? (
-          <p className="px-6 py-8 text-sm text-rose-700">{list.error.message}</p>
-        ) : filtered.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <p className="font-display text-xl text-ink-900">
-              {search.trim() || typeFilter
+      {list.isLoading ? (
+        <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center text-text-muted">
+          {t("common.loading")}
+        </div>
+      ) : list.error ? (
+        <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center text-danger">
+          {list.error.message}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="mt-6">
+          <EmptyState
+            title={
+              search.trim() || typeFilter
                 ? t("rooms.empty_filtered")
-                : t("rooms.empty")}
-            </p>
-            {!search.trim() && !typeFilter && (
-              <Button
-                variant="primary"
-                onClick={() => setAdding(true)}
-                className="mt-5"
-              >
-                <Icon name="plus" className="h-4 w-4" />
-                {t("rooms.add_first")}
-              </Button>
-            )}
-          </div>
-        ) : (
-          <table className="w-full text-[14px]">
-            <thead className="border-b border-ink-100 bg-paper-50">
-              <tr className="text-left">
-                <Th>{t("col.name")}</Th>
-                <Th>{t("col.type")}</Th>
-                <Th>{t("rooms.col.floor")}</Th>
-                <Th align="right">{t("rooms.col.area")}</Th>
-                <Th align="right">{t("rooms.col.ceiling")}</Th>
-                <Th />
+                : t("rooms.empty")
+            }
+            action={
+              !search.trim() && !typeFilter ? (
+                <Button variant="primary" onClick={() => setAdding(true)}>
+                  <Icon name="plus" className="h-4 w-4" />
+                  {t("rooms.add_first")}
+                </Button>
+              ) : undefined
+            }
+          />
+        </div>
+      ) : (
+        <div className="data-table mt-6">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("col.name")}</th>
+                <th>{t("col.type")}</th>
+                <th>{t("rooms.col.floor")}</th>
+                <th className="r">{t("rooms.col.area")}</th>
+                <th className="r">{t("rooms.col.ceiling")}</th>
+                <th aria-hidden className="r w-8" />
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
                 <tr
                   key={r.id}
-                  className="group border-b border-ink-100 transition-colors last:border-b-0 hover:bg-paper-50"
+                  className="clickable group"
+                  onClick={() =>
+                    navigate(`/projects/${project.id}/rooms/${r.id}`)
+                  }
                 >
-                  <Td>
+                  <td>
                     <Link
                       to={`/projects/${project.id}/rooms/${r.id}`}
+                      onClick={(e) => e.stopPropagation()}
                       className="block"
                     >
-                      <span className="font-medium text-ink-900">{r.name}</span>
+                      <span className="font-medium text-text group-hover:text-accent">{r.name}</span>
                       {r.description && (
-                        <span className="block truncate text-xs text-ink-500">
+                        <span className="block truncate text-text-muted">
                           {r.description}
                         </span>
                       )}
                     </Link>
-                  </Td>
-                  <Td className="text-ink-600">
+                  </td>
+                  <td className="text-text-muted">
                     {r.roomType ? L.roomType(r.roomType) : "—"}
-                  </Td>
-                  <Td className="text-ink-600">{r.floor ?? "—"}</Td>
-                  <Td align="right" className="tnum text-ink-700">
+                  </td>
+                  <td className="text-text-muted">{r.floor ?? "—"}</td>
+                  <td className="r">
                     {r.floorAreaSqM ? `${r.floorAreaSqM} m²` : "—"}
-                  </Td>
-                  <Td align="right" className="tnum text-ink-700">
+                  </td>
+                  <td className="r">
                     {r.ceilingHeightM ? `${r.ceilingHeightM} m` : "—"}
-                  </Td>
-                  <Td align="right">
-                    <Link
-                      to={`/projects/${project.id}/rooms/${r.id}`}
-                      aria-label={t("rooms.open")}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
-                    >
-                      <Icon name="chevron-right" className="h-4 w-4" />
-                    </Link>
-                  </Td>
+                  </td>
+                  <td className="r">
+                    <Icon
+                      name="chevron-right"
+                      className="ml-auto h-4 w-4 text-text-faint transition-colors group-hover:text-accent"
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
 
       {adding && (
         <RoomCreateModal
@@ -175,42 +181,6 @@ export default function ProjectRooms() {
         />
       )}
     </div>
-  );
-}
-
-function Th({
-  children,
-  align = "left",
-}: {
-  children?: React.ReactNode;
-  align?: "left" | "right";
-}) {
-  return (
-    <th
-      className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 ${
-        align === "right" ? "text-right" : "text-left"
-      }`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({
-  children,
-  align = "left",
-  className = "",
-}: {
-  children?: React.ReactNode;
-  align?: "left" | "right";
-  className?: string;
-}) {
-  return (
-    <td
-      className={`px-5 py-3 ${align === "right" ? "text-right" : "text-left"} ${className}`}
-    >
-      {children}
-    </td>
   );
 }
 
@@ -267,7 +237,7 @@ function RoomCreateModal({
       size="lg"
       footer={
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-rose-600">{error}</p>
+          <p className="text-xs text-danger">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
               {t("common.cancel")}

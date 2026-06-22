@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./lib/auth";
 import { useT } from "./lib/i18n";
 import { Sidebar } from "./components/sidebar";
+import { CommandPaletteProvider } from "./components/command-palette";
 import { Icon } from "./components/ui";
 import { RequireAuth } from "./components/require-auth";
 import { OrgGate } from "./components/org-gate";
@@ -40,6 +41,7 @@ import ProjectAssistant from "./pages/project/assistant";
 import ProjectActivity from "./pages/project/activity";
 import ProjectDocuments from "./pages/project/documents";
 import ProjectPlaceholder from "./pages/project/placeholder";
+import MoneyPage from "./pages/money";
 import ServicesPage from "./pages/services";
 import SettingsPage from "./pages/settings";
 import VendorsPage from "./pages/vendors";
@@ -104,6 +106,7 @@ function AppShell() {
   }, [location.pathname, location.search]);
 
   return (
+    <CommandPaletteProvider>
     <div className="flex h-full">
       <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
@@ -115,6 +118,7 @@ function AppShell() {
           <Route path="/vendors" element={<VendorsPage />} />
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/workflows" element={<WorkflowsPage />} />
+          <Route path="/money" element={<MoneyPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
 
           {/* Project workspace mode — Vercel/Supabase pattern. Sidebar
@@ -201,26 +205,27 @@ function AppShell() {
         </main>
       </div>
     </div>
+    </CommandPaletteProvider>
   );
 }
 
 function MobileTopBar({ onOpen }: { onOpen: () => void }) {
   const t = useT();
   return (
-    <div className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-ink-200 bg-paper-50/90 px-4 backdrop-blur lg:hidden">
+    <div className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-bg/90 px-4 backdrop-blur lg:hidden">
       <button
         type="button"
         onClick={onOpen}
         aria-label={t("nav.open_menu")}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-ink-200 bg-white text-ink-700 transition-colors hover:bg-paper-100"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface text-text transition-colors hover:bg-bg-subtle"
       >
         <Icon name="menu" className="h-5 w-5" />
       </button>
-      <Link to="/" className="inline-flex items-baseline gap-1.5">
-        <span className="font-display text-xl font-normal leading-none tracking-tightest text-ink-900">
+      <Link to="/" className="inline-flex items-center gap-2">
+        <span className="font-display text-xl font-extrabold leading-none tracking-tightest text-text">
           Beamy
         </span>
-        <span className="h-1 w-1 translate-y-[-2px] rounded-full bg-accent-400" />
+        <span className="beam h-1.5 w-5" />
       </Link>
     </div>
   );
