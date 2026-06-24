@@ -55,7 +55,7 @@ export default function ProjectShell() {
   const number = projectNumber(p.id, p.createdAt);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10 lg:px-10 lg:py-14 animate-rise">
+    <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-6 sm:py-10 lg:px-10 lg:py-14 animate-rise">
       <Header
         name={p.name}
         status={p.status}
@@ -116,14 +116,14 @@ function Header({
               {t(`status.project.${status}` as const)}
             </Pill>
             {clientName && (
-              <span className="text-[13px] text-ink-500">{clientName}</span>
+              <span className="text-[13px] text-text-muted">{clientName}</span>
             )}
           </div>
-          <h1 className="mt-3 font-display text-5xl font-normal leading-[1.05] tracking-tightest text-ink-900">
+          <h1 className="mt-3 font-display text-5xl font-bold leading-[1.05] tracking-tightest text-text">
             {name}
           </h1>
           {address && (
-            <p className="mt-3 text-[15px] text-ink-500">{address}</p>
+            <p className="mt-3 text-[15px] text-text-muted">{address}</p>
           )}
         </div>
         <button
@@ -133,7 +133,7 @@ function Header({
           aria-label={t("project.details")}
           title={t("project.details")}
           className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink-200 text-ink-500 transition-colors hover:border-ink-300 hover:text-ink-900 ${
-            detailsOpen ? "bg-ink-50 text-ink-900" : "bg-white"
+            detailsOpen ? "bg-ink-50 text-ink-900" : "bg-surface"
           }`}
         >
           <Icon name="info" className="h-4 w-4" />
@@ -141,7 +141,7 @@ function Header({
       </div>
 
       {detailsOpen && (
-        <dl className="mt-6 grid animate-rise grid-cols-2 gap-x-8 gap-y-4 rounded-xl border border-ink-200/70 bg-white px-6 py-5 shadow-soft sm:grid-cols-5">
+        <dl className="mt-6 grid animate-rise grid-cols-2 gap-x-8 gap-y-4 rounded-xl border border-ink-200/70 bg-surface px-6 py-5 shadow-soft sm:grid-cols-5">
           <Fact label={t("project.fact.project_number")} value={number} mono />
           <Fact
             label={t("project.fact.contract")}

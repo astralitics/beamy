@@ -73,10 +73,10 @@ export default function RegisterPage() {
           M1
         </span>
       </div>
-      <h1 className="mt-6 text-xl font-semibold tracking-tight text-slate-900">
+      <h1 className="mt-6 text-xl font-semibold tracking-tight text-text">
         Create your account
       </h1>
-      <p className="mt-1 text-sm text-slate-600">
+      <p className="mt-1 text-sm text-text-muted">
         Sign up to accept your workspace invite. You'll join the workspace you
         were invited to once you're signed in.
       </p>
@@ -104,22 +104,22 @@ export default function RegisterPage() {
             autoComplete="new-password"
           />
         </Field>
-        {error && <p className="text-sm text-rose-700">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
         <button
           type="submit"
           disabled={submitting}
-          className="mt-2 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="mt-2 w-full rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
         >
           {submitting ? "Working…" : "Create account"}
         </button>
       </form>
 
-      <p className="mt-8 text-xs text-slate-400">
+      <p className="mt-8 text-xs text-text-faint">
         Already have an account?{" "}
         <button
           type="button"
           onClick={() => navigate("/login", { state: { from: { pathname: from } } })}
-          className="font-medium text-slate-600 hover:text-slate-900"
+          className="font-medium text-text-muted hover:text-text"
         >
           Sign in
         </button>

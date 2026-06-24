@@ -137,7 +137,7 @@ export default function ProjectAssetDetail() {
                 href={a.productUrl}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex h-10 items-center gap-1.5 rounded-md border border-ink-200 bg-white px-4 text-sm font-medium text-ink-800 transition-colors hover:bg-paper-50 hover:border-ink-300"
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-surface px-4 text-sm font-medium text-ink-800 transition-colors hover:bg-bg-subtle hover:border-ink-300"
               >
                 {t("detail.product_page")}
                 <ExternalIcon className="h-3.5 w-3.5" />
@@ -200,7 +200,7 @@ export default function ProjectAssetDetail() {
       {(a.photoUrl || a.notes) && (
         <section className="grid gap-6 lg:grid-cols-[1fr_2fr]">
           {a.photoUrl && (
-            <div className="overflow-hidden rounded-xl border border-ink-200/70 bg-white">
+            <div className="overflow-hidden rounded-xl border border-ink-200/70 bg-surface">
               <img
                 src={a.photoUrl}
                 alt={a.name}
@@ -237,7 +237,7 @@ export default function ProjectAssetDetail() {
           ) : events.error ? (
             <p className="text-sm text-rose-700">{events.error.message}</p>
           ) : !events.data || events.data.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-ink-200 bg-white px-6 py-10 text-center">
+            <div className="rounded-xl border border-dashed border-ink-200 bg-surface px-6 py-10 text-center">
               <p className="text-[15px] text-ink-700">
                 {t("detail.nothing_logged")}
               </p>
@@ -316,7 +316,7 @@ function Fact({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white px-5 py-4">
+    <div className="bg-surface px-5 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
         {label}
       </p>

@@ -49,19 +49,19 @@ export function ContactsSection({
   const [editing, setEditing] = useState<ContactLike | null>(null);
 
   return (
-    <div className="border-t border-slate-200 bg-slate-50/50 p-6">
+    <div className="border-t border-border bg-bg-subtle p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold tracking-tight">
+          <h3 className="text-base font-semibold tracking-tight text-text">
             {t("contacts.title")}
           </h3>
-          <p className="mt-0.5 text-xs text-slate-500">{t("contacts.lede")}</p>
+          <p className="mt-0.5 text-xs text-text-muted">{t("contacts.lede")}</p>
         </div>
         {!adding && !editing && (
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-100"
+            className="rounded-xl border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-bg-subtle"
           >
             {t("contacts.add")}
           </button>
@@ -90,9 +90,9 @@ export function ContactsSection({
 
       <div className="mt-4 space-y-2">
         {isLoading ? (
-          <p className="text-xs text-slate-500">{t("common.loading")}</p>
+          <p className="text-xs text-text-muted">{t("common.loading")}</p>
         ) : !contacts || contacts.length === 0 ? (
-          <p className="text-xs text-slate-500">{t("contacts.empty")}</p>
+          <p className="text-xs text-text-muted">{t("contacts.empty")}</p>
         ) : (
           contacts.map((c) => (
             <ContactRow
@@ -123,21 +123,21 @@ function ContactRow({
   const t = useT();
   const [confirming, setConfirming] = useState(false);
   return (
-    <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2 text-sm">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-slate-900">{contact.name}</span>
+          <span className="font-medium text-text">{contact.name}</span>
           {contact.isPrimary && (
             <span className="inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-800">
               {t("contacts.primary")}
             </span>
           )}
           {contact.role && (
-            <span className="text-xs text-slate-500">· {contact.role}</span>
+            <span className="text-xs text-text-muted">· {contact.role}</span>
           )}
         </div>
         {(contact.email || contact.phone) && (
-          <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
+          <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-text-muted">
             {contact.email && <span>{contact.email}</span>}
             {contact.phone && <span>{contact.phone}</span>}
           </div>
@@ -146,7 +146,7 @@ function ContactRow({
       <button
         type="button"
         onClick={onEdit}
-        className="text-xs text-slate-500 hover:text-slate-900"
+        className="text-xs text-text-muted hover:text-text"
       >
         {t("common.edit")}
       </button>
@@ -154,7 +154,7 @@ function ContactRow({
         type="button"
         onClick={() => setConfirming(true)}
         disabled={removing}
-        className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
+        className="text-xs text-danger hover:text-danger disabled:opacity-50"
       >
         {removing ? "…" : t("common.remove")}
       </button>
@@ -218,7 +218,7 @@ function ContactForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-3 rounded-md border border-slate-200 bg-white p-3"
+      className="mt-3 rounded-xl border border-border bg-surface p-3"
     >
       <div className="grid gap-2 sm:grid-cols-2">
         <Field label={t("contacts.field.name")}>
@@ -258,23 +258,23 @@ function ContactForm({
             type="checkbox"
             checked={isPrimary}
             onChange={(e) => setIsPrimary(e.target.checked)}
-            className="rounded border-slate-300"
+            className="rounded border-border-strong"
           />
-          <span className="text-slate-700">{t("contacts.mark_primary")}</span>
+          <span className="text-text">{t("contacts.mark_primary")}</span>
         </label>
       </div>
       <div className="mt-3 flex justify-end gap-2">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-slate-200 px-3 py-1 text-xs hover:bg-slate-50"
+          className="rounded-xl border border-border px-3 py-1 text-xs hover:bg-bg-subtle"
         >
           {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-xl bg-accent px-3 py-1 text-xs font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
         >
           {submitting ? t("common.saving") : submitLabel}
         </button>
@@ -284,7 +284,7 @@ function ContactForm({
 }
 
 const inputCls =
-  "block w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block w-full rounded-xl border border-border bg-surface px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 function Field({
   label,
@@ -295,7 +295,7 @@ function Field({
 }) {
   return (
     <label className="block text-sm">
-      <span className="text-slate-700">{label}</span>
+      <span className="text-text">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );

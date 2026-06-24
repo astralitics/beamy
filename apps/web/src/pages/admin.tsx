@@ -96,32 +96,32 @@ export default function AdminAccessPage() {
 
       <div className="mt-8 space-y-5">
         {orgsQuery.isLoading ? (
-          <p className="text-sm text-ink-500">Loading workspaces…</p>
+          <div className="rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">Loading workspaces…</div>
         ) : orgsQuery.isError ? (
-          <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <div className="rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-danger">
             {orgsQuery.error.message}
-          </p>
+          </div>
         ) : orgs.length === 0 ? (
-          <p className="rounded-md border border-ink-200 bg-paper-50 p-6 text-sm text-ink-500">
+          <div className="rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
             No workspaces yet. Create the first one above.
-          </p>
+          </div>
         ) : (
           orgs.map((org) => (
             <div
               key={org.id}
-              className="overflow-hidden rounded-xl border border-ink-200"
+              className="overflow-hidden rounded-xl border border-border"
             >
-              <div className="flex items-center justify-between gap-3 border-b border-ink-100 bg-paper-50 px-4 py-3">
+              <div className="flex items-center justify-between gap-3 border-b border-border-subtle bg-bg-subtle px-4 py-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-semibold text-ink-900">
+                    <span className="truncate text-sm font-semibold text-text">
                       {org.name}
                     </span>
                     <Pill tone={org.vertical === "landscaping" ? "success" : "info"}>
                       {org.vertical}
                     </Pill>
                   </div>
-                  <p className="mt-0.5 text-xs text-ink-400">
+                  <p className="mt-0.5 text-xs text-text-faint">
                     {org.slug} · {org.defaultCurrency} ·{" "}
                     {org.members.length} member{org.members.length === 1 ? "" : "s"}
                   </p>
@@ -149,11 +149,11 @@ export default function AdminAccessPage() {
               </div>
 
               {org.members.length === 0 ? (
-                <p className="px-4 py-5 text-sm text-ink-400">No members.</p>
+                <p className="px-4 py-5 text-sm text-text-faint">No members.</p>
               ) : (
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-400">
+                    <tr className="border-b border-border-subtle text-left text-xs uppercase tracking-wide text-text-faint">
                       <th className="px-4 py-2 font-medium">User</th>
                       <th className="px-4 py-2 font-medium">Role</th>
                       <th className="px-4 py-2" />
@@ -163,16 +163,16 @@ export default function AdminAccessPage() {
                     {org.members.map((m) => {
                       const u = usersById.get(m.userId);
                       return (
-                        <tr key={m.userId} className="border-b border-ink-50 last:border-0">
+                        <tr key={m.userId} className="border-b border-border-subtle last:border-0">
                           <td className="px-4 py-2.5">
-                            <div className="font-medium text-ink-900">
+                            <div className="font-medium text-text">
                               {u?.fullName ?? u?.email ?? m.userId}
                             </div>
                             {u?.email && u?.fullName && (
-                              <div className="text-xs text-ink-400">{u.email}</div>
+                              <div className="text-xs text-text-faint">{u.email}</div>
                             )}
                             {!u && (
-                              <div className="text-xs text-amber-700">
+                              <div className="text-xs text-warn">
                                 ⚠ no login account (orphaned / seed)
                               </div>
                             )}
@@ -201,7 +201,7 @@ export default function AdminAccessPage() {
                             <button
                               type="button"
                               onClick={() => setRemoveTarget({ org, member: m })}
-                              className="text-xs font-medium text-rose-600 hover:text-rose-700"
+                              className="text-xs font-medium text-danger hover:text-danger"
                             >
                               Remove
                             </button>
@@ -219,45 +219,45 @@ export default function AdminAccessPage() {
 
       {/* All login accounts (auth.users) — incl. ones with no workspace. */}
       <div className="mt-12">
-        <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
+        <h2 className="font-display text-2xl font-bold tracking-tight text-text">
           Users
         </h2>
-        <p className="mt-1 text-sm text-ink-500">
+        <p className="mt-1 text-sm text-text-muted">
           Every login account on this deployment, and the workspaces they belong
           to. "Delete account" removes the login and all its memberships.
         </p>
-        <div className="mt-4 overflow-hidden rounded-xl border border-ink-200">
-          {usersQuery.isLoading ? (
-            <p className="px-4 py-5 text-sm text-ink-500">Loading users…</p>
-          ) : usersQuery.isError ? (
-            <p className="px-4 py-5 text-sm text-rose-700">
-              {usersQuery.error.message}
-            </p>
-          ) : users.length === 0 ? (
-            <p className="px-4 py-5 text-sm text-ink-400">No login accounts.</p>
-          ) : (
+        {usersQuery.isLoading ? (
+          <div className="mt-4 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">Loading users…</div>
+        ) : usersQuery.isError ? (
+          <div className="mt-4 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-danger">
+            {usersQuery.error.message}
+          </div>
+        ) : users.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">No login accounts.</div>
+        ) : (
+          <div className="data-table mt-4">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-400">
-                  <th className="px-4 py-2 font-medium">User</th>
-                  <th className="px-4 py-2 font-medium">Workspaces</th>
-                  <th className="px-4 py-2" />
+                <tr>
+                  <th>User</th>
+                  <th>Workspaces</th>
+                  <th className="r" />
                 </tr>
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id} className="border-b border-ink-50 last:border-0">
-                    <td className="px-4 py-2.5">
-                      <div className="font-medium text-ink-900">
+                  <tr key={u.id}>
+                    <td>
+                      <div className="font-medium text-text">
                         {u.fullName ?? u.email ?? u.id}
                       </div>
                       {u.email && u.fullName && (
-                        <div className="text-xs text-ink-400">{u.email}</div>
+                        <div className="text-xs text-text-faint">{u.email}</div>
                       )}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td>
                       {u.memberships.length === 0 ? (
-                        <span className="text-xs text-amber-700">
+                        <span className="text-xs text-warn">
                           ⚠ no workspace
                         </span>
                       ) : (
@@ -270,11 +270,11 @@ export default function AdminAccessPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="r">
                       <button
                         type="button"
                         onClick={() => setDeleteUserTarget(u)}
-                        className="text-xs font-medium text-rose-600 hover:text-rose-700"
+                        className="text-xs font-medium text-danger hover:text-danger"
                       >
                         Delete account
                       </button>
@@ -283,8 +283,8 @@ export default function AdminAccessPage() {
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {newOpen && (
@@ -376,21 +376,21 @@ function NewWorkspaceDialog({
   if (create.data) {
     return (
       <Modal title="Workspace created" onClose={onClose}>
-        <p className="text-sm text-ink-700">
+        <p className="text-sm text-text">
           <span className="font-medium">{name}</span> is ready, owned by{" "}
           <span className="font-medium">{ownerEmail}</span>.
         </p>
         {create.data.generatedPassword ? (
           <div className="mt-4">
-            <p className="text-sm text-ink-600">
+            <p className="text-sm text-text-muted">
               Share this one-time password with the owner so they can sign in:
             </p>
-            <code className="mt-2 block rounded-md border border-ink-200 bg-paper-50 px-3 py-2 font-mono text-sm">
+            <code className="mt-2 block rounded-xl border border-border bg-bg-subtle px-3 py-2 font-mono text-sm">
               {create.data.generatedPassword}
             </code>
           </div>
         ) : (
-          <p className="mt-4 text-sm text-ink-600">
+          <p className="mt-4 text-sm text-text-muted">
             That email already had an account — they can sign in with their
             existing password.
           </p>
@@ -443,7 +443,7 @@ function NewWorkspaceDialog({
           />
         </Field>
         {create.error && (
-          <p className="text-sm text-rose-600">{create.error.message}</p>
+          <p className="text-sm text-danger">{create.error.message}</p>
         )}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose} disabled={create.isPending}>
@@ -485,13 +485,13 @@ function AddMemberDialog({
   if (add.data) {
     return (
       <Modal title="Member added" onClose={onClose}>
-        <p className="text-sm text-ink-700">
+        <p className="text-sm text-text">
           {email} now has access to {org.name} as {role}.
         </p>
         {add.data.generatedPassword && (
           <div className="mt-4">
-            <p className="text-sm text-ink-600">One-time password to share:</p>
-            <code className="mt-2 block rounded-md border border-ink-200 bg-paper-50 px-3 py-2 font-mono text-sm">
+            <p className="text-sm text-text-muted">One-time password to share:</p>
+            <code className="mt-2 block rounded-xl border border-border bg-bg-subtle px-3 py-2 font-mono text-sm">
               {add.data.generatedPassword}
             </code>
           </div>
@@ -533,7 +533,7 @@ function AddMemberDialog({
             ))}
           </Select>
         </Field>
-        {add.error && <p className="text-sm text-rose-600">{add.error.message}</p>}
+        {add.error && <p className="text-sm text-danger">{add.error.message}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose} disabled={add.isPending}>
             Cancel
@@ -572,7 +572,7 @@ function DeleteWorkspaceDialog({
       subtitle="This permanently deletes the workspace and all its data."
       onClose={onClose}
     >
-      <p className="text-sm text-ink-700">
+      <p className="text-sm text-text">
         Type <span className="font-medium">{org.name}</span> to confirm.
       </p>
       <div className="mt-3">
@@ -583,7 +583,7 @@ function DeleteWorkspaceDialog({
           autoFocus
         />
       </div>
-      {del.error && <p className="mt-3 text-sm text-rose-600">{del.error.message}</p>}
+      {del.error && <p className="mt-3 text-sm text-danger">{del.error.message}</p>}
       <div className="mt-6 flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onClose} disabled={del.isPending}>
           Cancel

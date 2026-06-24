@@ -1,23 +1,28 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Beamy — editorial architectural refinement.
+ * Beamy — HORIZON design language.
  *
- * Type: Fraunces (serif display, also for big numerics) + Hanken Grotesk
- * (clean grotesk for body and UI). Single warm accent (terracotta).
- *
- * Tokens are intentionally restrained — the design comes from proportions,
- * type, and whitespace, not from color or chrome.
+ * Colors are SEMANTIC and theme-aware: every token reads a CSS variable
+ * defined in src/index.css (light `:root`, dark `:root[data-theme="dark"]`,
+ * per-vertical `:root[data-vertical]`). The legacy `ink/paper/accent/
+ * blueprint/safety` scales are remapped onto the same variables so the ~80
+ * un-migrated screens inherit the new palette + dark mode for free during
+ * rollout. Type: Fraunces (display) + Hanken Grotesk (UI) + JetBrains Mono.
  */
+const v = (name: string) => `rgb(var(${name}) / <alpha-value>)`;
+
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  darkMode: ["selector", '[data-theme="dark"]'],
   theme: {
     extend: {
       fontFamily: {
-        display: ['"Fraunces"', "ui-serif", "Georgia", "serif"],
+        display: ['"Bricolage Grotesque"', "ui-sans-serif", "system-ui", "sans-serif"],
+        hand: ['"Bricolage Grotesque"', "ui-sans-serif", "sans-serif"],
         sans: ['"Hanken Grotesk"', "ui-sans-serif", "system-ui", "sans-serif"],
         mono: [
-          '"JetBrains Mono"',
+          '"Spline Sans Mono"',
           "ui-monospace",
           "SFMono-Regular",
           "Menlo",
@@ -25,7 +30,6 @@ export default {
         ],
       },
       fontSize: {
-        // Custom scale — slightly larger and more confident.
         "2xs": ["0.6875rem", { lineHeight: "1rem" }], // 11px
         xs: ["0.75rem", { lineHeight: "1.125rem" }], // 12 / 18
         sm: ["0.875rem", { lineHeight: "1.375rem" }], // 14 / 22
@@ -39,90 +43,137 @@ export default {
         "6xl": ["3.75rem", { lineHeight: "1" }], // 60
       },
       colors: {
-        // Warm-neutral surfaces — slightly off-white, not clinical.
-        paper: {
-          DEFAULT: "#FAFAF7",
-          50: "#FAFAF7",
-          100: "#F4F3EE",
-          200: "#E6E4DC",
-          300: "#D2CFC4",
+        // ── semantic chassis (the going-forward system) ──
+        bg: { DEFAULT: v("--bg"), subtle: v("--bg-subtle") },
+        surface: { DEFAULT: v("--surface"), 2: v("--surface-2") },
+        text: {
+          DEFAULT: v("--text"),
+          muted: v("--text-muted"),
+          faint: v("--text-faint"),
         },
-        // Ink — high-contrast text and primary buttons.
-        ink: {
-          DEFAULT: "#18181B",
-          50: "#FAFAFA",
-          100: "#F4F4F5",
-          200: "#E4E4E7",
-          300: "#D4D4D8",
-          400: "#A1A1AA",
-          500: "#71717A",
-          600: "#52525B",
-          700: "#3F3F46",
-          800: "#27272A",
-          900: "#09090B",
+        border: {
+          DEFAULT: v("--border"),
+          subtle: v("--border-subtle"),
+          strong: v("--border-strong"),
         },
-        // Legacy "blueprint" → mapped to ink so existing classes still work.
-        blueprint: {
-          DEFAULT: "#18181B",
-          50: "#FAFAFA",
-          100: "#F4F4F5",
-          800: "#27272A",
-          900: "#09090B",
-        },
-        // Accent: warm terracotta. Used SPARINGLY — focal accents, key totals,
-        // and the in-progress phase dot. Never for entire backgrounds.
         accent: {
-          DEFAULT: "#A14A1F",
-          50: "#FBF1EB",
-          100: "#F5DECC",
-          200: "#EBBE9F",
-          300: "#DC9869",
-          400: "#C97540",
-          500: "#A14A1F",
-          600: "#853A14",
-          700: "#6B2E0F",
-          800: "#502209",
+          DEFAULT: v("--accent"),
+          hover: v("--accent-hover"),
+          subtle: v("--accent-subtle"),
+          contrast: v("--accent-contrast"),
+          // legacy numeric steps → nearest token
+          50: v("--accent-subtle"),
+          100: v("--accent-subtle"),
+          200: v("--accent"),
+          300: v("--accent"),
+          400: v("--accent"),
+          500: v("--accent"),
+          600: v("--accent-hover"),
+          700: v("--accent-hover"),
+          800: v("--accent-hover"),
         },
-        // Legacy "safety" → mapped to accent for back-compat.
+        success: { DEFAULT: v("--success"), subtle: v("--success-subtle") },
+        warn: { DEFAULT: v("--warn"), subtle: v("--warn-subtle") },
+        danger: { DEFAULT: v("--danger"), subtle: v("--danger-subtle") },
+        info: { DEFAULT: v("--info"), subtle: v("--info-subtle") },
+        horizon: { 1: v("--horizon-1"), 2: v("--horizon-2"), 3: v("--horizon-3") },
+        // the blueprint navigation rail (constant dark, vertical-tinted)
+        rail: {
+          DEFAULT: v("--rail-bg"),
+          ink: v("--rail-ink"),
+          muted: v("--rail-muted"),
+          line: v("--rail-line"),
+        },
+
+        // ── back-compat: legacy scales → semantic vars ──
+        paper: {
+          DEFAULT: v("--bg"),
+          50: v("--bg"),
+          100: v("--bg-subtle"),
+          200: v("--border-subtle"),
+          300: v("--border"),
+        },
+        ink: {
+          DEFAULT: v("--text"),
+          50: v("--bg-subtle"),
+          100: v("--border-subtle"),
+          200: v("--border"),
+          300: v("--border-strong"),
+          400: v("--text-faint"),
+          500: v("--text-muted"),
+          600: v("--text-muted"),
+          700: v("--text"),
+          800: v("--text"),
+          900: v("--text"),
+          950: v("--text"),
+        },
+        blueprint: {
+          DEFAULT: v("--text"),
+          50: v("--bg-subtle"),
+          100: v("--border-subtle"),
+          800: v("--text"),
+          900: v("--text"),
+        },
         safety: {
-          DEFAULT: "#A14A1F",
-          50: "#FBF1EB",
-          100: "#F5DECC",
-          200: "#EBBE9F",
-          300: "#DC9869",
-          600: "#853A14",
-          700: "#6B2E0F",
-          800: "#502209",
+          DEFAULT: v("--accent"),
+          50: v("--accent-subtle"),
+          100: v("--accent-subtle"),
+          200: v("--accent"),
+          300: v("--accent"),
+          600: v("--accent-hover"),
+          700: v("--accent-hover"),
+          800: v("--accent-hover"),
         },
+        // ── back-compat: raw Tailwind scales used by un-migrated pages → tokens
+        // so every legacy slate/emerald/rose/amber screen inherits Beam + dark.
+        slate: {
+          50: v("--bg-subtle"), 100: v("--border-subtle"), 200: v("--border"),
+          300: v("--border-strong"), 400: v("--text-faint"), 500: v("--text-muted"),
+          600: v("--text-muted"), 700: v("--text"), 800: v("--text"), 900: v("--text"), 950: v("--text"),
+        },
+        emerald: { 50: v("--success-subtle"), 100: v("--success-subtle"), 600: v("--success"), 700: v("--success"), 800: v("--success") },
+        rose: { 50: v("--danger-subtle"), 100: v("--danger-subtle"), 600: v("--danger"), 700: v("--danger"), 800: v("--danger") },
+        amber: { 50: v("--warn-subtle"), 100: v("--warn-subtle"), 600: v("--warn"), 700: v("--warn"), 800: v("--warn") },
+      },
+      borderColor: {
+        DEFAULT: v("--border"),
       },
       letterSpacing: {
         tightest: "-0.025em",
         tight: "-0.015em",
       },
       borderRadius: {
-        DEFAULT: "0.5rem",
-        md: "0.625rem",
-        lg: "0.75rem",
-        xl: "1rem",
-        "2xl": "1.25rem",
+        DEFAULT: "12px",
+        sm: "8px",
+        md: "12px",
+        lg: "14px",
+        xl: "16px",
+        "2xl": "20px",
       },
       boxShadow: {
-        soft: "0 1px 2px rgba(24,24,27,0.04), 0 1px 3px rgba(24,24,27,0.06)",
-        lift: "0 4px 12px rgba(24,24,27,0.06), 0 1px 3px rgba(24,24,27,0.05)",
+        // map to vars so they vanish in dark automatically
+        soft: "var(--shadow-sm)",
+        lift: "var(--shadow)",
+        pop: "var(--shadow-lg)",
       },
       keyframes: {
         rise: {
-          "0%": { opacity: "0", transform: "translateY(6px)" },
+          "0%": { opacity: "0", transform: "translateY(8px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
         fade: {
           "0%": { opacity: "0" },
           "100%": { opacity: "1" },
         },
+        "band-wipe": {
+          "0%": { clipPath: "inset(0 100% 0 0)" },
+          "100%": { clipPath: "inset(0 0 0 0)" },
+        },
       },
       animation: {
-        rise: "rise 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both",
+        rise: "rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both",
         fade: "fade 0.25s ease both",
+        "band-wipe": "band-wipe 0.55s cubic-bezier(0.16, 1, 0.3, 1) both",
       },
     },
   },

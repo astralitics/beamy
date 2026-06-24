@@ -11,6 +11,7 @@ import { documentsRouter } from "./routers/documents";
 import { furnitureRouter } from "./routers/furniture";
 import { invoicesRouter } from "./routers/invoices";
 import { materialsRouter } from "./routers/materials";
+import { moneyRouter } from "./routers/money";
 import { bidsRouter } from "./routers/bids";
 import { bidPackagesRouter } from "./routers/bid-packages";
 import { changeOrdersRouter } from "./routers/change-orders";
@@ -42,6 +43,7 @@ export const appRouter = router({
   furniture: furnitureRouter,
   invoices: invoicesRouter,
   materials: materialsRouter,
+  money: moneyRouter,
   vendors: vendorsRouter,
   services: servicesRouter,
   members: membersRouter,

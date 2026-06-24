@@ -135,7 +135,7 @@ export default function ProjectAssistant() {
       {/* Composer */}
       <form
         onSubmit={submit}
-        className="mt-3 flex items-end gap-2 rounded-md border border-paper-200 bg-white p-2"
+        className="mt-3 flex items-end gap-2 rounded-md border border-paper-200 bg-surface p-2"
       >
         <textarea
           ref={inputRef}
@@ -150,7 +150,7 @@ export default function ProjectAssistant() {
         <button
           type="submit"
           disabled={send.isPending || draft.trim().length === 0}
-          className="rounded-md bg-blueprint-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-blueprint-800 disabled:opacity-50"
+          className="rounded-xl bg-accent px-3 py-1.5 text-xs font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
         >
           {send.isPending ? "…" : t("assistant.send")}
         </button>
@@ -212,7 +212,7 @@ function Bubble({ msg }: { msg: ChatMessage }) {
       <div
         className={`max-w-[85%] rounded-lg border px-3 py-2 text-sm ${
           isUser
-            ? "border-paper-200 bg-white text-blueprint-900"
+            ? "border-paper-200 bg-surface text-blueprint-900"
             : "border-blueprint-100 bg-blueprint-50/80 text-blueprint-900"
         }`}
       >
@@ -252,7 +252,7 @@ function EmptyHint({ projectName }: { projectName: string }) {
         {suggestions.map((s) => (
           <li
             key={s}
-            className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs text-slate-700"
+            className="rounded-md border border-paper-200 bg-surface px-3 py-1.5 text-xs text-slate-700"
           >
             "{s}"
           </li>

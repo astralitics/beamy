@@ -47,7 +47,7 @@ export default function ProjectChangeOrders() {
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-contrast hover:bg-accent-hover"
           >
             {t("co.new")}
           </button>
@@ -66,9 +66,9 @@ export default function ProjectChangeOrders() {
         {list.isLoading ? (
           <p className="text-xs text-slate-500">{t("common.loading")}</p>
         ) : list.error ? (
-          <p className="text-xs text-rose-700">{list.error.message}</p>
+          <p className="text-xs text-danger">{list.error.message}</p>
         ) : !list.data || list.data.length === 0 ? (
-          <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
+          <p className="rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
             {t("co.empty_prefix")} <strong>{t("co.new")}</strong>{" "}
             {t("co.empty_suffix")}
           </p>
@@ -105,7 +105,7 @@ function COCard({
   return (
     <Link
       to={`/projects/${projectId}/change-orders/${co.id}`}
-      className="block rounded-md border border-paper-200 bg-white p-3 hover:border-paper-300 hover:shadow-sm"
+      className="block rounded-xl border border-border bg-surface p-3 hover:border-border-strong hover:shadow-sm"
     >
       <div className="flex items-baseline gap-3">
         <span className="text-[11px] uppercase tracking-wider text-slate-500">
@@ -283,7 +283,7 @@ function CreateForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-4 rounded-md border border-paper-200 bg-white p-4"
+      className="mt-4 rounded-2xl border border-border bg-surface p-4"
     >
       <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
         {t("co.form_eyebrow")}
@@ -360,19 +360,19 @@ function CreateForm({
         </span>
       </div>
 
-      {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
       <div className="mt-3 flex justify-end gap-2">
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
+          className="rounded-xl border border-border px-3 py-1 text-xs hover:bg-bg-subtle"
         >
           {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={create.isPending}
-          className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-xl bg-accent px-3 py-1 text-xs font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
         >
           {create.isPending ? t("common.saving") : t("co.create_submit")}
         </button>
@@ -402,7 +402,7 @@ function LineRowEditor({
   const showAfterFields = line.kind === "add" || line.kind === "modify";
 
   return (
-    <div className="rounded-md border border-paper-200 bg-paper-50 p-3">
+    <div className="rounded-xl border border-border bg-bg-subtle p-3">
       <div className="flex flex-wrap items-start gap-2">
         <select
           value={line.kind}
@@ -538,10 +538,10 @@ function emptyLine(kind: ChangeOrderLineKind, currency: string): DraftLine {
 // ───────────────────────────────────── primitives ─────────────
 
 const inputCls =
-  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
+  "block w-full rounded-xl border border-border bg-surface px-3.5 h-10 text-[14px] text-text placeholder:text-text-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 const selectCls =
-  "block rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block rounded-xl border border-border bg-surface px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 function Field({
   label,
@@ -554,7 +554,7 @@ function Field({
 }) {
   return (
     <label className={`block text-sm ${wide ? "sm:col-span-2" : ""}`}>
-      <span className="text-slate-700">{label}</span>
+      <span className="text-text-muted">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );

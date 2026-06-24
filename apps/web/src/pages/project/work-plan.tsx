@@ -139,7 +139,7 @@ function statusFilterLabel(
 
 /** Compact control styling for the table's per-column header filters. */
 const colFilterCls =
-  "w-full rounded border border-paper-200 bg-white px-2 py-1 text-[11px] font-normal normal-case tracking-normal text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "w-full rounded-lg border border-border bg-surface px-2 py-1 text-[11px] font-normal normal-case tracking-normal text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 type PhaseLens = "proposal" | "execution" | null;
 
@@ -341,10 +341,10 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div>
-          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
+          <h2 className="font-display text-2xl font-bold tracking-tight text-text">
             {t("plan.title")}
           </h2>
-          <p className="mt-1 text-sm text-ink-500">{t("plan.lede")}</p>
+          <p className="mt-1 text-sm text-text-muted">{t("plan.lede")}</p>
         </div>
         {!adding && (
           <div className="flex flex-wrap items-center gap-2">
@@ -352,7 +352,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             <button
               type="button"
               onClick={() => setAdding(true)}
-              className="inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
+              className="inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-accent px-4 text-sm font-semibold text-accent-contrast hover:bg-accent-hover"
             >
               {t("plan.add_item")}
             </button>
@@ -427,7 +427,7 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("plan.search_placeholder")}
-            className="flex-1 rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
+            className="flex-1 rounded-xl border border-border bg-surface px-3.5 h-10 text-[14px] text-text placeholder:text-text-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
           />
         </div>
       )}
@@ -446,9 +446,9 @@ function WorkItemsSection({ projectId }: { projectId: string }) {
       )}
       <div className="mt-4">
         {list.isLoading ? (
-          <p className="text-xs text-slate-500">{t("common.loading")}</p>
+          <p className="text-xs text-text-muted">{t("common.loading")}</p>
         ) : list.error ? (
-          <p className="text-xs text-rose-700">{list.error.message}</p>
+          <p className="text-xs text-danger">{list.error.message}</p>
         ) : view === "rooms" ? (
           filtered.length === 0 ? (
             <EmptyPlan hasActiveFilters={hasActiveFilters} />
@@ -528,16 +528,16 @@ function ViewToggle({
     { value: "calendar", label: t("plan.view.calendar") },
   ];
   return (
-    <div className="inline-flex rounded-md border border-paper-200 bg-white p-0.5 text-xs">
+    <div className="inline-flex rounded-xl border border-border bg-surface p-0.5 text-xs">
       {opts.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={`rounded px-2.5 py-1 transition-colors ${
+          className={`rounded-lg px-2.5 py-1 transition-colors ${
             view === o.value
-              ? "bg-paper-100 font-medium text-blueprint-900"
-              : "text-slate-500 hover:text-slate-900"
+              ? "bg-bg-subtle font-medium text-text"
+              : "text-text-muted hover:text-text"
           }`}
         >
           {o.label}
@@ -605,7 +605,7 @@ function ScopeByRoom({
 
   if (groups.length === 0) {
     return (
-      <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
+      <p className="rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
         {t("plan.empty_group")}
       </p>
     );
@@ -614,22 +614,19 @@ function ScopeByRoom({
   return (
     <div className="space-y-4">
       {groups.map((g) => (
-        <div
-          key={g.room?.id ?? "_unassigned"}
-          className="overflow-hidden rounded-md border border-paper-200 bg-white"
-        >
-          <div className="flex items-baseline justify-between border-b border-paper-200 bg-paper-50 px-3 py-2">
+        <div key={g.room?.id ?? "_unassigned"}>
+          <div className="flex items-baseline justify-between px-1 py-2">
             <div className="flex items-baseline gap-2">
-              <h3 className="text-sm font-semibold text-blueprint-900">
+              <h3 className="text-sm font-semibold text-text">
                 {g.room?.name ?? t("plan.unassigned")}
               </h3>
               {g.room?.roomType && (
-                <span className="rounded-full bg-paper-100 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
+                <span className="rounded-full bg-bg-subtle px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-text-muted ring-1 ring-inset ring-border">
                   {L.roomType(g.room.roomType)}
                 </span>
               )}
             </div>
-            <span className="text-[10px] uppercase tracking-wider text-slate-400">
+            <span className="text-[10px] uppercase tracking-wider text-text-faint">
               {t(
                 g.items.length === 1
                   ? "plan.item_count_one"
@@ -638,28 +635,30 @@ function ScopeByRoom({
               )}
             </span>
           </div>
-          <table className="w-full text-sm">
-            <thead className="text-left">
-              <tr className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-                <th className="px-3 py-1.5">{t("plan.col.ref")}</th>
-                <th className="px-3 py-1.5">{t("col.description")}</th>
-                <th className="px-3 py-1.5 text-right">{t("col.qty")}</th>
-                <th className="px-3 py-1.5">{t("col.status")}</th>
-                <th className="px-3 py-1.5"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-paper-200">
-              {g.items.map((w) => (
-                <ScopeByRoomRow
-                  key={`${g.room?.id ?? "u"}:${w.id}`}
-                  item={w}
-                  currentRoomId={g.room?.id ?? null}
-                  blockedBy={blockedByItem.get(w.id) ?? null}
-                  onEdit={() => onEdit(w)}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("plan.col.ref")}</th>
+                  <th>{t("col.description")}</th>
+                  <th className="r">{t("col.qty")}</th>
+                  <th>{t("col.status")}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {g.items.map((w) => (
+                  <ScopeByRoomRow
+                    key={`${g.room?.id ?? "u"}:${w.id}`}
+                    item={w}
+                    currentRoomId={g.room?.id ?? null}
+                    blockedBy={blockedByItem.get(w.id) ?? null}
+                    onEdit={() => onEdit(w)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ))}
     </div>
@@ -686,11 +685,11 @@ function ScopeByRoomRow({
 
   return (
     <tr className="align-top">
-      <td className="px-3 py-2 font-mono text-[11px] text-slate-500">
+      <td className="font-mono text-[11px] text-text-muted">
         {item.ref ?? "—"}
       </td>
-      <td className="px-3 py-2">
-        <div className="font-medium text-blueprint-900">{item.description}</div>
+      <td>
+        <div className="font-medium text-text">{item.description}</div>
         <div className="mt-1 flex flex-wrap gap-1.5">
           {item.trade && (
             <span className="rounded-full bg-paper-100 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
@@ -726,12 +725,12 @@ function ScopeByRoomRow({
           )}
         </div>
       </td>
-      <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px] text-slate-700">
+      <td className="r whitespace-nowrap font-mono text-[12px] text-text">
         {item.qty
           ? `${trimQty(item.qty)}${item.unit ? ` ${item.unit}` : ""}`
           : "—"}
       </td>
-      <td className="px-3 py-2">
+      <td>
         <span
           className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[item.status]}`}
         >
@@ -739,11 +738,11 @@ function ScopeByRoomRow({
           {L.workItemStatus(item.status).toLowerCase()}
         </span>
       </td>
-      <td className="whitespace-nowrap px-3 py-2 text-right">
+      <td className="r whitespace-nowrap">
         <button
           type="button"
           onClick={onEdit}
-          className="text-xs text-slate-500 hover:text-slate-900"
+          className="text-xs text-text-muted hover:text-text"
         >
           {t("common.edit")}
         </button>
@@ -790,22 +789,22 @@ function WorkItemsTable({
   const t = useT();
   const L = useLabels();
   return (
-    <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
-      <table className="w-full text-sm">
-        <thead className="bg-paper-50">
-          <tr className="text-left text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">
-            <th className="px-3 pt-2">{t("plan.col.ref")}</th>
-            <th className="px-3 pt-2">{t("col.description")}</th>
-            <th className="px-3 pt-2">{t("plan.col.type_of_work")}</th>
-            <th className="px-3 pt-2">{t("plan.col.rooms")}</th>
-            <th className="px-3 pt-2">{t("col.vendor")}</th>
-            <th className="px-3 pt-2">{t("col.status")}</th>
-            <th className="px-3 pt-2">{t("plan.col.start")}</th>
-            <th className="px-3 pt-2">{t("plan.col.end")}</th>
+    <div className="data-table">
+      <table>
+        <thead>
+          <tr>
+            <th>{t("plan.col.ref")}</th>
+            <th>{t("col.description")}</th>
+            <th>{t("plan.col.type_of_work")}</th>
+            <th>{t("plan.col.rooms")}</th>
+            <th>{t("col.vendor")}</th>
+            <th>{t("col.status")}</th>
+            <th>{t("plan.col.start")}</th>
+            <th>{t("plan.col.end")}</th>
           </tr>
           <tr className="align-top">
-            <th className="px-3 pb-2 pt-1.5" />
-            <th className="px-3 pb-2 pt-1.5">
+            <th />
+            <th>
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -813,7 +812,7 @@ function WorkItemsTable({
                 className={colFilterCls}
               />
             </th>
-            <th className="px-3 pb-2 pt-1.5">
+            <th>
               <select
                 value={tradeFilter}
                 onChange={(e) => setTradeFilter(e.target.value)}
@@ -827,7 +826,7 @@ function WorkItemsTable({
                 ))}
               </select>
             </th>
-            <th className="px-3 pb-2 pt-1.5">
+            <th>
               <select
                 value={roomFilter}
                 onChange={(e) => setRoomFilter(e.target.value)}
@@ -841,7 +840,7 @@ function WorkItemsTable({
                 ))}
               </select>
             </th>
-            <th className="px-3 pb-2 pt-1.5">
+            <th>
               <select
                 value={vendorFilter}
                 onChange={(e) => setVendorFilter(e.target.value)}
@@ -855,7 +854,7 @@ function WorkItemsTable({
                 ))}
               </select>
             </th>
-            <th className="px-3 pb-2 pt-1.5">
+            <th>
               <select
                 value={statusFilter}
                 onChange={(e) =>
@@ -870,16 +869,16 @@ function WorkItemsTable({
                 ))}
               </select>
             </th>
-            <th className="px-3 pb-2 pt-1.5" />
-            <th className="px-3 pb-2 pt-1.5" />
+            <th />
+            <th />
           </tr>
         </thead>
-        <tbody className="divide-y divide-paper-200">
+        <tbody>
           {items.length === 0 ? (
             <tr>
               <td
                 colSpan={8}
-                className="px-3 py-10 text-center text-xs text-slate-500"
+                className="px-3 py-10 text-center text-xs text-text-muted"
               >
                 {hasActiveFilters
                   ? t("plan.empty_filtered")
@@ -904,7 +903,7 @@ function WorkItemsTable({
 function EmptyPlan({ hasActiveFilters }: { hasActiveFilters: boolean }) {
   const t = useT();
   return (
-    <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
+    <p className="rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
       {hasActiveFilters ? (
         t("plan.empty_filtered")
       ) : (
@@ -927,26 +926,23 @@ function WorkItemRowItem({
 }) {
   const L = useLabels();
   return (
-    <tr
-      onClick={onClick}
-      className="cursor-pointer align-top transition-colors hover:bg-paper-50"
-    >
-      <td className="px-3 py-2.5 font-mono text-[11px] text-slate-500">
+    <tr onClick={onClick} className="clickable group align-top">
+      <td className="font-mono text-[11px] text-text-muted">
         {item.ref ?? "—"}
       </td>
-      <td className="px-3 py-2.5 font-medium text-blueprint-900">
+      <td className="font-medium text-text">
         {item.description}
       </td>
-      <td className="px-3 py-2.5 text-[13px] text-slate-600">
+      <td className="text-[13px] text-text-muted">
         {item.trade ?? "—"}
       </td>
-      <td className="px-3 py-2.5 text-[13px] text-slate-600">
+      <td className="text-[13px] text-text-muted">
         {item.rooms.length > 0 ? item.rooms.map((r) => r.name).join(", ") : "—"}
       </td>
-      <td className="px-3 py-2.5 text-[13px] text-slate-600">
+      <td className="text-[13px] text-text-muted">
         {item.vendor?.name ?? "—"}
       </td>
-      <td className="px-3 py-2.5">
+      <td>
         <span
           className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${STATUS_PILL_CLS[item.status]}`}
         >
@@ -955,13 +951,13 @@ function WorkItemRowItem({
         </span>
       </td>
       <td
-        className="whitespace-nowrap px-2 py-1.5"
+        className="r whitespace-nowrap"
         onClick={(e) => e.stopPropagation()}
       >
         <InlineDateCell item={item} field="plannedStart" />
       </td>
       <td
-        className="whitespace-nowrap px-2 py-1.5"
+        className="r whitespace-nowrap"
         onClick={(e) => e.stopPropagation()}
       >
         <InlineDateCell item={item} field="plannedEnd" />
@@ -971,7 +967,7 @@ function WorkItemRowItem({
 }
 
 const inlineDateCls =
-  "w-[122px] cursor-pointer rounded border border-transparent bg-transparent px-1.5 py-1 text-[12px] text-slate-600 hover:border-paper-300 focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 disabled:cursor-default disabled:opacity-50";
+  "w-[122px] cursor-pointer rounded-lg border border-transparent bg-transparent px-1.5 py-1 text-[12px] text-text-muted hover:border-border-strong focus:border-accent focus:bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-default disabled:opacity-50";
 
 /**
  * Inline-editable planned date. Reads like plain text in the row until
@@ -1229,7 +1225,7 @@ function TimelineView({
 
   if (sorted.length === 0 && undated.length === 0) {
     return (
-      <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
+      <p className="rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
         {t("plan.empty_plot")}
       </p>
     );
@@ -1238,7 +1234,7 @@ function TimelineView({
   return (
     <div className="space-y-4">
       {sorted.length > 0 && (
-        <div className="overflow-x-auto rounded-md border border-paper-200 bg-white">
+        <div className="overflow-x-auto rounded-xl border border-border bg-surface">
           <svg
             viewBox={`0 0 ${W} ${sorted.length * ROW_H + 32}`}
             className="block w-full"
@@ -1341,8 +1337,8 @@ function TimelineView({
       )}
 
       {undated.length > 0 && (
-        <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
-          <div className="border-b border-paper-200 bg-paper-50 px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="border-b border-border bg-bg-subtle px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-text-muted">
             {t("plan.undated")} ·{" "}
             {t(
               undated.length === 1
@@ -1351,7 +1347,7 @@ function TimelineView({
               { count: undated.length },
             )}
           </div>
-          <ul className="divide-y divide-paper-200 text-sm">
+          <ul className="divide-y divide-border-subtle text-sm">
             {undated.map((w) => (
               <li key={w.id} className="px-3 py-2">
                 <button
@@ -1484,7 +1480,7 @@ function GroupedTimeline({
   return (
     <div className="space-y-4">
       {bounds && layout.rows.length > 0 && (
-        <div className="overflow-x-auto rounded-md border border-paper-200 bg-white">
+        <div className="overflow-x-auto rounded-xl border border-border bg-surface">
           <svg
             viewBox={`0 0 ${W} ${layout.height}`}
             className="block w-full"
@@ -1580,11 +1576,11 @@ function GroupedTimeline({
       )}
 
       {undatedGroups.length > 0 && (
-        <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
-          <div className="border-b border-paper-200 bg-paper-50 px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="border-b border-border bg-bg-subtle px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-text-muted">
             {t("plan.undated_no_dates")}
           </div>
-          <div className="divide-y divide-paper-200">
+          <div className="divide-y divide-border-subtle">
             {undatedGroups.map(({ g, undated }) => (
               <div key={g.key} className="px-3 py-2">
                 <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
@@ -1802,7 +1798,7 @@ function CalendarView({
           <button
             type="button"
             onClick={() => shiftMonth(-1)}
-            className="rounded-md border border-paper-200 px-2 py-1 text-xs text-slate-600 hover:bg-paper-50"
+            className="rounded-xl border border-border px-2 py-1 text-xs text-text-muted hover:bg-bg-subtle"
             aria-label={t("plan.prev_month")}
           >
             ‹
@@ -1810,14 +1806,14 @@ function CalendarView({
           <button
             type="button"
             onClick={goToday}
-            className="rounded-md border border-paper-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-paper-50"
+            className="rounded-xl border border-border px-2.5 py-1 text-xs text-text-muted hover:bg-bg-subtle"
           >
             {t("plan.today")}
           </button>
           <button
             type="button"
             onClick={() => shiftMonth(1)}
-            className="rounded-md border border-paper-200 px-2 py-1 text-xs text-slate-600 hover:bg-paper-50"
+            className="rounded-xl border border-border px-2 py-1 text-xs text-text-muted hover:bg-bg-subtle"
             aria-label={t("plan.next_month")}
           >
             ›
@@ -1839,12 +1835,12 @@ function CalendarView({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
-        <div className="grid grid-cols-7 border-b border-paper-200 bg-paper-50">
+      <div className="overflow-hidden rounded-xl border border-border bg-surface">
+        <div className="grid grid-cols-7 border-b border-border bg-bg-subtle">
           {WEEKDAY_KEYS.map((k) => (
             <div
               key={k}
-              className="px-2 py-1.5 text-center text-[10px] font-medium uppercase tracking-wider text-slate-500"
+              className="px-2 py-1.5 text-center text-[10px] font-medium uppercase tracking-wider text-text-muted"
             >
               {t(k)}
             </div>
@@ -1861,8 +1857,8 @@ function CalendarView({
                   return (
                     <div
                       key={cell.date}
-                      className={`relative min-h-[104px] border-b border-r border-paper-100 p-1 ${
-                        cell.inMonth ? "bg-white" : "bg-paper-50/40"
+                      className={`relative min-h-[104px] border-b border-r border-border-subtle p-1 ${
+                        cell.inMonth ? "bg-surface" : "bg-bg-subtle/40"
                       }`}
                     >
                       <div className="flex justify-end">
@@ -1919,8 +1915,8 @@ function CalendarView({
       </div>
 
       {unscheduled.length > 0 && (
-        <div className="overflow-hidden rounded-md border border-paper-200 bg-white">
-          <div className="border-b border-paper-200 bg-paper-50 px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="border-b border-border bg-bg-subtle px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-text-muted">
             {t("plan.unscheduled")} ·{" "}
             {t(
               unscheduled.length === 1
@@ -1930,7 +1926,7 @@ function CalendarView({
             )}{" "}
             {t("plan.no_planned_dates")}
           </div>
-          <ul className="divide-y divide-paper-200 text-sm">
+          <ul className="divide-y divide-border-subtle text-sm">
             {unscheduled.map((w) => (
               <li key={w.id} className="flex items-baseline gap-2 px-3 py-2">
                 <button
@@ -2058,7 +2054,7 @@ export function WorkItemForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-4 rounded-md border border-paper-200 bg-white p-4"
+      className="mt-4 rounded-2xl border border-border bg-surface p-4"
     >
       <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
         {mode === "edit" ? t("work_item.eyebrow_edit") : t("work_item.eyebrow_new")}
@@ -2220,24 +2216,24 @@ export function WorkItemForm({
         />
       )}
       {mode === "create" && (
-        <p className="mt-3 rounded-md border border-paper-200 bg-paper-50 px-3 py-2 text-[10px] uppercase tracking-wider text-slate-500">
+        <p className="mt-3 rounded-xl border border-border bg-bg-subtle px-3 py-2 text-[10px] uppercase tracking-wider text-text-muted">
           {t("work_item.save_first_deps")}
         </p>
       )}
 
-      {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
       <div className="mt-3 flex justify-end gap-2">
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
+          className="rounded-xl border border-border px-3 py-1 text-xs hover:bg-bg-subtle"
         >
           {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-xl bg-accent px-3 py-1 text-xs font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
         >
           {submitting
             ? t("common.saving")
@@ -2302,16 +2298,16 @@ function DependenciesEditor({
   );
 
   return (
-    <div className="mt-4 rounded-md border border-paper-200 bg-paper-50 p-3">
+    <div className="mt-4 rounded-xl border border-border bg-bg-subtle p-3">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-wider text-slate-500">
+        <p className="text-[10px] uppercase tracking-wider text-text-muted">
           {t("work_item.depends_on")}
         </p>
         {!pickerOpen && (
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            className="text-xs text-slate-500 hover:text-slate-900"
+            className="text-xs text-text-muted hover:text-text"
           >
             {t("work_item.add_dependency")}
           </button>
@@ -2319,11 +2315,11 @@ function DependenciesEditor({
       </div>
 
       {existingDeps.length === 0 && !pickerOpen ? (
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-text-muted">
           {t("work_item.deps_empty")}
         </p>
       ) : (
-        <ul className="mt-2 divide-y divide-paper-200 rounded-md border border-paper-200 bg-white">
+        <ul className="mt-2 divide-y divide-border-subtle rounded-xl border border-border bg-surface">
           {existingDeps.map((d) => {
             const pred = allItemsById.get(d.dependsOnId);
             return (
@@ -2337,9 +2333,9 @@ function DependenciesEditor({
                 >
                   {WORK_ITEM_DEPENDENCY_KIND_SHORT[d.kind]}
                 </span>
-                <span className="text-blueprint-900">
+                <span className="text-text">
                   {pred?.ref && (
-                    <span className="font-mono text-[11px] text-slate-500">
+                    <span className="font-mono text-[11px] text-text-muted">
                       {pred.ref} · {" "}
                     </span>
                   )}
@@ -2372,7 +2368,7 @@ function DependenciesEditor({
       )}
 
       {pickerOpen && (
-        <div className="mt-2 rounded-md border border-paper-200 bg-white p-2">
+        <div className="mt-2 rounded-xl border border-border bg-surface p-2">
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={pickedId}
@@ -2414,7 +2410,7 @@ function DependenciesEditor({
                 })
               }
               disabled={!pickedId || add.isPending}
-              className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              className="rounded-xl bg-accent px-2.5 py-1 text-xs font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
             >
               {add.isPending ? "…" : t("common.add")}
             </button>
@@ -2424,12 +2420,12 @@ function DependenciesEditor({
                 setPickerOpen(false);
                 setError(null);
               }}
-              className="text-xs text-slate-500 hover:text-slate-900"
+              className="text-xs text-text-muted hover:text-text"
             >
               {t("common.cancel")}
             </button>
           </div>
-          {error && <p className="mt-1 text-xs text-rose-700">{error}</p>}
+          {error && <p className="mt-1 text-xs text-danger">{error}</p>}
         </div>
       )}
     </div>
@@ -2474,7 +2470,7 @@ function RoomsSection({ projectId }: { projectId: string }) {
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="rounded-md border border-paper-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-paper-50"
+            className="rounded-xl border border-border px-3 py-1 text-xs font-medium text-text-muted hover:bg-bg-subtle"
           >
             {t("plan.add_room")}
           </button>
@@ -2501,11 +2497,11 @@ function RoomsSection({ projectId }: { projectId: string }) {
 
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {list.isLoading ? (
-              <p className="col-span-full text-xs text-slate-500">
+              <p className="col-span-full text-xs text-text-muted">
                 {t("common.loading")}
               </p>
             ) : !list.data || list.data.length === 0 ? (
-              <p className="col-span-full rounded-md border border-paper-200 bg-white p-3 text-xs text-slate-500">
+              <p className="col-span-full rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
                 {t("plan.rooms_empty_prefix")}{" "}
                 <strong>{t("plan.add_room")}</strong>
                 {t("plan.rooms_empty_suffix")}
@@ -2538,18 +2534,18 @@ function RoomRowItem({
       utils.projects.listRooms.invalidate({ projectId: room.projectId }),
   });
   return (
-    <div className="flex items-center gap-3 rounded-md border border-paper-200 bg-white px-3 py-2 text-sm">
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2 text-sm">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-slate-900">{room.name}</span>
+          <span className="font-medium text-text">{room.name}</span>
           {room.roomType && (
-            <span className="rounded-full bg-paper-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
+            <span className="rounded-full bg-bg-subtle px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted ring-1 ring-inset ring-border">
               {L.roomType(room.roomType)}
             </span>
           )}
         </div>
         {room.notes && (
-          <div className="mt-0.5 truncate text-xs text-slate-500">
+          <div className="mt-0.5 truncate text-xs text-text-muted">
             {room.notes}
           </div>
         )}
@@ -2557,7 +2553,7 @@ function RoomRowItem({
       <button
         type="button"
         onClick={onEdit}
-        className="text-xs text-slate-500 hover:text-slate-900"
+        className="text-xs text-text-muted hover:text-text"
       >
         {t("common.edit")}
       </button>
@@ -2642,7 +2638,7 @@ function RoomForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-3 rounded-md border border-paper-200 bg-white p-3"
+      className="mt-3 rounded-2xl border border-border bg-surface p-3"
     >
       <div className="grid gap-2 sm:grid-cols-2">
         <Field label={t("plan.room.field.name")}>
@@ -2678,19 +2674,19 @@ function RoomForm({
           />
         </Field>
       </div>
-      {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
       <div className="mt-3 flex justify-end gap-2">
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
+          className="rounded-xl border border-border px-3 py-1 text-xs hover:bg-bg-subtle"
         >
           {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-xl bg-accent px-3 py-1 text-xs font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
         >
           {submitting
             ? t("common.saving")
@@ -2706,10 +2702,10 @@ function RoomForm({
 // ───────────────────────────────────── primitives ─────────────
 
 const inputCls =
-  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
+  "block w-full rounded-xl border border-border bg-surface px-3.5 h-10 text-[14px] text-text placeholder:text-text-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 const selectCls =
-  "block rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block rounded-xl border border-border bg-surface px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 function Field({
   label,
@@ -2722,7 +2718,7 @@ function Field({
 }) {
   return (
     <label className={`block text-sm ${wide ? "sm:col-span-2" : ""}`}>
-      <span className="text-slate-700">{label}</span>
+      <span className="text-text-muted">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );

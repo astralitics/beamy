@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
@@ -10,7 +10,19 @@ import { trpc } from "../lib/trpc";
 import { useT } from "../lib/i18n";
 import { useVertical } from "../lib/vertical";
 import { ContactsSection } from "../components/contacts-section";
-import { ConfirmDialog } from "../components/ui";
+import { EmptyState } from "../components/vertical-mark";
+import {
+  Button,
+  ConfirmDialog,
+  Field,
+  Icon,
+  Input,
+  Modal,
+  PageHeader,
+  Pill,
+  Select,
+  Textarea,
+} from "../components/ui";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type VendorRow = RouterOutputs["vendors"]["list"][number];
@@ -46,110 +58,125 @@ export default function VendorsPage() {
   });
 
   return (
-    <div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-10">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {t("nav.vendors")}
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">{t("vendors.lede")}</p>
+    <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-6 lg:px-10 lg:py-14">
+      <PageHeader
+        title={t("nav.vendors")}
+        lede={t("vendors.lede")}
+        action={
+          <Button
+            variant="primary"
+            onClick={() => setModalState({ mode: "create" })}
+          >
+            <Icon name="plus" className="h-4 w-4" />
+            {t("vendors.new")}
+          </Button>
+        }
+      />
+
+      <div className="mt-8 flex flex-wrap items-center gap-2">
+        <div className="w-44">
+          <Select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+          >
+            <option value="active">{t("vendors.filter.active")}</option>
+            <option value="archived">{t("vendors.filter.archived")}</option>
+            <option value="all">{t("vendors.filter.all")}</option>
+          </Select>
         </div>
-        <button
-          onClick={() => setModalState({ mode: "create" })}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          {t("vendors.new")}
-        </button>
+        <div className="w-56">
+          <Select
+            value={tradeFilter}
+            onChange={(e) => setTradeFilter(e.target.value)}
+          >
+            <option value="">{t("vendors.all_trades")}</option>
+            {TRADES_BY_VERTICAL[vertical].map((tr) => (
+              <option key={tr} value={tr}>
+                {tr.replace(/_/g, " ")}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="relative min-w-[240px] flex-1">
+          <Icon
+            name="search"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-faint"
+          />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("vendors.search")}
+            className="pl-10"
+          />
+        </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-3">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-          className={selectCls}
-        >
-          <option value="active">{t("vendors.filter.active")}</option>
-          <option value="archived">{t("vendors.filter.archived")}</option>
-          <option value="all">{t("vendors.filter.all")}</option>
-        </select>
-        <select
-          value={tradeFilter}
-          onChange={(e) => setTradeFilter(e.target.value)}
-          className={selectCls}
-        >
-          <option value="">{t("vendors.all_trades")}</option>
-          {TRADES_BY_VERTICAL[vertical].map((tr) => (
-            <option key={tr} value={tr}>
-              {tr.replace(/_/g, " ")}
-            </option>
-          ))}
-        </select>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t("vendors.search")}
-          className="flex-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
-        />
-      </div>
-
-      <div className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white">
-        {list.isLoading ? (
-          <p className="p-6 text-sm text-slate-500">{t("common.loading")}</p>
-        ) : list.error ? (
-          <p className="p-6 text-sm text-rose-700">{list.error.message}</p>
-        ) : !list.data || list.data.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">
-            {search.trim() || tradeFilter
-              ? t("vendors.empty_filtered")
-              : statusFilter === "archived"
-                ? t("vendors.empty_archived")
-                : t("vendors.empty")}
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
+      {list.isLoading ? (
+        <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center text-text-muted">
+          {t("common.loading")}
+        </div>
+      ) : list.error ? (
+        <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center text-danger">
+          {list.error.message}
+        </div>
+      ) : !list.data || list.data.length === 0 ? (
+        <div className="mt-6">
+          <EmptyState
+            title={
+              search.trim() || tradeFilter
+                ? t("vendors.empty_filtered")
+                : statusFilter === "archived"
+                  ? t("vendors.empty_archived")
+                  : t("vendors.empty")
+            }
+          />
+        </div>
+      ) : (
+        <div className="data-table mt-6">
+          <table>
+            <thead>
               <tr>
-                <Th>{t("col.name")}</Th>
-                <Th>{t("vendors.col.trade")}</Th>
-                <Th>{t("vendors.col.primary_contact")}</Th>
-                <Th className="w-32">{t("vendors.col.default_rate")}</Th>
-                <Th className="w-24">{t("col.status")}</Th>
-                <Th className="w-28">{t("col.updated")}</Th>
-                <Th className="w-24 text-right">{t("vendors.col.actions")}</Th>
+                <th>{t("col.name")}</th>
+                <th>{t("vendors.col.trade")}</th>
+                <th>{t("vendors.col.primary_contact")}</th>
+                <th className="w-32 r">{t("vendors.col.default_rate")}</th>
+                <th className="w-24">{t("col.status")}</th>
+                <th className="w-28 r">{t("col.updated")}</th>
+                <th className="w-24 r">{t("vendors.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
               {list.data.map((v) => (
                 <tr
                   key={v.id}
-                  className="cursor-pointer border-b border-slate-100 last:border-b-0 hover:bg-slate-50"
+                  className="clickable group"
                   onClick={() => setModalState({ mode: "edit", vendor: v })}
                 >
-                  <Td className="font-medium text-slate-900">{v.name}</Td>
-                  <Td className="text-slate-600">
+                  <td className="font-medium">{v.name}</td>
+                  <td className="text-text-muted">
                     {v.trade.replace(/_/g, " ")}
-                  </Td>
-                  <Td className="text-slate-600">{v.primaryContact ?? "—"}</Td>
-                  <Td className="text-slate-600">
+                  </td>
+                  <td className="text-text-muted">{v.primaryContact ?? "—"}</td>
+                  <td className="r whitespace-nowrap text-text-muted">
                     {v.defaultRateAmount && v.defaultRateCurrency
                       ? `${v.defaultRateAmount} ${v.defaultRateCurrency}/${v.billingUnit}`
                       : "—"}
-                  </Td>
-                  <Td>
+                  </td>
+                  <td>
                     <StatusPill status={v.status} />
-                  </Td>
-                  <Td className="text-slate-500">
+                  </td>
+                  <td className="r whitespace-nowrap text-text-muted">
                     {new Date(v.updatedAt).toLocaleDateString()}
-                  </Td>
-                  <Td className="text-right">
+                  </td>
+                  <td className="r">
                     <RowActions vendor={v} />
-                  </Td>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
 
       {modalState.mode !== "closed" && (
         <VendorFormModal
@@ -163,43 +190,11 @@ export default function VendorsPage() {
 
 // ────────────────────── table helpers ──────────────────────
 
-function Th({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 ${className}`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return <td className={`px-4 py-3 ${className}`}>{children}</td>;
-}
-
 function StatusPill({ status }: { status: VendorStatus }) {
-  const cls =
-    status === "active"
-      ? "bg-emerald-100 text-emerald-800"
-      : "bg-slate-100 text-slate-700";
   return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
-    >
+    <Pill tone={status === "active" ? "success" : "neutral"} dot>
       {status}
-    </span>
+    </Pill>
   );
 }
 
@@ -224,7 +219,7 @@ function RowActions({ vendor }: { vendor: VendorRow }) {
         }
       }}
       disabled={pending}
-      className="text-xs text-slate-500 hover:text-slate-900 disabled:opacity-50"
+      className="text-xs text-text-muted hover:text-text disabled:opacity-50"
     >
       {pending
         ? "…"
@@ -324,175 +319,160 @@ function VendorFormModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-8"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl rounded-lg bg-white shadow-xl"
-      >
-        <form onSubmit={onSubmit} className="p-6">
-          <h2 className="text-lg font-semibold tracking-tight">
-            {isEdit
-              ? t("vendors.edit_title", { name: state.vendor.name })
-              : t("vendors.new_title")}
-          </h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Field label={t("vendors.field.name")}>
-              <input
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className={inputCls}
-                autoFocus
-              />
-            </Field>
-            <Field label={t("vendors.field.trade")}>
-              <input
-                required
-                list="trade-suggestions"
-                value={trade}
-                onChange={(e) => setTrade(e.target.value)}
-                className={inputCls}
-                placeholder={t("vendors.field.trade_ph")}
-              />
-              <datalist id="trade-suggestions">
-                {TRADES_BY_VERTICAL[vertical].map((tr) => (
-                  <option key={tr} value={tr} />
-                ))}
-              </datalist>
-            </Field>
-            <Field label={t("vendors.field.primary_contact")}>
-              <input
-                value={primaryContact}
-                onChange={(e) => setPrimaryContact(e.target.value)}
-                className={inputCls}
-              />
-            </Field>
-            <Field label={t("vendors.field.email")}>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={inputCls}
-              />
-            </Field>
-            <Field label={t("vendors.field.phone")}>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className={inputCls}
-              />
-            </Field>
-            <Field label={t("vendors.field.ein")}>
-              <input
-                value={ein}
-                onChange={(e) => setEin(e.target.value)}
-                className={inputCls}
-                placeholder="XX-XXXXXXX"
-              />
-            </Field>
-            <Field label={t("col.address")} wide>
-              <input
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className={inputCls}
-              />
-            </Field>
-            <Field label={t("vendors.field.default_rate")}>
-              <div className="flex gap-2">
-                <input
-                  value={defaultRateAmount}
-                  onChange={(e) => setDefaultRateAmount(e.target.value)}
-                  className={`${inputCls} flex-1`}
-                  placeholder="125.00"
-                  inputMode="decimal"
-                />
-                <input
-                  value={defaultRateCurrency}
-                  onChange={(e) =>
-                    setDefaultRateCurrency(e.target.value.toUpperCase())
-                  }
-                  className={`${inputCls} w-16 uppercase`}
-                  placeholder="USD"
-                  maxLength={3}
-                />
-              </div>
-            </Field>
-            <Field label={t("vendors.field.billing_unit")}>
-              <select
-                value={billingUnit}
-                onChange={(e) =>
-                  setBillingUnit(
-                    e.target.value as typeof billingUnit,
-                  )
-                }
-                className={selectCls}
-              >
-                <option value="hour">{t("vendors.unit.hour")}</option>
-                <option value="day">{t("vendors.unit.day")}</option>
-                <option value="project">{t("vendors.unit.project")}</option>
-                <option value="retainer">{t("vendors.unit.retainer")}</option>
-                <option value="unit">{t("vendors.unit.unit")}</option>
-              </select>
-            </Field>
-            <Field label={t("vendors.field.payment_terms")} wide>
-              <input
-                value={paymentTerms}
-                onChange={(e) => setPaymentTerms(e.target.value)}
-                className={inputCls}
-                placeholder={t("vendors.field.payment_terms_ph")}
-              />
-            </Field>
-            <Field label={t("vendors.field.tags")} wide>
-              <input
-                value={tagsRaw}
-                onChange={(e) => setTagsRaw(e.target.value)}
-                className={inputCls}
-                placeholder="preferred, residential"
-              />
-            </Field>
-            <Field label={t("vendors.field.notes")} wide>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={2}
-                className={inputCls}
-              />
-            </Field>
-          </div>
-          {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
-          <div className="mt-6 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
-            >
+    <Modal
+      title={
+        isEdit
+          ? t("vendors.edit_title", { name: state.vendor.name })
+          : t("vendors.new_title")
+      }
+      onClose={onClose}
+      size="lg"
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-danger">{error}</p>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
               {t("common.cancel")}
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
+              form="vendor-form"
+              variant="primary"
               disabled={submitting}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
             >
               {submitting
                 ? t("common.saving")
                 : isEdit
                   ? t("common.save")
                   : t("common.create")}
-            </button>
+            </Button>
           </div>
-        </form>
+        </div>
+      }
+    >
+      <form
+        id="vendor-form"
+        onSubmit={onSubmit}
+        className="grid gap-4 sm:grid-cols-2"
+      >
+        <Field label={t("vendors.field.name")} required>
+          <Input
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
+        </Field>
+        <Field label={t("vendors.field.trade")} required>
+          <Input
+            required
+            list="trade-suggestions"
+            value={trade}
+            onChange={(e) => setTrade(e.target.value)}
+            placeholder={t("vendors.field.trade_ph")}
+          />
+          <datalist id="trade-suggestions">
+            {TRADES_BY_VERTICAL[vertical].map((tr) => (
+              <option key={tr} value={tr} />
+            ))}
+          </datalist>
+        </Field>
+        <Field label={t("vendors.field.primary_contact")}>
+          <Input
+            value={primaryContact}
+            onChange={(e) => setPrimaryContact(e.target.value)}
+          />
+        </Field>
+        <Field label={t("vendors.field.email")}>
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </Field>
+        <Field label={t("vendors.field.phone")}>
+          <Input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+        </Field>
+        <Field label={t("vendors.field.ein")}>
+          <Input
+            value={ein}
+            onChange={(e) => setEin(e.target.value)}
+            placeholder="XX-XXXXXXX"
+          />
+        </Field>
+        <Field label={t("col.address")} wide>
+          <Input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+        </Field>
+        <Field label={t("vendors.field.default_rate")}>
+          <div className="flex gap-2">
+            <Input
+              value={defaultRateAmount}
+              onChange={(e) => setDefaultRateAmount(e.target.value)}
+              className="flex-1"
+              placeholder="125.00"
+              inputMode="decimal"
+            />
+            <Input
+              value={defaultRateCurrency}
+              onChange={(e) =>
+                setDefaultRateCurrency(e.target.value.toUpperCase())
+              }
+              className="w-16 uppercase"
+              placeholder="USD"
+              maxLength={3}
+            />
+          </div>
+        </Field>
+        <Field label={t("vendors.field.billing_unit")}>
+          <Select
+            value={billingUnit}
+            onChange={(e) =>
+              setBillingUnit(e.target.value as typeof billingUnit)
+            }
+          >
+            <option value="hour">{t("vendors.unit.hour")}</option>
+            <option value="day">{t("vendors.unit.day")}</option>
+            <option value="project">{t("vendors.unit.project")}</option>
+            <option value="retainer">{t("vendors.unit.retainer")}</option>
+            <option value="unit">{t("vendors.unit.unit")}</option>
+          </Select>
+        </Field>
+        <Field label={t("vendors.field.payment_terms")} wide>
+          <Input
+            value={paymentTerms}
+            onChange={(e) => setPaymentTerms(e.target.value)}
+            placeholder={t("vendors.field.payment_terms_ph")}
+          />
+        </Field>
+        <Field label={t("vendors.field.tags")} wide>
+          <Input
+            value={tagsRaw}
+            onChange={(e) => setTagsRaw(e.target.value)}
+            placeholder="preferred, residential"
+          />
+        </Field>
+        <Field label={t("vendors.field.notes")} wide>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+          />
+        </Field>
+      </form>
 
-        {isEdit && (
-          <>
-            <VendorContactsWrapper vendorId={state.vendor.id} />
-            <ComplianceSection vendorId={state.vendor.id} />
-          </>
-        )}
-      </div>
-    </div>
+      {isEdit && (
+        <>
+          <VendorContactsWrapper vendorId={state.vendor.id} />
+          <ComplianceSection vendorId={state.vendor.id} />
+        </>
+      )}
+    </Modal>
   );
 }
 
@@ -534,24 +514,26 @@ function ComplianceSection({ vendorId }: { vendorId: string }) {
   const [editing, setEditing] = useState<ComplianceRow | null>(null);
 
   return (
-    <div className="border-t border-slate-200 bg-slate-50/50 p-6">
+    <div className="border-t border-border bg-bg-subtle p-6">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-base font-semibold tracking-tight">
             {t("vendors.compliance.title")}
           </h3>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-text-muted">
             {t("vendors.compliance.lede")}
           </p>
         </div>
         {!adding && !editing && (
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => setAdding(true)}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-100"
           >
+            <Icon name="plus" className="h-4 w-4" />
             {t("vendors.compliance.add")}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -573,9 +555,9 @@ function ComplianceSection({ vendorId }: { vendorId: string }) {
 
       <div className="mt-4 space-y-2">
         {list.isLoading ? (
-          <p className="text-xs text-slate-500">{t("common.loading")}</p>
+          <p className="text-xs text-text-muted">{t("common.loading")}</p>
         ) : !list.data || list.data.length === 0 ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-text-muted">
             {t("vendors.compliance.empty")}
           </p>
         ) : (
@@ -609,15 +591,15 @@ function ComplianceRowItem({
   const expStatus = computeExpirationStatus(compliance.expiresAt);
 
   return (
-    <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2 text-sm">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-slate-900">
+          <span className="font-medium text-text">
             {DOC_TYPE_LABELS[compliance.docType]}
           </span>
           <ExpirationPill status={expStatus} />
         </div>
-        <div className="mt-0.5 text-xs text-slate-500">
+        <div className="mt-0.5 text-xs text-text-muted">
           {compliance.effectiveFrom && (
             <>{t("vendors.compliance.from", { date: compliance.effectiveFrom })} · </>
           )}
@@ -635,13 +617,13 @@ function ComplianceRowItem({
           )}
         </div>
         {compliance.notes && (
-          <div className="mt-1 text-xs text-slate-600">{compliance.notes}</div>
+          <div className="mt-1 text-xs text-text-muted">{compliance.notes}</div>
         )}
       </div>
       <button
         type="button"
         onClick={onEdit}
-        className="text-xs text-slate-500 hover:text-slate-900"
+        className="text-xs text-text-muted hover:text-text"
       >
         {t("common.edit")}
       </button>
@@ -649,7 +631,7 @@ function ComplianceRowItem({
         type="button"
         onClick={() => setConfirmingRemove(true)}
         disabled={remove.isPending}
-        className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
+        className="text-xs text-danger hover:text-danger disabled:opacity-50"
       >
         {remove.isPending ? "…" : t("common.remove")}
       </button>
@@ -743,87 +725,75 @@ function ComplianceForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-3 rounded-md border border-slate-200 bg-white p-3"
+      className="mt-3 rounded-xl border border-border bg-surface p-3"
     >
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t("vendors.compliance.field.doc_type")}>
-          <select
+          <Select
             value={docType}
             onChange={(e) => setDocType(e.target.value as ComplianceDocType)}
-            className={selectCls}
           >
             {(Object.keys(DOC_TYPE_LABELS) as ComplianceDocType[]).map((k) => (
               <option key={k} value={k}>
                 {DOC_TYPE_LABELS[k]}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <div />
         <Field label={t("vendors.compliance.field.effective_from")}>
-          <input
+          <Input
             type="date"
             value={effectiveFrom}
             onChange={(e) => setEffectiveFrom(e.target.value)}
-            className={inputCls}
           />
         </Field>
         <Field label={t("vendors.compliance.field.expires_at")}>
-          <input
+          <Input
             type="date"
             value={expiresAt}
             onChange={(e) => setExpiresAt(e.target.value)}
-            className={inputCls}
           />
         </Field>
         <Field label={t("vendors.compliance.field.coverage_amount")}>
           <div className="flex gap-2">
-            <input
+            <Input
               value={coverageAmount}
               onChange={(e) => setCoverageAmount(e.target.value)}
-              className={`${inputCls} flex-1`}
+              className="flex-1"
               placeholder="1000000.00"
               inputMode="decimal"
             />
-            <input
+            <Input
               value={coverageCurrency}
               onChange={(e) =>
                 setCoverageCurrency(e.target.value.toUpperCase())
               }
-              className={`${inputCls} w-16 uppercase`}
+              className="w-16 uppercase"
               maxLength={3}
             />
           </div>
         </Field>
         <Field label={t("vendors.field.notes")} wide>
-          <input
+          <Input
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className={inputCls}
             placeholder={t("vendors.compliance.field.notes_ph")}
           />
         </Field>
       </div>
-      {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
       <div className="mt-3 flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-slate-200 px-3 py-1 text-xs hover:bg-slate-50"
-        >
+        <Button type="button" variant="ghost" size="sm" onClick={onClose}>
           {t("common.cancel")}
-        </button>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-        >
+        </Button>
+        <Button type="submit" variant="primary" size="sm" disabled={submitting}>
           {submitting
             ? t("common.saving")
             : mode === "edit"
               ? t("common.save")
               : t("common.add")}
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -844,49 +814,19 @@ function computeExpirationStatus(expiresAt: string | null): ExpirationStatus {
 }
 
 function ExpirationPill({ status }: { status: ExpirationStatus }) {
-  if (status === "none") {
-    return (
-      <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600">
-        no expiry
-      </span>
-    );
-  }
-  const map: Record<Exclude<ExpirationStatus, "none">, [string, string]> = {
-    active: ["bg-emerald-100 text-emerald-800", "active"],
-    expiring_soon: ["bg-amber-100 text-amber-800", "expiring soon"],
-    expired: ["bg-rose-100 text-rose-800", "expired"],
+  const map: Record<
+    ExpirationStatus,
+    ["neutral" | "success" | "warn" | "alert", string]
+  > = {
+    none: ["neutral", "no expiry"],
+    active: ["success", "active"],
+    expiring_soon: ["warn", "expiring soon"],
+    expired: ["alert", "expired"],
   };
-  const [cls, label] = map[status];
+  const [tone, label] = map[status];
   return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${cls}`}
-    >
+    <Pill tone={tone} dot={status !== "none"}>
       {label}
-    </span>
-  );
-}
-
-// ────────────────────── shared form primitives ──────────────────────
-
-const inputCls =
-  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
-
-const selectCls =
-  "block w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
-
-function Field({
-  label,
-  children,
-  wide,
-}: {
-  label: string;
-  children: ReactNode;
-  wide?: boolean;
-}) {
-  return (
-    <label className={`block text-sm ${wide ? "sm:col-span-2" : ""}`}>
-      <span className="text-slate-700">{label}</span>
-      <div className="mt-1">{children}</div>
-    </label>
+    </Pill>
   );
 }

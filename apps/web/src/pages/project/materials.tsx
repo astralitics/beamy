@@ -9,7 +9,16 @@ import {
   type MaterialCategory,
   type MaterialUnit,
 } from "@beamy/shared";
-import { ConfirmDialog } from "../../components/ui";
+import {
+  Button,
+  ConfirmDialog,
+  Icon,
+  Input,
+  PageHeader,
+  Pill,
+  Select,
+} from "../../components/ui";
+import { EmptyState } from "../../components/vertical-mark";
 import { trpc } from "../../lib/trpc";
 import { useLabels, useT } from "../../lib/i18n";
 import { useVertical } from "../../lib/vertical";
@@ -29,6 +38,7 @@ export default function ProjectMaterials() {
   const vertical = useVertical();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<MaterialRow | null>(null);
+  const [removing, setRemoving] = useState<MaterialRow | null>(null);
   const [roomFilter, setRoomFilter] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<MaterialCategory | "">(
     "",
@@ -43,60 +53,71 @@ export default function ProjectMaterials() {
   });
   const rooms = trpc.projects.listRooms.useQuery({ projectId: project.id });
 
+  const utils = trpc.useUtils();
+  const remove = trpc.materials.remove.useMutation({
+    onSuccess: () => {
+      utils.materials.list.invalidate({ projectId: project.id });
+      setRemoving(null);
+    },
+  });
+
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div>
-          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            {t("materials.title")}
-          </h2>
-          <p className="mt-1 text-sm text-ink-500">{t("materials.lede")}</p>
-        </div>
-        {!adding && !editing && (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="inline-flex h-10 items-center gap-1.5 rounded-md bg-ink-900 px-4 text-sm font-medium text-white hover:bg-ink-800"
-          >
-            {t("materials.add")}
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title={t("materials.title")}
+        lede={t("materials.lede")}
+        action={
+          !adding && !editing ? (
+            <Button variant="primary" onClick={() => setAdding(true)}>
+              <Icon name="plus" className="h-4 w-4" />
+              {t("materials.add")}
+            </Button>
+          ) : undefined
+        }
+      />
 
       {!adding && !editing && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          <select
-            value={roomFilter}
-            onChange={(e) => setRoomFilter(e.target.value)}
-            className={selectCls}
-          >
-            <option value="">{t("filter.all_rooms")}</option>
-            {rooms.data?.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={categoryFilter}
-            onChange={(e) =>
-              setCategoryFilter(e.target.value as MaterialCategory | "")
-            }
-            className={selectCls}
-          >
-            <option value="">{t("filter.all_categories")}</option>
-            {MATERIAL_CATEGORIES_BY_VERTICAL[vertical].map((c) => (
-              <option key={c} value={c}>
-                {L.materialCategory(c)}
-              </option>
-            ))}
-          </select>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("materials.search")}
-            className="flex-1 rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
-          />
+        <div className="mt-8 flex flex-wrap items-center gap-2">
+          <div className="w-44">
+            <Select
+              value={roomFilter}
+              onChange={(e) => setRoomFilter(e.target.value)}
+            >
+              <option value="">{t("filter.all_rooms")}</option>
+              {rooms.data?.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="w-44">
+            <Select
+              value={categoryFilter}
+              onChange={(e) =>
+                setCategoryFilter(e.target.value as MaterialCategory | "")
+              }
+            >
+              <option value="">{t("filter.all_categories")}</option>
+              {MATERIAL_CATEGORIES_BY_VERTICAL[vertical].map((c) => (
+                <option key={c} value={c}>
+                  {L.materialCategory(c)}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="relative min-w-[240px] flex-1">
+            <Icon
+              name="search"
+              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-faint"
+            />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("materials.search")}
+              className="pl-10"
+            />
+          </div>
         </div>
       )}
 
@@ -118,35 +139,73 @@ export default function ProjectMaterials() {
         />
       )}
 
-      <div className="mt-4">
-        {list.isLoading ? (
-          <p className="text-xs text-slate-500">{t("common.loading")}</p>
-        ) : list.error ? (
-          <p className="text-xs text-rose-700">{list.error.message}</p>
-        ) : !list.data || list.data.length === 0 ? (
-          <p className="rounded-md border border-paper-200 bg-white p-4 text-xs text-slate-500">
-            {search.trim() || roomFilter || categoryFilter ? (
-              t("materials.empty_filtered")
-            ) : (
-              <>
-                {t("materials.empty_cta_pre")}{" "}
-                <strong>{t("materials.add")}</strong>{" "}
-                {t("materials.empty_cta_post")}
-              </>
-            )}
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-2">
-            {list.data.map((m) => (
-              <MaterialRowItem
-                key={m.id}
-                material={m}
-                onEdit={() => setEditing(m)}
+      {!adding && !editing && (
+        <>
+          {list.isLoading ? (
+            <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center text-text-muted">
+              {t("common.loading")}
+            </div>
+          ) : list.error ? (
+            <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center text-text-muted">
+              {list.error.message}
+            </div>
+          ) : !list.data || list.data.length === 0 ? (
+            <div className="mt-6">
+              <EmptyState
+                title={
+                  search.trim() || roomFilter || categoryFilter
+                    ? t("materials.empty_filtered")
+                    : t("materials.empty_cta_pre")
+                }
+                sub={
+                  search.trim() || roomFilter || categoryFilter
+                    ? undefined
+                    : `${t("materials.add")} ${t("materials.empty_cta_post")}`
+                }
               />
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          ) : (
+            <div className="data-table mt-6">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("col.name")}</th>
+                    <th className="hidden md:table-cell">{t("col.room")}</th>
+                    <th className="hidden md:table-cell">{t("col.category")}</th>
+                    <th className="hidden md:table-cell">{t("materials.field.lot_number")}</th>
+                    <th className="r">{t("materials.field.quantity")}</th>
+                    <th aria-hidden className="w-8" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.data.map((m) => (
+                    <MaterialRowItem
+                      key={m.id}
+                      material={m}
+                      onEdit={() => setEditing(m)}
+                      onRemove={() => setRemoving(m)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {removing && (
+        <ConfirmDialog
+          title={t("materials.remove_title")}
+          message={t("materials.remove_confirm", { name: removing.name })}
+          confirmLabel={t("common.remove")}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          loading={remove.isPending}
+          error={remove.error?.message}
+          onConfirm={() => remove.mutate({ id: removing.id })}
+          onClose={() => setRemoving(null)}
+        />
+      )}
     </div>
   );
 }
@@ -156,18 +215,14 @@ export default function ProjectMaterials() {
 function MaterialRowItem({
   material,
   onEdit,
+  onRemove,
 }: {
   material: MaterialRow;
   onEdit: () => void;
+  onRemove: () => void;
 }) {
   const L = useLabels();
   const t = useT();
-  const utils = trpc.useUtils();
-  const remove = trpc.materials.remove.useMutation({
-    onSuccess: () =>
-      utils.materials.list.invalidate({ projectId: material.projectId }),
-  });
-  const [confirming, setConfirming] = useState(false);
 
   const idLine: string[] = [];
   if (material.manufacturer) idLine.push(material.manufacturer);
@@ -175,40 +230,23 @@ function MaterialRowItem({
   if (material.colorName) idLine.push(material.colorName);
 
   return (
-    <div className="rounded-md border border-paper-200 bg-white p-3">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <span className="font-medium text-blueprint-900">
-              {material.name}
-            </span>
-            <span className="rounded-full bg-paper-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-paper-200">
-              {L.materialCategory(material.category)}
-            </span>
-            {material.room && (
-              <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                · {material.room.name}
-              </span>
-            )}
-          </div>
-          {idLine.length > 0 && (
-            <div className="mt-0.5 text-xs text-slate-600">
-              {idLine.join(" · ")}
-            </div>
-          )}
-          {material.lotNumber && (
-            <div className="mt-1 inline-flex items-center gap-1.5 rounded-sm bg-safety-50 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-safety-800 ring-1 ring-inset ring-safety-200">
-              {t("materials.lot")} · {material.lotNumber}
-            </div>
-          )}
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[10px] uppercase tracking-wider text-slate-400">
-            {material.quantity && material.quantityUnit && (
-              <span>
-                {material.quantity} {L.materialUnit(material.quantityUnit)}
-              </span>
-            )}
+    <tr className="clickable group" onClick={onEdit}>
+      <td>
+        <span className="font-medium text-text group-hover:text-accent">
+          {material.name}
+        </span>
+        {idLine.length > 0 && (
+          <span className="mt-0.5 block truncate text-[12px] text-text-muted">
+            {idLine.join(" · ")}
+          </span>
+        )}
+        {(material.atticStockQuantity && material.quantityUnit) ||
+        material.vendor ||
+        material.coverageNotes ||
+        material.notes ? (
+          <span className="mt-1 block space-y-0.5 text-[12px] text-text-faint">
             {material.atticStockQuantity && material.quantityUnit && (
-              <span>
+              <span className="block">
                 {t("materials.attic_stock")} · {material.atticStockQuantity}{" "}
                 {L.materialUnit(material.quantityUnit)}
                 {material.atticStockLocation && (
@@ -217,54 +255,54 @@ function MaterialRowItem({
               </span>
             )}
             {material.vendor && (
-              <span>
+              <span className="block">
                 {t("col.vendor")} · {material.vendor.name}
               </span>
             )}
-          </div>
-          {material.coverageNotes && (
-            <p className="mt-1.5 text-xs italic text-slate-500">
-              {material.coverageNotes}
-            </p>
-          )}
-          {material.notes && (
-            <p className="mt-1.5 whitespace-pre-wrap text-xs text-slate-600">
-              {material.notes}
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="text-xs text-slate-500 hover:text-slate-900"
-          >
-            {t("common.edit")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirming(true)}
-            disabled={remove.isPending}
-            className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
-          >
-            {remove.isPending ? "…" : t("common.remove")}
-          </button>
-        </div>
-      </div>
-      {confirming && (
-        <ConfirmDialog
-          title={t("materials.remove_title")}
-          message={t("materials.remove_confirm", { name: material.name })}
-          confirmLabel={t("common.remove")}
-          cancelLabel={t("common.cancel")}
-          tone="danger"
-          loading={remove.isPending}
-          error={remove.error?.message}
-          onConfirm={() => remove.mutate({ id: material.id })}
-          onClose={() => setConfirming(false)}
-        />
-      )}
-    </div>
+            {material.coverageNotes && (
+              <span className="block italic">{material.coverageNotes}</span>
+            )}
+            {material.notes && (
+              <span className="block whitespace-pre-wrap">
+                {material.notes}
+              </span>
+            )}
+          </span>
+        ) : null}
+      </td>
+      <td className="hidden text-text-muted md:table-cell">
+        {material.room?.name ?? "—"}
+      </td>
+      <td className="hidden text-text-muted md:table-cell">
+        {L.materialCategory(material.category)}
+      </td>
+      <td className="hidden md:table-cell">
+        {material.lotNumber ? (
+          <Pill tone="warn">
+            {t("materials.lot")} · {material.lotNumber}
+          </Pill>
+        ) : (
+          <span className="text-text-faint">—</span>
+        )}
+      </td>
+      <td className="r whitespace-nowrap text-text-muted tnum">
+        {material.quantity && material.quantityUnit
+          ? `${material.quantity} ${L.materialUnit(material.quantityUnit)}`
+          : "—"}
+      </td>
+      <td className="r">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="text-[12px] text-text-muted transition-colors hover:text-danger"
+        >
+          {t("common.remove")}
+        </button>
+      </td>
+    </tr>
   );
 }
 
@@ -366,7 +404,7 @@ function MaterialForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-4 rounded-md border border-paper-200 bg-white p-4"
+      className="mt-4 rounded-2xl border border-border bg-surface p-4"
     >
       <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
         {mode === "edit"
@@ -507,19 +545,19 @@ function MaterialForm({
           />
         </Field>
       </div>
-      {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
       <div className="mt-3 flex justify-end gap-2">
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
+          className="rounded-xl border border-border px-3 py-1 text-xs hover:bg-bg-subtle"
         >
           {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-xl bg-accent px-3 py-1 text-xs font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
         >
           {submitting
             ? t("common.saving")
@@ -533,10 +571,10 @@ function MaterialForm({
 }
 
 const inputCls =
-  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
+  "block w-full rounded-xl border border-border bg-surface px-3.5 h-10 text-[14px] text-text placeholder:text-text-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 const selectCls =
-  "block w-full rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block w-full rounded-xl border border-border bg-surface px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 function Field({
   label,
@@ -549,7 +587,7 @@ function Field({
 }) {
   return (
     <label className={`block text-sm ${wide ? "sm:col-span-2" : ""}`}>
-      <span className="text-slate-700">{label}</span>
+      <span className="text-text-muted">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );

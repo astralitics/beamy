@@ -8,7 +8,7 @@ import { useT } from "../lib/i18n";
 import { VERTICAL_LABELS, type Vertical } from "@beamy/shared";
 
 const FIELD_CLS =
-  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
+  "block w-full rounded-xl border border-border bg-surface px-3.5 h-10 text-[14px] text-text placeholder:text-text-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 /**
  * RedeemInvitePage — the invite landing (`/invite/:token`, `/redeem?token=…`).
@@ -72,10 +72,10 @@ export default function RedeemInvitePage() {
     if (!session) return <Navigate to="/login" replace />;
     return (
       <Shell email={email} onSignOut={() => void signOut()}>
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+        <h1 className="text-xl font-semibold tracking-tight text-text">
           {t("redeem.no_workspace.title")}
         </h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-text-muted">
           {t("redeem.no_workspace.body")}
         </p>
       </Shell>
@@ -92,10 +92,10 @@ export default function RedeemInvitePage() {
           : t("redeem.reason.not_found");
     return (
       <Shell email={email} onSignOut={session ? () => void signOut() : undefined}>
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+        <h1 className="text-xl font-semibold tracking-tight text-text">
           {t("redeem.unavailable.title")}
         </h1>
-        <p className="mt-2 text-sm text-slate-600">{reason}</p>
+        <p className="mt-2 text-sm text-text-muted">{reason}</p>
       </Shell>
     );
   }
@@ -125,10 +125,10 @@ export default function RedeemInvitePage() {
     if (!valid) {
       return (
         <Shell email={null} onSignOut={undefined}>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+          <h1 className="text-xl font-semibold tracking-tight text-text">
             {heading}
           </h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-text-muted">
             {t("redeem.loading_invitation")}
           </p>
         </Shell>
@@ -179,11 +179,11 @@ export default function RedeemInvitePage() {
 
     return (
       <Shell email={null} onSignOut={undefined}>
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+        <h1 className="text-xl font-semibold tracking-tight text-text">
           {isWorkspace ? t("redeem.create_workspace") : "Create your account"}
         </h1>
-        <p className="mt-2 text-sm text-slate-600">{body}</p>
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-2 text-sm text-text-muted">{body}</p>
+        <p className="mt-3 text-xs text-text-muted">
           Joining as <span className="font-medium">{acceptEmail}</span>
         </p>
 
@@ -191,15 +191,15 @@ export default function RedeemInvitePage() {
           type="button"
           onClick={() => void joinWithGoogle()}
           disabled={busy}
-          className="mt-5 flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2 text-sm font-medium text-text hover:bg-bg-subtle disabled:opacity-50"
         >
           Continue with Google
         </button>
 
-        <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
-          <span className="h-px flex-1 bg-slate-200" />
+        <div className="my-4 flex items-center gap-3 text-xs text-text-faint">
+          <span className="h-px flex-1 bg-border-subtle" />
           or set a password
-          <span className="h-px flex-1 bg-slate-200" />
+          <span className="h-px flex-1 bg-border-subtle" />
         </div>
 
         <form onSubmit={createAndJoin} className="space-y-3">
@@ -207,7 +207,7 @@ export default function RedeemInvitePage() {
             type="email"
             value={acceptEmail}
             readOnly
-            className={`${FIELD_CLS} bg-slate-50 text-slate-500`}
+            className={`${FIELD_CLS} bg-bg-subtle text-text-muted`}
           />
           <input
             type="password"
@@ -220,17 +220,17 @@ export default function RedeemInvitePage() {
             autoComplete="new-password"
             className={FIELD_CLS}
           />
-          {signupErr && <p className="text-sm text-rose-700">{signupErr}</p>}
+          {signupErr && <p className="text-sm text-danger">{signupErr}</p>}
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            className="w-full rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
           >
             {busy ? t("redeem.joining") : "Create account & join"}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-xs text-slate-500">
+        <p className="mt-4 text-center text-xs text-text-muted">
           Already have an account?{" "}
           <button
             type="button"
@@ -239,7 +239,7 @@ export default function RedeemInvitePage() {
                 state: { from: { pathname: location.pathname + location.search } },
               })
             }
-            className="font-medium text-slate-700 hover:text-slate-900"
+            className="font-medium text-text hover:text-text"
           >
             Sign in
           </button>
@@ -259,10 +259,10 @@ export default function RedeemInvitePage() {
       onSignOut={() => void signOut()}
       signOutLabel={t("redeem.use_different_account")}
     >
-      <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+      <h1 className="text-xl font-semibold tracking-tight text-text">
         {heading}
       </h1>
-      <p className="mt-2 text-sm text-slate-600">{body}</p>
+      <p className="mt-2 text-sm text-text-muted">{body}</p>
       {emailMismatch && (
         <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           This invite is for <span className="font-medium">{inviteEmail}</span>,
@@ -283,7 +283,7 @@ export default function RedeemInvitePage() {
           setError(null);
           accept.mutate({ token });
         }}
-        className="mt-5 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+        className="mt-5 w-full rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
       >
         {accept.isPending
           ? isWorkspace
@@ -315,19 +315,19 @@ function Shell({
           M1
         </span>
       </div>
-      <div className="mt-8 rounded-lg border border-slate-200 bg-white p-6">
+      <div className="mt-8 rounded-xl border border-border bg-surface p-6">
         {children}
         {onSignOut && (
-          <div className="mt-6 border-t border-slate-100 pt-4">
+          <div className="mt-6 border-t border-border-subtle pt-4">
             {email && (
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-text-faint">
                 {t("redeem.signed_in_as", { email })}
               </p>
             )}
             <button
               type="button"
               onClick={onSignOut}
-              className="mt-1 text-xs font-medium text-slate-500 hover:text-slate-800"
+              className="mt-1 text-xs font-medium text-text-muted hover:text-text"
             >
               {signOutLabel ?? t("redeem.sign_out")}
             </button>
@@ -346,6 +346,6 @@ function Centered({ children }: { children: React.ReactNode }) {
 
 function Spinner() {
   return (
-    <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+    <div className="h-5 w-5 animate-spin rounded-full border-2 border-border-strong border-t-text-muted" />
   );
 }

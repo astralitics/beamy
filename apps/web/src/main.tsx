@@ -6,6 +6,7 @@ import App from "./app";
 import { trpc, makeTrpcClient } from "./lib/trpc";
 import { LocaleProvider } from "./lib/i18n";
 import { AuthProvider } from "./lib/auth";
+import { ThemeProvider } from "./lib/theme/theme-context";
 import "./index.css";
 
 const rootEl = document.getElementById("root");
@@ -18,16 +19,18 @@ const trpcClient = makeTrpcClient();
 
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
-    <AuthProvider>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
-          <LocaleProvider>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
-          </LocaleProvider>
-        </QueryClientProvider>
-      </trpc.Provider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <trpc.Provider client={trpcClient} queryClient={queryClient}>
+          <QueryClientProvider client={queryClient}>
+            <LocaleProvider>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </LocaleProvider>
+          </QueryClientProvider>
+        </trpc.Provider>
+      </AuthProvider>
+    </ThemeProvider>
   </React.StrictMode>,
 );

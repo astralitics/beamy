@@ -45,22 +45,22 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-4xl p-4 sm:p-6 lg:p-10">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-text">
             {t("settings.title")}
           </h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-text-muted">
             {t("settings.lede", {
               org: me.data?.org.name ?? t("settings.the_workspace"),
             })}
           </p>
           {auth.session?.user?.email && (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-text-muted">
               {t("settings.signed_in_as")}{" "}
               <code>{auth.session.user.email}</code> ·{" "}
               <button
                 type="button"
                 onClick={() => auth.signOut()}
-                className="text-rose-600 hover:text-rose-800"
+                className="text-danger hover:text-danger"
               >
                 {t("settings.sign_out")}
               </button>
@@ -70,7 +70,7 @@ export default function SettingsPage() {
         {canInvite && (
           <button
             onClick={() => setInviting(true)}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast hover:bg-accent-hover"
           >
             {t("settings.invite_member")}
           </button>
@@ -85,7 +85,7 @@ export default function SettingsPage() {
         ) : !invites.data || invites.data.length === 0 ? (
           <RowEmpty>{t("settings.no_pending_invitations")}</RowEmpty>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border-subtle">
             {invites.data.map((inv) => (
               <InvitationItem
                 key={inv.id}
@@ -105,7 +105,7 @@ export default function SettingsPage() {
         ) : !members.data || members.data.length === 0 ? (
           <RowEmpty>{t("settings.no_members")}</RowEmpty>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border-subtle">
             {members.data.map((m) => (
               <MemberItem
                 key={m.id}
@@ -133,10 +133,10 @@ function Section({
 }) {
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted">
         {title}
       </h2>
-      <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="mt-3 overflow-hidden rounded-xl border border-border bg-surface">
         {children}
       </div>
     </section>
@@ -152,7 +152,7 @@ function RowEmpty({
 }) {
   return (
     <p
-      className={`p-4 text-sm ${error ? "text-rose-700" : "text-slate-500"}`}
+      className={`p-4 text-sm ${error ? "text-danger" : "text-text-muted"}`}
     >
       {children}
     </p>
@@ -187,14 +187,14 @@ function MemberItem({ member, isMe }: { member: MemberRow; isMe: boolean }) {
     <div className="flex items-center gap-3 px-4 py-3 text-sm">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate font-medium text-slate-800">{primary}</span>
+          <span className="truncate font-medium text-text">{primary}</span>
           {isMe && (
-            <span className="text-xs font-medium text-slate-500">
+            <span className="text-xs font-medium text-text-muted">
               {t("settings.you")}
             </span>
           )}
         </div>
-        <div className="mt-0.5 truncate text-xs text-slate-500">
+        <div className="mt-0.5 truncate text-xs text-text-muted">
           {showEmailLine && <span>{member.email} · </span>}
           {t("settings.joined", {
             date: new Date(member.joinedAt).toLocaleDateString(),
@@ -233,7 +233,7 @@ function InvitationItem({
     <div className="flex items-center gap-3 px-4 py-3 text-sm">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-slate-900">{invitation.email}</span>
+          <span className="font-medium text-text">{invitation.email}</span>
           {invitation.kind === "workspace" ? (
             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
               {VERTICAL_LABELS[invitation.vertical]}
@@ -243,11 +243,11 @@ function InvitationItem({
           )}
         </div>
         {invitation.kind === "workspace" && invitation.workspaceName && (
-          <div className="mt-0.5 text-xs text-slate-500">
+          <div className="mt-0.5 text-xs text-text-muted">
             {invitation.workspaceName}
           </div>
         )}
-        <div className="mt-0.5 text-xs text-slate-500">
+        <div className="mt-0.5 text-xs text-text-muted">
           {t("settings.expires", {
             date: new Date(invitation.expiresAt).toLocaleDateString(),
           })}
@@ -255,7 +255,7 @@ function InvitationItem({
       </div>
       <button
         onClick={handleCopy}
-        className="rounded-md border border-slate-200 px-3 py-1 text-xs hover:bg-slate-50"
+        className="rounded-xl border border-border px-3 py-1 text-xs hover:bg-bg-subtle"
       >
         {copied ? t("settings.copied_excl") : t("settings.copy_invite_link")}
       </button>
@@ -263,7 +263,7 @@ function InvitationItem({
         <button
           onClick={() => setConfirmingRevoke(true)}
           disabled={revoke.isPending}
-          className="text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
+          className="text-xs text-danger hover:text-danger disabled:opacity-50"
         >
           {revoke.isPending ? "…" : t("settings.revoke")}
         </button>
@@ -358,15 +358,15 @@ function InviteModal({ onClose }: { onClose: () => void }) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+        className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl"
       >
         {created ? (
           <>
-            <h2 className="text-lg font-semibold tracking-tight">
+            <h2 className="text-lg font-semibold tracking-tight text-text">
               {t("settings.invite_ready")}
             </h2>
-            <p className="mt-1 text-sm text-slate-600">
-              <span className="font-medium text-slate-900">{created.email}</span>{" "}
+            <p className="mt-1 text-sm text-text-muted">
+              <span className="font-medium text-text">{created.email}</span>{" "}
               {created.kind === "workspace"
                 ? t("settings.invite.workspace_ready_body", {
                     vertical: VERTICAL_LABELS[created.vertical],
@@ -381,7 +381,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
                 value={`${window.location.origin}/invite/${created.token}`}
               />
             </div>
-            <p className="mt-3 text-xs text-slate-400">
+            <p className="mt-3 text-xs text-text-faint">
               {t("settings.invite_ready_hint_prefix")}{" "}
               <code>{created.email}</code>. {t("settings.invite_ready_hint_suffix")}
             </p>
@@ -389,14 +389,14 @@ function InviteModal({ onClose }: { onClose: () => void }) {
               <button
                 type="button"
                 onClick={resetForm}
-                className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
+                className="rounded-xl border border-border px-4 py-2 text-sm hover:bg-bg-subtle"
               >
                 {t("settings.invite_another")}
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast hover:bg-accent-hover"
               >
                 {t("settings.done")}
               </button>
@@ -404,12 +404,12 @@ function InviteModal({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <form onSubmit={onSubmit}>
-            <h2 className="text-lg font-semibold tracking-tight">
+            <h2 className="text-lg font-semibold tracking-tight text-text">
               {kind === "workspace"
                 ? t("settings.invite.kind_workspace")
                 : t("settings.invite_member")}
             </h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-text-muted">
               {kind === "workspace"
                 ? t("settings.invite.workspace_body", {
                     vertical: VERTICAL_LABELS[vertical],
@@ -418,7 +418,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
             </p>
             <div className="mt-4 space-y-3">
               <Field label={t("settings.invite.kind_label")}>
-                <div className="inline-flex rounded-md border border-slate-200 p-0.5">
+                <div className="inline-flex rounded-xl border border-border p-0.5">
                   <KindTab
                     active={kind === "workspace"}
                     onClick={() => setKind("workspace")}
@@ -481,19 +481,19 @@ function InviteModal({ onClose }: { onClose: () => void }) {
                 </Field>
               )}
             </div>
-            {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
+            {error && <p className="mt-3 text-sm text-danger">{error}</p>}
             <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
+                className="rounded-xl border border-border px-4 py-2 text-sm hover:bg-bg-subtle"
               >
                 {t("common.cancel")}
               </button>
               <button
                 type="submit"
                 disabled={invite.isPending}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
               >
                 {invite.isPending
                   ? t("settings.creating")
@@ -523,10 +523,10 @@ function KindTab({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+      className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
         active
-          ? "bg-slate-900 text-white"
-          : "text-slate-600 hover:text-slate-900"
+          ? "bg-accent text-accent-contrast"
+          : "text-text-muted hover:text-text"
       }`}
     >
       {label}
@@ -540,7 +540,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div>
-      <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
+      <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-text-muted">
         {label}
       </label>
       <div className="flex items-stretch gap-2">
@@ -549,7 +549,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
           readOnly
           value={value}
           onFocus={(e) => e.target.select()}
-          className="min-w-0 flex-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200"
+          className="min-w-0 flex-1 rounded-xl border border-border bg-bg-subtle px-3 py-2 text-xs text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
         />
         <button
           type="button"
@@ -558,10 +558,10 @@ function CopyField({ label, value }: { label: string; value: string }) {
             setCopied(true);
             setTimeout(() => setCopied(false), 1400);
           }}
-          className={`shrink-0 rounded-md border px-3 text-xs font-medium transition-colors ${
+          className={`shrink-0 rounded-xl border px-3 text-xs font-medium transition-colors ${
             copied
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              : "border-border bg-surface text-text hover:bg-bg-subtle"
           }`}
         >
           {copied ? t("settings.copied") : t("settings.copy")}
@@ -572,15 +572,15 @@ function CopyField({ label, value }: { label: string; value: string }) {
 }
 
 const inputCls =
-  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
+  "block w-full rounded-xl border border-border bg-surface px-3.5 h-10 text-[14px] text-text placeholder:text-text-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 const selectCls =
-  "block w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block w-full rounded-xl border border-border bg-surface px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block text-sm">
-      <span className="text-slate-700">{label}</span>
+      <span className="text-text">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );

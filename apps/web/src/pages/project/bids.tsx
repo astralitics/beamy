@@ -10,7 +10,8 @@ import {
 } from "@beamy/shared";
 import { trpc } from "../../lib/trpc";
 import { useFormatters, useLabels, useT, type MessageKey } from "../../lib/i18n";
-import { Button, Icon, Pill } from "../../components/ui";
+import { Button, Icon, Input, PageHeader, Pill, Select } from "../../components/ui";
+import { EmptyState } from "../../components/vertical-mark";
 import { DocumentIntake } from "../../components/document-intake";
 
 const STATUS_TONE: Record<
@@ -145,27 +146,23 @@ export default function ProjectBids() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div>
-          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            {t("bids.title")}
-          </h2>
-          <p className="mt-1 text-sm text-ink-500">
-            {t("bids.lede")}
-          </p>
-        </div>
-        {!creating && !editing && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" onClick={() => setImporting(true)}>
-              {t("intake.quote.button")}
-            </Button>
-            <Button variant="primary" onClick={() => setCreating(true)}>
-              <Icon name="plus" className="h-4 w-4" />
-              {t("bids.new")}
-            </Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title={t("bids.title")}
+        lede={t("bids.lede")}
+        action={
+          !creating && !editing ? (
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => setImporting(true)}>
+                {t("intake.quote.button")}
+              </Button>
+              <Button variant="primary" onClick={() => setCreating(true)}>
+                <Icon name="plus" className="h-4 w-4" />
+                {t("bids.new")}
+              </Button>
+            </div>
+          ) : undefined
+        }
+      />
 
       {importing && (
         <DocumentIntake
@@ -198,45 +195,52 @@ export default function ProjectBids() {
 
       {!creating && !editing && (
         <>
-          <div className="mt-6 flex flex-wrap items-center gap-2">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("bids.search")}
-              className="h-10 min-w-[220px] flex-1 rounded-md border border-ink-200 bg-white px-3.5 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
-            />
-            <select
-              value={tradeFilter}
-              onChange={(e) => setTradeFilter(e.target.value)}
-              className="h-10 rounded-md border border-ink-200 bg-white px-3 text-[14px] text-ink-700 focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10"
-            >
-              <option value="">{t("bids.all_trades")}</option>
-              {projectTrades.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+          <div className="mt-8 flex flex-wrap items-center gap-2">
+            <div className="w-44">
+              <Select
+                value={tradeFilter}
+                onChange={(e) => setTradeFilter(e.target.value)}
+              >
+                <option value="">{t("bids.all_trades")}</option>
+                {projectTrades.map((tr) => (
+                  <option key={tr} value={tr}>
+                    {tr}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="relative min-w-[240px] flex-1">
+              <Icon
+                name="search"
+                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-faint"
+              />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("bids.search")}
+                className="pl-10"
+              />
+            </div>
           </div>
 
           {list.isLoading ? (
-            <p className="mt-6 text-sm text-ink-500">{t("common.loading")}</p>
+            <p className="mt-6 text-sm text-text-muted">{t("common.loading")}</p>
           ) : list.error ? (
-            <p className="mt-6 text-sm text-rose-700">{list.error.message}</p>
+            <p className="mt-6 text-sm text-danger">{list.error.message}</p>
           ) : filtered.length === 0 ? (
-            <div className="mt-6 overflow-hidden rounded-xl border border-ink-200/70 bg-white px-6 py-12 text-center shadow-soft">
-              <p className="font-display text-xl text-ink-900">
-                {hasActiveFilters
-                  ? t("bids.empty_filtered")
-                  : t("bids.empty")}
-              </p>
-              {!hasActiveFilters && (
-                <p className="mt-2 text-[13px] text-ink-500">
-                  {t("bids.empty_hint_prefix")}{" "}
-                  <strong>{t("bids.new")}</strong>{" "}
-                  {t("bids.empty_hint_suffix")}
-                </p>
-              )}
+            <div className="mt-6">
+              <EmptyState
+                title={
+                  hasActiveFilters
+                    ? t("bids.empty_filtered")
+                    : t("bids.empty")
+                }
+                sub={
+                  hasActiveFilters
+                    ? undefined
+                    : `${t("bids.empty_hint_prefix")} ${t("bids.new")} ${t("bids.empty_hint_suffix")}`
+                }
+              />
             </div>
           ) : (
             <div className="mt-6 space-y-8">
@@ -283,9 +287,9 @@ function BidSection({
   return (
     <section>
       <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
           {label}
-          <span className="ml-2 text-ink-400">{bids.length}</span>
+          <span className="ml-2 text-text-faint">{bids.length}</span>
         </h3>
         {subtotals.size > 0 && (
           <span className="flex flex-wrap items-center gap-x-3 text-[11px]">
@@ -295,19 +299,19 @@ function BidSection({
           </span>
         )}
       </div>
-      <div className="overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
-        <table className="w-full text-[14px]">
-          <thead className="border-b border-ink-100 bg-paper-50">
-            <tr className="text-left">
-              <Th align="right" />
+      <div className="data-table">
+        <table>
+          <thead>
+            <tr>
+              <Th className="r" />
               <Th>{t("col.vendor")}</Th>
               <Th>{t("bids.col.trade")}</Th>
               <Th>{t("col.status")}</Th>
-              <Th align="right">{t("bids.col.total")}</Th>
+              <Th className="r">{t("bids.col.total")}</Th>
               <Th>{t("bids.col.payment")}</Th>
               <Th>{t("bids.col.bid_date")}</Th>
               <Th>{t("bids.col.valid_until")}</Th>
-              <Th align="right" />
+              <Th className="r" />
             </tr>
           </thead>
           <tbody>
@@ -367,14 +371,14 @@ function BidTableRow({
   return (
     <>
       <tr
-        className={`group border-b border-ink-100 transition-colors hover:bg-paper-50 ${expanded ? "bg-paper-50" : ""}`}
+        className={`group ${expanded ? "bg-bg-subtle" : ""}`}
       >
-        <Td align="right" className="!py-2">
+        <Td className="r">
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
             aria-label={expanded ? t("bids.collapse") : t("bids.expand")}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-text-faint transition-colors hover:bg-bg-subtle hover:text-text"
           >
             <Icon
               name="chevron-down"
@@ -387,23 +391,23 @@ function BidTableRow({
             to={`/projects/${projectId}/bids/${bid.id}`}
             className="block text-left"
           >
-            <span className="font-medium text-ink-900 hover:text-ink-900">
+            <span className="font-medium text-text group-hover:text-accent">
               {bid.vendor?.name ?? t("bids.vendor_unassigned")}
             </span>
             {bid.bidNumber && (
-              <span className="block font-mono text-[11px] text-ink-500">
+              <span className="block font-mono text-[11px] text-text-muted">
                 #{bid.bidNumber}
               </span>
             )}
           </Link>
         </Td>
-        <Td className="text-ink-600">{bid.trade ?? "—"}</Td>
+        <Td className="text-text-muted">{bid.trade ?? "—"}</Td>
         <Td>
           <Pill tone={STATUS_TONE[bid.status]} dot>
             {L.bidStatus(bid.status)}
           </Pill>
         </Td>
-        <Td align="right" className="tnum text-ink-900 font-medium">
+        <Td className="r tnum text-text font-medium">
           {bid.totalAmount && bid.currency
             ? fmt.currency(bid.totalAmount, bid.currency)
             : "—"}
@@ -420,25 +424,25 @@ function BidTableRow({
               </Pill>
             </Link>
           ) : (
-            <span className="text-ink-400">—</span>
+            <span className="text-text-faint">—</span>
           )}
         </Td>
-        <Td className="tnum text-ink-600">
+        <Td className="tnum text-text-muted">
           {bid.bidDate ? fmt.date(bid.bidDate) : "—"}
         </Td>
-        <Td className="tnum whitespace-nowrap text-ink-600">
+        <Td className="tnum whitespace-nowrap text-text-muted">
           {bid.validUntil ? (
             <div className="flex items-center gap-1.5">
-              <span className={isExpired ? "text-rose-600" : ""}>
+              <span className={isExpired ? "text-danger" : ""}>
                 {fmt.date(bid.validUntil)}
               </span>
               {isExpired && <Pill tone="alert">{t("bids.expired")}</Pill>}
             </div>
           ) : (
-            <span className="text-ink-400">—</span>
+            <span className="text-text-faint">—</span>
           )}
         </Td>
-        <Td align="right">
+        <Td className="r">
           <div className="flex items-center justify-end gap-2">
             {canApprove && (
               <button
@@ -459,14 +463,14 @@ function BidTableRow({
                   complete.mutate({ id: bid.id, patch: { status: "completed" } })
                 }
                 disabled={complete.isPending}
-                className="rounded-md border border-ink-300 bg-white px-2.5 py-1 text-[12px] font-medium text-ink-700 transition-colors hover:bg-ink-50 disabled:opacity-50"
+                className="rounded-xl border border-border bg-surface px-2.5 py-1 text-[12px] font-medium text-text transition-colors hover:bg-bg-subtle disabled:opacity-50"
               >
                 {complete.isPending ? t("bids.completing") : t("bids.complete")}
               </button>
             )}
             <Link
               to={`/projects/${projectId}/bids/${bid.id}`}
-              className="text-[12px] text-ink-500 hover:text-ink-900"
+              className="text-[12px] text-text-muted hover:text-text"
             >
               {t("bids.open")}
             </Link>
@@ -474,7 +478,7 @@ function BidTableRow({
         </Td>
       </tr>
       {expanded && (
-        <tr className="border-b border-ink-100 bg-paper-50/60">
+        <tr className="bg-bg-subtle">
           <td colSpan={9} className="px-5 pb-4 pt-1">
             <BidLineItems
               projectId={projectId}
@@ -510,19 +514,19 @@ function BidLineItems({
   const t = useT();
   if (loading) {
     return (
-      <p className="px-2 py-3 text-xs text-ink-500">{t("bids.loading_lines")}</p>
+      <p className="px-2 py-3 text-xs text-text-muted">{t("bids.loading_lines")}</p>
     );
   }
   if (error) {
-    return <p className="px-2 py-3 text-xs text-rose-700">{error}</p>;
+    return <p className="px-2 py-3 text-xs text-danger">{error}</p>;
   }
   if (lines.length === 0) {
     return (
-      <p className="px-2 py-3 text-xs text-ink-500">
+      <p className="px-2 py-3 text-xs text-text-muted">
         {t("bids.no_itemized_lines")}{" "}
         <Link
           to={`/projects/${projectId}/bids/${bidId}`}
-          className="text-ink-700 underline-offset-2 hover:underline"
+          className="text-text underline-offset-2 hover:underline"
         >
           {t("bids.open_bid")}
         </Link>
@@ -538,48 +542,35 @@ function BidLineItems({
   }, new Map<string, number>());
 
   return (
-    <div className="overflow-hidden rounded-lg border border-ink-200/70 bg-white">
-      <table className="w-full text-[13px]">
-        <thead className="border-b border-ink-100 bg-paper-50">
-          <tr className="text-left">
-            <th className="px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-              {t("bids.col.ref")}
-            </th>
-            <th className="px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-              {t("col.description")}
-            </th>
-            <th className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-              {t("bids.col.qty")}
-            </th>
-            <th className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-              {t("bids.col.unit")}
-            </th>
-            <th className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-              {t("bids.col.total")}
-            </th>
+    <div className="data-table">
+      <table>
+        <thead>
+          <tr>
+            <th>{t("bids.col.ref")}</th>
+            <th>{t("col.description")}</th>
+            <th className="r">{t("bids.col.qty")}</th>
+            <th className="r">{t("bids.col.unit")}</th>
+            <th className="r">{t("bids.col.total")}</th>
           </tr>
         </thead>
         <tbody>
           {lines.map((li) => (
-            <tr
-              key={li.id}
-              className="border-b border-ink-100 last:border-b-0"
-            >
-              <td className="px-4 py-2 font-mono text-[11px] text-ink-500">
+            <tr key={li.id}>
+              <td className="font-mono text-[11px] text-text-muted">
                 {li.ref ?? "—"}
               </td>
-              <td className="px-4 py-2 text-ink-800">{li.description}</td>
-              <td className="px-4 py-2 text-right text-ink-600 tnum">
+              <td className="text-text">{li.description}</td>
+              <td className="r text-text-muted tnum">
                 {li.qty
                   ? `${trimZero(li.qty)}${li.unit ? ` ${li.unit}` : ""}`
                   : "—"}
               </td>
-              <td className="px-4 py-2 text-right text-ink-600 tnum">
+              <td className="r text-text-muted tnum">
                 {li.unitPriceAmount && li.unitPriceCurrency
                   ? fmt.currency(li.unitPriceAmount, li.unitPriceCurrency)
                   : "—"}
               </td>
-              <td className="px-4 py-2 text-right font-medium text-ink-900 tnum">
+              <td className="r font-medium text-text tnum">
                 {li.totalAmount && li.totalCurrency
                   ? fmt.currency(li.totalAmount, li.totalCurrency)
                   : "—"}
@@ -588,14 +579,14 @@ function BidLineItems({
           ))}
         </tbody>
         {total.size > 0 && (
-          <tfoot className="bg-paper-50">
+          <tfoot className="bg-bg-subtle">
             <tr>
-              <td className="px-4 py-2" colSpan={4}>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+              <td colSpan={4}>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
                   {t("bids.sum_of_lines")}
                 </span>
               </td>
-              <td className="px-4 py-2 text-right font-semibold text-ink-900 tnum">
+              <td className="r font-semibold text-text tnum">
                 {Array.from(total.entries())
                   .map(([c, a]) =>
                     fmt.currency(a.toFixed(2), c ?? currencyDefault ?? "USD"),
@@ -617,38 +608,22 @@ function trimZero(n: string): string {
 
 function Th({
   children,
-  align = "left",
+  className = "",
 }: {
   children?: React.ReactNode;
-  align?: "left" | "right";
+  className?: string;
 }) {
-  return (
-    <th
-      className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 ${
-        align === "right" ? "text-right" : "text-left"
-      }`}
-    >
-      {children}
-    </th>
-  );
+  return <th className={className}>{children}</th>;
 }
 
 function Td({
   children,
-  align = "left",
   className = "",
 }: {
   children?: React.ReactNode;
-  align?: "left" | "right";
   className?: string;
 }) {
-  return (
-    <td
-      className={`px-5 py-3 align-top ${align === "right" ? "text-right" : "text-left"} ${className}`}
-    >
-      {children}
-    </td>
-  );
+  return <td className={`align-top ${className}`}>{children}</td>;
 }
 
 function BidSubtotal({
@@ -660,7 +635,7 @@ function BidSubtotal({
 }) {
   const fmt = useFormatters();
   return (
-    <span className="text-slate-700">{fmt.currency(amount, currency)}</span>
+    <span className="text-text-muted">{fmt.currency(amount, currency)}</span>
   );
 }
 
@@ -763,9 +738,9 @@ function BidForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-4 rounded-md border border-paper-200 bg-white p-4"
+      className="mt-4 rounded-2xl border border-border bg-surface p-4"
     >
-      <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
+      <p className="text-[10px] uppercase tracking-[0.15em] text-accent">
         {mode === "edit" ? t("bids.form.edit") : t("bids.form.new")}
       </p>
 
@@ -866,7 +841,7 @@ function BidForm({
         </Field>
 
         <Field label={t("bids.field.iva_treatment")} wide>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+          <label className="inline-flex items-center gap-2 text-sm text-text-muted">
             <input
               type="checkbox"
               checked={ivaIncluded}
@@ -888,7 +863,7 @@ function BidForm({
       </div>
 
       <div className="mt-3">
-        <p className="text-[10px] uppercase tracking-wider text-slate-500">
+        <p className="text-[10px] uppercase tracking-wider text-text-muted">
           {t("bids.flags")}
         </p>
         <div className="mt-1 flex flex-wrap gap-1.5">
@@ -902,7 +877,7 @@ function BidForm({
                 className={`rounded-full px-2.5 py-0.5 text-[10px] uppercase tracking-wide ring-1 ring-inset transition-colors ${
                   on
                     ? "bg-amber-100 text-amber-900 ring-amber-300"
-                    : "bg-paper-50 text-slate-500 ring-paper-200 hover:bg-paper-100"
+                    : "bg-bg-subtle text-text-muted ring-border hover:bg-bg-subtle"
                 }`}
               >
                 {on ? "✓ " : ""}
@@ -913,19 +888,19 @@ function BidForm({
         </div>
       </div>
 
-      {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
       <div className="mt-3 flex justify-end gap-2">
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md border border-paper-200 px-3 py-1 text-xs hover:bg-paper-50"
+          className="rounded-xl border border-border px-3 py-1 text-xs hover:bg-bg-subtle"
         >
           {t("common.cancel")}
         </button>
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-xl bg-accent px-3 py-1 text-xs font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
         >
           {submitting
             ? t("common.saving")
@@ -941,10 +916,10 @@ function BidForm({
 // ───────────────────────────────────── primitives ─────────────
 
 const inputCls =
-  "block w-full rounded-md border border-ink-200 bg-white px-3.5 h-10 text-[14px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
+  "block w-full rounded-xl border border-border bg-surface px-3.5 h-10 text-[14px] text-text placeholder:text-text-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 const selectCls =
-  "block w-full rounded-md border border-paper-200 bg-white px-3 py-1.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400";
+  "block w-full rounded-xl border border-border bg-surface px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 function Field({
   label,
@@ -957,7 +932,7 @@ function Field({
 }) {
   return (
     <label className={`block text-sm ${wide ? "sm:col-span-3" : ""}`}>
-      <span className="text-slate-700">{label}</span>
+      <span className="text-text-muted">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );

@@ -149,7 +149,7 @@ export default function ProjectRoomDetail() {
 
           {r.photoUrl && (
             <section>
-              <div className="overflow-hidden rounded-xl border border-ink-200/70 bg-white">
+              <div className="overflow-hidden rounded-xl border border-ink-200/70 bg-surface">
                 <img
                   src={r.photoUrl}
                   alt={r.name}
@@ -297,7 +297,7 @@ function Fact({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white px-5 py-4">
+    <div className="bg-surface px-5 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
         {label}
       </p>

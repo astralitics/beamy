@@ -87,9 +87,9 @@ export default function ProjectBidDetail() {
 
   if (!bidId) return null;
   if (bid.isLoading)
-    return <p className="text-sm text-ink-500">{t("common.loading")}</p>;
+    return <p className="text-sm text-text-muted">{t("common.loading")}</p>;
   if (bid.error)
-    return <p className="text-sm text-rose-700">{bid.error.message}</p>;
+    return <p className="text-sm text-danger">{bid.error.message}</p>;
   if (!bid.data) return null;
 
   const b = bid.data;
@@ -233,7 +233,7 @@ export default function ProjectBidDetail() {
         </div>
       </header>
 
-      <section className="grid gap-px overflow-hidden rounded-xl border border-ink-200/70 bg-ink-200/70 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
         <Fact label={t("bids.col.bid_date")}>
           {b.bidDate ? fmt.date(b.bidDate) : "—"}
         </Fact>
@@ -309,22 +309,24 @@ export default function ProjectBidDetail() {
           </div>
         )}
 
-        <div className="mt-3 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
-          {lines.isLoading ? (
-            <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
-          ) : lines.error ? (
-            <p className="px-6 py-8 text-sm text-rose-700">
-              {lines.error.message}
-            </p>
-          ) : lineRows.length === 0 && !addingLine ? (
-            <p className="px-6 py-8 text-sm text-ink-500">
-              {t("bids.detail.no_lines")}
-              {!readOnly && t("bids.detail.no_lines_hint")}
-            </p>
-          ) : (
-            <table className="w-full text-[14px]">
-              <thead className="border-b border-ink-100 bg-paper-50">
-                <tr className="text-left">
+        {lines.isLoading ? (
+          <div className="mt-3 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
+            {t("common.loading")}
+          </div>
+        ) : lines.error ? (
+          <div className="mt-3 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-danger">
+            {lines.error.message}
+          </div>
+        ) : lineRows.length === 0 && !addingLine ? (
+          <div className="mt-3 rounded-2xl border border-border bg-surface px-6 py-8 text-sm text-text-muted">
+            {t("bids.detail.no_lines")}
+            {!readOnly && t("bids.detail.no_lines_hint")}
+          </div>
+        ) : (
+          <div className="data-table mt-3">
+            <table>
+              <thead>
+                <tr>
                   <Th>{t("bids.col.ref")}</Th>
                   <Th>{t("col.description")}</Th>
                   <Th>{t("plan.col.rooms")}</Th>
@@ -337,8 +339,8 @@ export default function ProjectBidDetail() {
               <tbody>
                 {lineRows.map((li) =>
                   editingLineId === li.id ? (
-                    <tr key={li.id} className="border-b border-ink-100">
-                      <td colSpan={colCount} className="bg-paper-50/60 p-3">
+                    <tr key={li.id}>
+                      <td colSpan={colCount} className="bg-bg-subtle/60 p-3">
                         <BidLineForm
                           mode="edit"
                           existing={li}
@@ -366,15 +368,15 @@ export default function ProjectBidDetail() {
                 )}
               </tbody>
               {linesTotal.size > 0 && (
-                <tfoot className="bg-paper-50">
+                <tfoot className="bg-bg-subtle/45">
                   <tr>
                     <td
                       colSpan={5}
-                      className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500"
+                      className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted"
                     >
                       {t("bids.sum_of_lines")}
                     </td>
-                    <td className="px-5 py-3 text-right tnum font-semibold text-ink-900">
+                    <td className="px-5 py-3 text-right tnum font-semibold text-text">
                       {Array.from(linesTotal.entries())
                         .map(([c, a]) => fmt.currency(a.toFixed(2), c))
                         .join(" · ")}
@@ -384,8 +386,8 @@ export default function ProjectBidDetail() {
                 </tfoot>
               )}
             </table>
-          )}
-        </div>
+          </div>
+        )}
       </section>
 
       {b.notes && (
@@ -403,7 +405,7 @@ export default function ProjectBidDetail() {
         <button
           type="button"
           onClick={() => setConfirmAction("delete")}
-          className="text-[13px] text-rose-600 hover:text-rose-800"
+          className="text-[13px] text-danger hover:text-danger"
         >
           {t("bids.detail.delete")}
         </button>
@@ -480,16 +482,16 @@ function BidLineDisplayRow({
     },
   });
   return (
-    <tr className="border-b border-ink-100 last:border-b-0">
-      <Td className="font-mono text-[12px] text-ink-500">{li.ref ?? "—"}</Td>
-      <Td className="text-ink-800">{li.description}</Td>
-      <Td className="text-ink-600">
+    <tr>
+      <Td className="font-mono text-[12px] text-text-muted">{li.ref ?? "—"}</Td>
+      <Td className="text-text">{li.description}</Td>
+      <Td className="text-text-muted">
         {li.rooms.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {li.rooms.map((r) => (
               <span
                 key={r.id}
-                className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px] text-ink-600"
+                className="rounded bg-bg-subtle px-1.5 py-0.5 text-[11px] text-text-muted"
               >
                 {r.name}
               </span>
@@ -499,15 +501,15 @@ function BidLineDisplayRow({
           "—"
         )}
       </Td>
-      <Td align="right" className="tnum text-ink-600">
+      <Td align="right" className="tnum text-text-muted">
         {li.qty ? `${trimZero(li.qty)}${li.unit ? ` ${li.unit}` : ""}` : "—"}
       </Td>
-      <Td align="right" className="tnum text-ink-600">
+      <Td align="right" className="tnum text-text-muted">
         {li.unitPriceAmount && li.unitPriceCurrency
           ? fmt.currency(li.unitPriceAmount, li.unitPriceCurrency)
           : "—"}
       </Td>
-      <Td align="right" className="tnum font-medium text-ink-900">
+      <Td align="right" className="tnum font-medium text-text">
         {li.totalAmount && li.totalCurrency
           ? fmt.currency(li.totalAmount, li.totalCurrency)
           : "—"}
@@ -518,7 +520,7 @@ function BidLineDisplayRow({
             <button
               type="button"
               onClick={onEdit}
-              className="text-[12px] text-ink-500 hover:text-ink-900"
+              className="text-[12px] text-text-muted hover:text-text"
             >
               {t("common.edit")}
             </button>
@@ -526,7 +528,7 @@ function BidLineDisplayRow({
               type="button"
               disabled={remove.isPending}
               onClick={() => setConfirming(true)}
-              className="text-[12px] text-rose-600 hover:text-rose-800 disabled:opacity-50"
+              className="text-[12px] text-danger hover:text-danger disabled:opacity-50"
             >
               {t("common.remove")}
             </button>
@@ -667,7 +669,7 @@ function BidLineForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-lg border border-ink-200 bg-white p-4"
+      className="rounded-xl border border-border bg-surface p-4"
     >
       <p className="text-[10px] uppercase tracking-[0.15em] text-safety-700">
         {mode === "edit" ? t("bids.detail.line_edit") : t("bids.detail.line_new")}
@@ -771,7 +773,7 @@ function BidLineForm({
           )}
         </div>
       </div>
-      {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
       <div className="mt-3 flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onClose}>
           {t("common.cancel")}
@@ -789,7 +791,7 @@ function BidLineForm({
 }
 
 const inputCls =
-  "block w-full rounded-md border border-ink-200 bg-white px-3 h-9 text-[13px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10";
+  "block w-full rounded-xl border border-border bg-surface px-3 h-9 text-[13px] text-text placeholder:text-text-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 function Fact({
   label,
@@ -801,12 +803,12 @@ function Fact({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+    <div className="bg-surface px-5 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-faint">
         {label}
       </p>
       <p
-        className={`mt-1 truncate text-[15px] font-medium ${tone === "alert" ? "text-rose-700" : "text-ink-900"}`}
+        className={`mt-1 truncate text-[15px] font-medium ${tone === "alert" ? "text-danger" : "text-text"}`}
       >
         {children}
       </p>
@@ -821,15 +823,7 @@ function Th({
   children?: React.ReactNode;
   align?: "left" | "right";
 }) {
-  return (
-    <th
-      className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 ${
-        align === "right" ? "text-right" : "text-left"
-      }`}
-    >
-      {children}
-    </th>
-  );
+  return <th className={align === "right" ? "r" : ""}>{children}</th>;
 }
 
 function Td({
@@ -842,9 +836,7 @@ function Td({
   className?: string;
 }) {
   return (
-    <td
-      className={`px-5 py-3 align-top ${align === "right" ? "text-right" : "text-left"} ${className}`}
-    >
+    <td className={`align-top ${align === "right" ? "r" : ""} ${className}`}>
       {children}
     </td>
   );

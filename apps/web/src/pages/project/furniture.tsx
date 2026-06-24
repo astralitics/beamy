@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@beamy/trpc";
 import {
@@ -12,6 +12,7 @@ import {
 import { trpc } from "../../lib/trpc";
 import { useFormatters, useLabels, useT } from "../../lib/i18n";
 import { useVertical } from "../../lib/vertical";
+import { EmptyState } from "../../components/vertical-mark";
 import {
   Button,
   Field,
@@ -19,6 +20,7 @@ import {
   Input,
   Modal,
   MoneyInput,
+  PageHeader,
   Pill,
   Select,
   Textarea,
@@ -66,21 +68,23 @@ export default function ProjectFurniture() {
   const fmt = useFormatters();
   const L = useLabels();
   const t = useT();
+  const navigate = useNavigate();
 
   return (
     <div className="animate-fade">
-      <div className="flex items-end justify-between gap-6">
-        <div>
-          <h2 className="font-display text-2xl font-normal tracking-tight text-ink-900">
-            {t("furniture.title")}
-          </h2>
-          <p className="mt-1 text-sm text-ink-500">{t("furniture.lede")}</p>
-        </div>
-        <Button variant="primary" onClick={() => setModal({ mode: "create" })}>
-          <Icon name="plus" className="h-4 w-4" />
-          {t("furniture.add")}
-        </Button>
-      </div>
+      <PageHeader
+        title={t("furniture.title")}
+        lede={t("furniture.lede")}
+        action={
+          <Button
+            variant="primary"
+            onClick={() => setModal({ mode: "create" })}
+          >
+            <Icon name="plus" className="h-4 w-4" />
+            {t("furniture.add")}
+          </Button>
+        }
+      />
 
       <div className="mt-8 flex flex-wrap items-center gap-2">
         <div className="w-44">
@@ -128,10 +132,10 @@ export default function ProjectFurniture() {
             ))}
           </Select>
         </div>
-        <div className="relative min-w-[220px] flex-1">
+        <div className="relative min-w-[240px] flex-1">
           <Icon
             name="search"
-            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-faint"
           />
           <Input
             value={search}
@@ -142,105 +146,111 @@ export default function ProjectFurniture() {
         </div>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-ink-200/70 bg-white shadow-soft">
-        {list.isLoading ? (
-          <p className="px-6 py-8 text-sm text-ink-500">{t("common.loading")}</p>
-        ) : list.error ? (
-          <p className="px-6 py-8 text-sm text-rose-700">{list.error.message}</p>
-        ) : !list.data || list.data.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <p className="font-display text-xl text-ink-900">
-              {search.trim() || roomFilter || categoryFilter || statusFilter
+      {list.isLoading ? (
+        <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center text-text-muted">
+          {t("common.loading")}
+        </div>
+      ) : list.error ? (
+        <div className="mt-6 rounded-2xl border border-border bg-surface px-6 py-12 text-center text-danger">
+          {list.error.message}
+        </div>
+      ) : !list.data || list.data.length === 0 ? (
+        <div className="mt-6">
+          <EmptyState
+            title={
+              search.trim() || roomFilter || categoryFilter || statusFilter
                 ? t("furniture.empty_filtered")
-                : t("furniture.empty")}
-            </p>
-            {!search.trim() &&
+                : t("furniture.empty")
+            }
+            action={
+              !search.trim() &&
               !roomFilter &&
               !categoryFilter &&
-              !statusFilter && (
+              !statusFilter ? (
                 <Button
                   variant="primary"
                   onClick={() => setModal({ mode: "create" })}
-                  className="mt-5"
                 >
                   <Icon name="plus" className="h-4 w-4" />
                   {t("furniture.add_first")}
                 </Button>
-              )}
-          </div>
-        ) : (
-          <table className="w-full text-[14px]">
-            <thead className="border-b border-ink-100 bg-paper-50">
-              <tr className="text-left">
-                <Th>{t("col.piece")}</Th>
-                <Th>{t("col.category")}</Th>
-                <Th>{t("col.room")}</Th>
-                <Th align="right">{t("col.qty")}</Th>
-                <Th>{t("col.status")}</Th>
-                <Th>{t("col.delivery")}</Th>
-                <Th align="right">{t("col.price")}</Th>
-                <Th />
+              ) : undefined
+            }
+          />
+        </div>
+      ) : (
+        <div className="data-table mt-6">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("col.piece")}</th>
+                <th>{t("col.category")}</th>
+                <th>{t("col.room")}</th>
+                <th className="r">{t("col.qty")}</th>
+                <th>{t("col.status")}</th>
+                <th className="r">{t("col.delivery")}</th>
+                <th className="r">{t("col.price")}</th>
+                <th aria-hidden className="r w-8" />
               </tr>
             </thead>
             <tbody>
               {list.data.map((p) => (
                 <tr
                   key={p.id}
-                  className="group border-b border-ink-100 transition-colors last:border-b-0 hover:bg-paper-50"
+                  className="clickable group"
+                  onClick={() =>
+                    navigate(`/projects/${project.id}/furniture/${p.id}`)
+                  }
                 >
-                  <Td>
+                  <td>
                     <Link
                       to={`/projects/${project.id}/furniture/${p.id}`}
+                      onClick={(e) => e.stopPropagation()}
                       className="block"
                     >
-                      <span className="font-medium text-ink-900">{p.name}</span>
+                      <span className="font-medium text-text group-hover:text-accent">{p.name}</span>
                       {(p.manufacturer || p.designer) && (
-                        <span className="block text-xs text-ink-500">
+                        <span className="block text-text-muted">
                           {[p.designer, p.manufacturer]
                             .filter(Boolean)
                             .join(" · ")}
                         </span>
                       )}
                     </Link>
-                  </Td>
-                  <Td className="text-ink-600">
+                  </td>
+                  <td className="text-text-muted">
                     {L.furnitureCategory(p.category)}
-                  </Td>
-                  <Td className="text-ink-600">{p.room?.name ?? "—"}</Td>
-                  <Td align="right" className="tnum text-ink-700">
-                    {p.quantity}
-                  </Td>
-                  <Td>
+                  </td>
+                  <td className="text-text-muted">{p.room?.name ?? "—"}</td>
+                  <td className="r text-text">{p.quantity}</td>
+                  <td>
                     <Pill tone={STATUS_TONE[p.status]} dot>
                       {L.furnitureStatus(p.status)}
                     </Pill>
-                  </Td>
-                  <Td className="tnum text-ink-600">
+                  </td>
+                  <td className="r whitespace-nowrap text-text-muted">
                     {p.deliveryDate ? fmt.date(p.deliveryDate) : "—"}
-                  </Td>
-                  <Td align="right" className="tnum text-ink-700">
+                  </td>
+                  <td className="r text-text">
                     {p.purchasePriceAmount && p.purchasePriceCurrency
                       ? fmt.currency(
                           p.purchasePriceAmount,
                           p.purchasePriceCurrency,
                         )
                       : "—"}
-                  </Td>
-                  <Td align="right">
-                    <Link
-                      to={`/projects/${project.id}/furniture/${p.id}`}
-                      aria-label={t("furniture.open_piece")}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700"
-                    >
-                      <Icon name="chevron-right" className="h-4 w-4" />
-                    </Link>
-                  </Td>
+                  </td>
+                  <td className="r">
+                    <Icon
+                      name="chevron-right"
+                      className="ml-auto h-4 w-4 text-text-faint transition-colors group-hover:text-accent"
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
 
       {modal.mode !== "closed" && (
         <FurnitureFormModal
@@ -252,44 +262,6 @@ export default function ProjectFurniture() {
         />
       )}
     </div>
-  );
-}
-
-// ────────────────────── table helpers ──────────────────────
-
-function Th({
-  children,
-  align = "left",
-}: {
-  children?: React.ReactNode;
-  align?: "left" | "right";
-}) {
-  return (
-    <th
-      className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500 ${
-        align === "right" ? "text-right" : "text-left"
-      }`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({
-  children,
-  align = "left",
-  className = "",
-}: {
-  children?: React.ReactNode;
-  align?: "left" | "right";
-  className?: string;
-}) {
-  return (
-    <td
-      className={`px-5 py-3 ${align === "right" ? "text-right" : "text-left"} ${className}`}
-    >
-      {children}
-    </td>
   );
 }
 
@@ -416,7 +388,7 @@ function FurnitureFormModal({
       size="lg"
       footer={
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-rose-600">{error}</p>
+          <p className="text-xs text-danger">{error}</p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
               {t("common.cancel")}

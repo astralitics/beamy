@@ -76,9 +76,9 @@ export default function ProjectChangeOrderDetail() {
 
   if (!changeOrderId) return null;
   if (coQ.isLoading) {
-    return <p className="text-xs text-slate-500">{t("common.loading")}</p>;
+    return <p className="text-xs text-text-muted">{t("common.loading")}</p>;
   }
-  if (coQ.error) return <p className="text-xs text-rose-700">{coQ.error.message}</p>;
+  if (coQ.error) return <p className="text-xs text-danger">{coQ.error.message}</p>;
   const co = coQ.data;
   if (!co) return null;
 
@@ -98,8 +98,8 @@ export default function ProjectChangeOrderDetail() {
         {t("co.back")}
       </Link>
 
-      <div className="mt-3 overflow-hidden rounded-lg border border-paper-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between gap-4 border-b border-paper-200 px-5 py-3">
+      <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+        <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-3">
           <p className="text-[10px] uppercase tracking-[0.15em] text-slate-400">
             <span className="text-slate-700">{co.number}</span>
             <span className="mx-2 text-slate-300">|</span>
@@ -124,10 +124,10 @@ export default function ProjectChangeOrderDetail() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 divide-y divide-paper-200 border-t border-paper-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div className="grid grid-cols-1 divide-y divide-border border-t border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <Fact label={t("co.fact_net_delta")}>
             <span
-              className={`${negative ? "text-rose-700" : "text-emerald-700"}`}
+              className={`${negative ? "text-danger" : "text-success"}`}
             >
               {negative ? "" : "+"}
               {fmt.currency(co.totalDeltaAmount, co.totalDeltaCurrency)}
@@ -158,7 +158,7 @@ export default function ProjectChangeOrderDetail() {
             type="button"
             onClick={() => transition.mutate({ id: co.id, to: "sent" })}
             disabled={transition.isPending}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-xl bg-accent px-3 py-1.5 text-xs font-semibold text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
           >
             {t("co.mark_sent")}
           </button>
@@ -169,7 +169,7 @@ export default function ProjectChangeOrderDetail() {
               value={decidedBy}
               onChange={(e) => setDecidedBy(e.target.value)}
               placeholder={t("co.decided_by_ph")}
-              className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs"
+              className="rounded-xl border border-border bg-surface px-3 py-1.5 text-xs focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
             />
             <button
               type="button"
@@ -195,7 +195,7 @@ export default function ProjectChangeOrderDetail() {
                 })
               }
               disabled={transition.isPending}
-              className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-paper-50 disabled:opacity-50"
+              className="rounded-xl border border-border bg-surface px-3 py-1.5 text-xs font-medium text-danger hover:bg-bg-subtle disabled:opacity-50"
             >
               {t("co.reject")}
             </button>
@@ -206,7 +206,7 @@ export default function ProjectChangeOrderDetail() {
             type="button"
             onClick={() => setConfirmingVoid(true)}
             disabled={transition.isPending}
-            className="rounded-md border border-paper-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-paper-50 disabled:opacity-50"
+            className="rounded-xl border border-border bg-surface px-3 py-1.5 text-xs text-text-muted hover:bg-bg-subtle disabled:opacity-50"
           >
             {t("co.void")}
           </button>
@@ -229,7 +229,7 @@ export default function ProjectChangeOrderDetail() {
             type="button"
             onClick={() => setConfirmingDelete(true)}
             disabled={remove.isPending}
-            className="ml-auto text-xs text-rose-600 hover:text-rose-800 disabled:opacity-50"
+            className="ml-auto text-xs text-danger hover:text-danger disabled:opacity-50"
           >
             {remove.isPending ? "…" : t("co.delete")}
           </button>
@@ -256,58 +256,58 @@ export default function ProjectChangeOrderDetail() {
       )}
 
       {/* Lines table ─────────────────── */}
-      <div className="mt-5 overflow-hidden rounded-md border border-paper-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-paper-50 text-left">
-            <tr className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-              <th className="px-3 py-2">{t("co.col.kind")}</th>
-              <th className="px-3 py-2">{t("col.description")}</th>
-              <th className="px-3 py-2 text-right">{t("col.qty")}</th>
-              <th className="px-3 py-2 text-right">{t("co.col.unit")}</th>
-              <th className="px-3 py-2 text-right">{t("co.col.delta")}</th>
+      <div className="data-table mt-5">
+        <table>
+          <thead>
+            <tr>
+              <th>{t("co.col.kind")}</th>
+              <th>{t("col.description")}</th>
+              <th className="r">{t("col.qty")}</th>
+              <th className="r">{t("co.col.unit")}</th>
+              <th className="r">{t("co.col.delta")}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-paper-200">
+          <tbody>
             {co.lines.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-xs text-slate-500">
+                <td colSpan={5} className="text-xs text-text-muted">
                   {t("co.no_lines")}
                 </td>
               </tr>
             ) : (
               co.lines.map((line) => (
                 <tr key={line.id} className="align-top">
-                  <td className="whitespace-nowrap px-3 py-2">
+                  <td className="whitespace-nowrap">
                     <span
                       className={`inline-flex items-center rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-inset ${KIND_PILL_CLS[line.kind]}`}
                     >
                       {L.changeOrderKind(line.kind)}
                     </span>
                   </td>
-                  <td className="px-3 py-2">
+                  <td>
                     {line.description ? (
-                      <span className="text-blueprint-900">
+                      <span className="text-text">
                         {line.description}
                       </span>
                     ) : (
-                      <span className="text-slate-400">
+                      <span className="text-text-faint">
                         {line.kind === "remove"
                           ? t("co.line_removes_work_item")
                           : t("co.line_unchanged")}
                       </span>
                     )}
                     {line.notes && (
-                      <div className="mt-1 text-xs text-slate-500">
+                      <div className="mt-1 text-xs text-text-muted">
                         {line.notes}
                       </div>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px]">
+                  <td className="r whitespace-nowrap font-mono text-[12px]">
                     {line.qty
                       ? `${trimQty(line.qty)}${line.unit ? ` ${line.unit}` : ""}`
                       : "—"}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-[12px]">
+                  <td className="r whitespace-nowrap font-mono text-[12px]">
                     {line.unitPriceAmount && line.unitPriceCurrency
                       ? fmt.currency(
                           line.unitPriceAmount,
@@ -316,7 +316,7 @@ export default function ProjectChangeOrderDetail() {
                       : "—"}
                   </td>
                   <td
-                    className={`whitespace-nowrap px-3 py-2 text-right font-mono text-[12px] font-medium ${parseFloat(line.totalDeltaAmount) < 0 ? "text-rose-700" : "text-emerald-700"}`}
+                    className={`r whitespace-nowrap font-mono text-[12px] font-medium ${parseFloat(line.totalDeltaAmount) < 0 ? "text-danger" : "text-success"}`}
                   >
                     {parseFloat(line.totalDeltaAmount) < 0 ? "" : "+"}
                     {fmt.currency(
@@ -332,11 +332,11 @@ export default function ProjectChangeOrderDetail() {
       </div>
 
       {co.notes && (
-        <div className="mt-5 rounded-md border border-paper-200 bg-paper-50 p-3">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500">
+        <div className="mt-5 rounded-xl border border-border bg-bg-subtle p-3">
+          <p className="text-[10px] uppercase tracking-wider text-text-muted">
             {t("co.internal_notes")}
           </p>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
+          <p className="mt-1 whitespace-pre-wrap text-sm text-text">
             {co.notes}
           </p>
         </div>
@@ -354,10 +354,10 @@ function Fact({
 }) {
   return (
     <div className="px-5 py-3">
-      <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-slate-400">
+      <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-text-faint">
         {label}
       </p>
-      <p className="mt-1 truncate text-sm font-medium text-blueprint-900">
+      <p className="mt-1 truncate text-sm font-medium text-text">
         {children}
       </p>
     </div>
